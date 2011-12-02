@@ -1,0 +1,14 @@
+# OASIS_START
+# DO NOT EDIT (digest: 31398d60957c45694609427292f44d41)
+# Library fieldslib
+"lib": include
+"lib/field.cmx": for-pack(Fieldslib)
+"lib/Field.cmx": for-pack(Fieldslib)
+# Library pa_fields_conv
+"syntax": include
+<syntax/*.ml{,i}>: pkg_type-conv
+<syntax/*.ml{,i}>: pkg_camlp4.quotations
+<syntax/*.ml{,i}>: pkg_camlp4.lib
+# OASIS_STOP
+<syntax/pa_fields_conv.ml>: syntax_camlp4o
+<lib/field.cmx>:for-pack(Fieldslib)

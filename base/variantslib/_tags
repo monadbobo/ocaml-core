@@ -1,0 +1,13 @@
+# OASIS_START
+# DO NOT EDIT (digest: 5cee702173a2f719f6893e3753865e05)
+# Library pa_variants_conv
+"syntax": include
+<syntax/*.ml{,i}>: pkg_type-conv
+<syntax/*.ml{,i}>: pkg_camlp4.quotations
+<syntax/*.ml{,i}>: pkg_camlp4.lib
+# Library variantslib
+"lib": include
+"lib/variant.cmx": for-pack(Variantslib)
+"lib/Variant.cmx": for-pack(Variantslib)
+# OASIS_STOP
+<syntax/*.ml{,i}>: syntax_camlp4o
