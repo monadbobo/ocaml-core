@@ -76,13 +76,14 @@ let to_epoch t = T.to_float t
 
 module Epoch_cache = struct
   type t = {
+    zone      : Zone.t;
     day_start : float;
     day_end   : float;
     date      : Date.t
   }
 end
 
-let of_epoch_internal time (* shifted epoch for the time zone for conversion *) =
+let of_epoch_internal zone time (* shifted epoch for the time zone for conversion *) =
   let parts  = Float.modf time in
   let sec    = Float.Parts.integral parts in
   let subsec = Float.Parts.fractional parts in
@@ -103,6 +104,7 @@ let of_epoch_internal time (* shifted epoch for the time zone for conversion *) 
   let day_start = time -. ofday_span in
   let day_end   = day_start +. (24. *. 60. *. 60.) in
   let cache     = {Epoch_cache.
+      zone      = zone;
       day_start = day_start;
       day_end   = day_end;
       date      = date
@@ -113,20 +115,21 @@ let of_epoch_internal time (* shifted epoch for the time zone for conversion *) 
 (* A thin caching layer over the actual of_epoch (of_epoch_internal just above) used only
    to gain some speed when we translate the same time/date over and over again *)
 let of_epoch =
-  let cache = ref (fst (of_epoch_internal (to_epoch (T.now ())))) in
-  (fun time ->
-    let {Epoch_cache.day_start = s; day_end = e; date = date} = !cache in
-    if time >= s && time < e then
-      (date, Ofday.of_span_since_start_of_day (Span.of_sec (time -. s)))
+  let cache = ref (fst (of_epoch_internal Zone.utc (to_epoch (T.now ())))) in
+  (fun zone unshifted ->
+    let time   = Zone.shift_epoch_time zone `UTC unshifted in
+    let {Epoch_cache.zone = z; day_start = s; day_end = e; date = date} = !cache in
+    if zone = z && time >= s && time < e then (
+      (date, Ofday.of_span_since_start_of_day (Span.of_sec (time -. s))))
     else begin
-      let (new_cache,r) = of_epoch_internal time in
+      let (new_cache,r) = of_epoch_internal zone time in
       cache := new_cache;
       r
     end)
 
 let to_date_ofday time zone =
   try
-    of_epoch (Zone.shift_epoch_time zone `UTC (to_epoch time))
+    of_epoch zone (to_epoch time)
   with
   | Unix.Unix_error(_, "gmtime", _) -> raise (Invalid_argument "Time.to_date_ofday")
 
@@ -152,7 +155,7 @@ let to_local_ofday t               = snd (to_local_date_ofday t)
 
 let convert ~from_tz ~to_tz date ofday =
   let start_time = T.to_float (of_date_ofday from_tz date ofday) in
-  of_epoch (Zone.shift_epoch_time to_tz `UTC start_time)
+  of_epoch to_tz start_time
 
 let utc_offset ?(zone=Zone.machine_zone ()) t =
   let epoch     = to_epoch t in

@@ -8,12 +8,12 @@ let resurrect = ref []
 let rec finished x =
   eprintf "finished\n%!";
   resurrect := x :: !resurrect;
-  Scheduler.finalize finished x;
+  Gc.finalize finished x;
 ;;
 
 let () =
   let s = String.create 10 in
-  Scheduler.finalize finished s;
+  Gc.finalize finished s;
 ;;
 
 let compact () =

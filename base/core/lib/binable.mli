@@ -12,4 +12,9 @@ module type S2 = S2
 module Of_stringable (M : Stringable.S) : S with type t := M.t
 
 val of_bigstring : (module S with type t = 'a) -> bigstring -> 'a
-val to_bigstring : (module S with type t = 'a) -> 'a -> bigstring
+
+val to_bigstring
+  :  ?prefix_with_length:bool (* default false *)
+  -> (module S with type t = 'a)
+  -> 'a
+  -> bigstring

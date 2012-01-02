@@ -13,6 +13,7 @@ module Cache = Cache
 module Cbuffer = Cbuffer
 module Command = Command
 module Console = Console
+module Core_command = Core_command
 module Csv_writer = Csv_writer
 module Date = struct
   include Core.Std.Date
@@ -51,6 +52,7 @@ module Hashtbl = struct
   include Core.Std.Hashtbl
   include Extended_hashtbl
 end
+module Hmap = Hmap
 module Int = struct
   include Core.Std.Int
   include Extended_int
@@ -74,13 +76,14 @@ module Nativeint = struct
 end
 module Number = Number
 module Thread = struct
-  include Thread
+  include Core.Std.Thread
   include Extended_thread
 end
 module Timed_function = Timed_function
 module Iter = Iter
 module Lazy_list = Lazy_list
 module Lazy_m = Lazy_m
+module Linebuf = Linebuf
 #if !defined(JSC_NO_LINUX_EXT)
 module Linux_ext = struct
   include Core.Std.Linux_ext

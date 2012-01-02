@@ -188,6 +188,20 @@ val in_channel_realpath : in_channel -> string
 val sched_setaffinity : ?pid : Pid.t -> cpuset : int list -> unit -> unit
 
 
+val sched_setaffinity_this_thread : cpuset : int list -> unit
+
 (** [cores ()] @return the number of cores on the machine *)
 val cores : unit -> int
 ENDIF
+
+(** [get_terminal_size ()] @return [(rows, cols)], the number of rows and
+    columns of the terminal. *)
+val get_terminal_size : unit -> int * int
+
+(* Get the thread ID of the current thread (see gettid(2)). *)
+val gettid : unit -> int
+
+(* [get_ipv4_address_for_interface "eth0"] returns the IP address
+   assigned to eth0, or throws an exception if no IP address
+   is configured. *)
+val get_ipv4_address_for_interface : string -> string ;;

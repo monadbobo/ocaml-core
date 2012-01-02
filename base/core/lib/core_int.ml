@@ -14,7 +14,7 @@ module T = struct
   let equal (x : t) y = x = y
   let hash (x : t) = Hashtbl.hash x
 
-  let of_string s = 
+  let of_string s =
     try
       int_of_string s
     with
@@ -118,3 +118,6 @@ let bit_not a = lnot a
 let bit_or a b = a lor b
 let bit_and a b = a land b
 let bit_xor a b = a lxor b
+let (<<) a b = shift_left a b
+let (>>) a b = shift_right a b
+let (~>>) a b = shift_right_logical a b

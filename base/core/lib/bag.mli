@@ -36,8 +36,8 @@ val add : 'a t -> 'a -> 'a Elt.t
 *)
 val remove : 'a t -> 'a Elt.t -> unit
 
-(** [some_elt t] returns some element in the bag. *)
-val some_elt : 'a t -> 'a Elt.t option
+(** [choose t] returns some element in the bag. *)
+val choose : 'a t -> 'a Elt.t option
 
 (** [remove_one t] removes some element from the bag, and returns its value.
     [remove_one] runs in constant time.

@@ -1,3 +1,5 @@
+open Sexplib.Std
+
 module Int = Core_int
 module List = Core_list
 module Hashtbl = Core_hashtbl
@@ -24,7 +26,13 @@ let to_system_int t = ml_caml_to_nonportable_signal_number t
 let of_caml_int t = t
 let to_caml_int t = t
 
-type sys_behavior = Continue | Dump_core | Ignore | Stop | Terminate with sexp
+type sys_behavior = [
+| `Continue (** Continue the process if it is currently stopped*)
+| `Dump_core (** Terminate the process and dump core *)
+| `Ignore (** Ignore the signal*)
+| `Stop  (** Stop the process *)
+| `Terminate  (** Terminate the process *)
+] with sexp
 
 let equal (t : t) t' = (t = t')
 
@@ -58,28 +66,28 @@ end
 let to_string, default_sys_behavior =
   let known =
     [
-      ("abrt", abrt, Dump_core);
-      ("alrm", alrm, Terminate);
-      ("chld", chld, Ignore);
-      ("cont", cont, Continue);
-      ("fpe", fpe, Dump_core);
-      ("hup", hup, Terminate);
-      ("ill", ill, Dump_core);
-      ("int", int, Terminate);
-      ("kill", kill, Terminate);
-      ("pipe", pipe, Terminate);
-      ("prof", prof, Terminate);
-      ("quit", quit, Dump_core);
-      ("segv", segv, Dump_core);
-      ("stop", stop, Stop);
-      ("term", term, Terminate);
-      ("tstp", tstp, Stop);
-      ("ttin", ttin, Stop);
-      ("ttou", ttou, Stop);
-      ("usr1", usr1, Terminate);
-      ("usr2", usr2, Terminate);
-      ("vtalrm", vtalrm, Terminate);
-      ("<zero>", zero, Ignore);
+      ("abrt", abrt, `Dump_core);
+      ("alrm", alrm, `Terminate);
+      ("chld", chld, `Ignore);
+      ("cont", cont, `Continue);
+      ("fpe", fpe, `Dump_core);
+      ("hup", hup, `Terminate);
+      ("ill", ill, `Dump_core);
+      ("int", int, `Terminate);
+      ("kill", kill, `Terminate);
+      ("pipe", pipe, `Terminate);
+      ("prof", prof, `Terminate);
+      ("quit", quit, `Dump_core);
+      ("segv", segv, `Dump_core);
+      ("stop", stop, `Stop);
+      ("term", term, `Terminate);
+      ("tstp", tstp, `Stop);
+      ("ttin", ttin, `Stop);
+      ("ttou", ttou, `Stop);
+      ("usr1", usr1, `Terminate);
+      ("usr2", usr2, `Terminate);
+      ("vtalrm", vtalrm, `Terminate);
+      ("<zero>", zero, `Ignore);
     ]
   in
   let str_tbl = Int.Table.create ~size:1 () in
@@ -92,16 +100,56 @@ let to_string, default_sys_behavior =
      because we don't know what the right answer is. *)
   let to_string s =
     match Hashtbl.find str_tbl s with
-    | None -> "<unknown signal>"
+    | None -> "<unknown signal " ^ Int.to_string s ^ ">"
     | Some string -> string
   in
   let default_sys_behavior s =
     match Hashtbl.find behavior_tbl s with
     | None ->
-        raise (Invalid_argument "Signal.default_sys_behavior: unknown signal")
+        raise (Invalid_argument ("Signal.default_sys_behavior: unknown signal " ^
+  Int.to_string s))
     | Some behavior -> behavior
   in
   to_string, default_sys_behavior
+;;
+
+exception Invalid_signal_mnemonic_or_number of string with sexp
+exception Expected_atom of Sexplib.Sexp.t with sexp
+
+let of_string = function
+  | "abrt" -> abrt
+  | "alrm" -> alrm
+  | "chld" -> chld
+  | "cont" -> cont
+  | "fpe" -> fpe
+  | "hup" -> hup
+  | "ill" -> ill
+  | "int" -> int
+  | "kill" -> kill
+  | "pipe" -> pipe
+  | "prof" -> prof
+  | "quit" -> quit
+  | "segv" -> segv
+  | "stop" -> stop
+  | "term" -> term
+  | "tstp" -> tstp
+  | "ttin" -> ttin
+  | "ttou" -> ttou
+  | "usr1" -> usr1
+  | "usr2" -> usr2
+  | "vtalrm" -> vtalrm
+  | "<zero>" -> zero
+  | x ->
+    try Int.of_string x
+    with _ -> raise (Invalid_signal_mnemonic_or_number x)
+;;
+
+let sexp_of_t t = Sexplib.Sexp.Atom (to_string t)
+
+let t_of_sexp s =
+  match s with
+  | Sexplib.Sexp.Atom s -> of_string s
+  | _ -> raise (Expected_atom s)
 ;;
 
 type pid_spec = [ `Pid of Pid.t | `My_group | `Group of Pid.t ] ;;

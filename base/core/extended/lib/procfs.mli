@@ -254,3 +254,5 @@ val mounts : unit -> Mount.t list
 val mounts_of_fstab : unit -> Mount.t list
 
 val supported_filesystems : unit -> string list
+
+val uptime : unit -> Time.Span.t

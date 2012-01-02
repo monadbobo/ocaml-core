@@ -48,26 +48,32 @@ let create ?(growth_allowed=true) ?(hashable = poly) ?(size = 128) () =
     added_or_removed = ref false;
     hashable = hashable };;
 
-let slot t key = t.hashable.hash key mod t.array_length
+exception Hash_value_must_be_non_negative with sexp
+
+let slot t key =
+  let hash = t.hashable.hash key in
+  if hash < 0 then raise Hash_value_must_be_non_negative;
+  hash mod t.array_length
+;;
 
 let add_worker should_replace t ~key ~data =
   let i = slot t key in
   let root = t.table.(i) in
   let new_root =
     (* The avl tree might replace (Avltree.add) or do nothing
-      (Avltree.add_if_not_exists) to the entry, in that case the table
-      did not get bigger, so we should not increment length, we
-      pass in the bool ref t.added so that it can tell us whether
-      it added or replaced. We do it this way to avoid extra
-      allocation. Since the bool is an immediate it does not go
-      through the write barrier. *)
+       (Avltree.add_if_not_exists) to the entry, in that case the table
+       did not get bigger, so we should not increment length, we
+       pass in the bool ref t.added so that it can tell us whether
+       it added or replaced. We do it this way to avoid extra
+       allocation. Since the bool is an immediate it does not go
+       through the write barrier. *)
     (if should_replace then Avltree.add else Avltree.add_if_not_exists) root
       ~compare:t.hashable.compare ~added:t.added_or_removed ~key ~data
   in
   if t.added_or_removed.contents then
     t.length <- t.length + 1;
   (* This little optimization saves a caml_modify when the tree
-    hasn't been rebalanced. *)
+     hasn't been rebalanced. *)
   if not (phys_equal new_root root) then
     t.table.(i) <- new_root
 ;;
@@ -147,13 +153,16 @@ let length t = t.length
 let is_empty t = length t = 0
 
 let fold t ~init ~f =
-  let n = t.array_length in
-  let acc = ref init in
-  for i = 0 to n - 1 do
-    let init = !acc in
-    acc := Avltree.fold t.table.(i) ~init ~f;
-  done;
-  !acc
+  if length t = 0 then init
+  else begin
+    let n = t.array_length in
+    let acc = ref init in
+    for i = 0 to n - 1 do
+      let init = !acc in
+      acc := Avltree.fold t.table.(i) ~init ~f;
+    done;
+    !acc
+  end
 ;;
 
 let invariant t =
@@ -300,30 +309,61 @@ let add_multi t ~key ~data =
   | None -> replace t ~key ~data:[data]
   | Some l -> replace t ~key ~data:(data :: l)
 
+let remove_multi t key =
+  match find t key with
+  | None -> ()
+  | Some [] | Some [_] -> remove t key
+  | Some (_ :: tl) -> replace t ~key ~data:tl
+
 let iter_vals t ~f = iter t ~f:(fun ~key:_ ~data -> f data)
 
+let create_mapped ?growth_allowed ?hashable ?size ~get_key ~get_data rows =
+  let size = match size with Some s -> s | None -> List.length rows in
+  let res = create ?growth_allowed ?hashable ~size () in
+  let dupes = ref [] in
+  List.iter rows ~f:(fun r ->
+    let key = get_key r in
+    let data = get_data r in
+    if mem res key then
+      dupes := key :: !dupes
+    else
+      replace res ~key ~data);
+  match !dupes with
+  | [] -> `Ok res
+  | keys -> `Duplicate_keys (List.dedup keys)
+;;
+
+let create_mapped_exn ?growth_allowed ?hashable ?size ~get_key ~get_data rows =
+  let size = match size with Some s -> s | None -> List.length rows in
+  let res = create ?growth_allowed ?hashable ~size () in
+  List.iter rows ~f:(fun r ->
+    let key = get_key r in
+    let data = get_data r in
+    if mem res key then
+      failwith "Hashtbl.create_mapped_exn: duplicate key"
+    else
+      replace res ~key ~data);
+  res
+;;
+
+let create_mapped_multi ?growth_allowed ?hashable ?size ~get_key ~get_data rows =
+  let size = match size with Some s -> s | None -> List.length rows in
+  let res = create ?growth_allowed ?hashable ~size () in
+  List.iter rows ~f:(fun r ->
+    let key = get_key r in
+    let data = get_data r in
+    add_multi res ~key ~data);
+  res
+;;
+
 let of_alist ?growth_allowed ?hashable ?size lst =
-  let size = match size with Some s -> s | None -> List.length lst in
-  let t = create ?growth_allowed ?hashable ~size () in
-  let res = ref (`Ok t) in
-  List.iter lst ~f:(fun (k, v) ->
-    match mem t k with
-    | true -> res := `Duplicate_key k
-    | false -> replace t ~key:k ~data:v);
-  !res
+  match create_mapped ?growth_allowed ?hashable ?size ~get_key:fst ~get_data:snd lst with
+  | `Ok t -> `Ok t
+  | `Duplicate_keys k -> `Duplicate_key (List.hd_exn k)
 ;;
 
 let of_alist_report_all_dups ?growth_allowed ?hashable ?size lst =
-  let size = match size with Some s -> s | None -> List.length lst in
-  let t = create ?growth_allowed ?hashable ~size () in
-  let dups = ref [] in
-  List.iter lst ~f:(fun (k, v) ->
-    match mem t k with
-    | true -> dups := k::!dups
-    | false -> replace t ~key:k ~data:v);
-  match !dups with
-  | []   -> `Ok t
-  | keys -> `Duplicate_keys (List.dedup keys)
+  create_mapped ?growth_allowed ?hashable ?size ~get_key:fst ~get_data:snd lst
 ;;
 
 let of_alist_exn ?growth_allowed ?hashable ?size lst =
@@ -333,12 +373,7 @@ let of_alist_exn ?growth_allowed ?hashable ?size lst =
 ;;
 
 let of_alist_multi ?growth_allowed ?hashable ?size lst =
-  let lst = List.rev lst in
-  let size = match size with Some s -> s | None -> List.length lst in
-  let t = create ?growth_allowed ?hashable ~size () in
-  List.iter lst ~f:(fun (key, data) ->
-    add_multi t ~key ~data);
-  t
+  create_mapped_multi ?growth_allowed ?hashable ?size ~get_key:fst ~get_data:snd lst
 ;;
 
 let to_alist t =
@@ -367,17 +402,14 @@ let group ?growth_allowed ?hashable ?size ~get_key ~get_data ~combine rows =
   res
 ;;
 
-let create_mapped ?growth_allowed ?hashable ?size ~get_key ~get_data rows =
-  let res = create ?growth_allowed ?hashable ?size () in
-  List.iter rows ~f:(fun r ->
-    let key = get_key r in
-    let data = get_data r in
-    replace res ~key ~data);
-  res
-;;
-
 let create_with_key ?growth_allowed ?hashable ?size ~get_key rows =
   create_mapped ?growth_allowed ?hashable ?size ~get_key ~get_data:(fun x -> x) rows
+;;
+
+let create_with_key_exn ?growth_allowed ?hashable ?size ~get_key rows =
+  match create_with_key ?growth_allowed ?hashable ?size ~get_key rows with
+  | `Ok t -> t
+  | `Duplicate_keys _ -> failwith "Hashtbl.create_with_key: duplicate key"
 ;;
 
 let merge t1 t2 ~f =
@@ -493,6 +525,7 @@ module Table_fns (Key : Key) = struct
 
   let change          = change
   let add_multi       = add_multi
+  let remove_multi    = remove_multi
   let mem             = mem
   let iter            = iter
   let exists          = exists
@@ -551,15 +584,60 @@ include T_binable
 
 module Create_fns (H : sig type 'a key val hashable : 'a key hashable end) = struct
   let hashable = H.hashable
-  let create                   = create                   ~hashable
-  let of_alist                 = of_alist                 ~hashable
-  let of_alist_report_all_dups = of_alist_report_all_dups ~hashable
-  let of_alist_exn             = of_alist_exn             ~hashable
-  let of_alist_multi           = of_alist_multi           ~hashable
-  let group                    = group                    ~hashable
-  let create_mapped            = create_mapped            ~hashable
-  let create_with_key          = create_with_key          ~hashable
+  let create ?growth_allowed ?(hashable = hashable) ?size () =
+    create ?growth_allowed ~hashable ?size ()
+
+  let of_alist ?growth_allowed ?(hashable = hashable) ?size l =
+    of_alist ?growth_allowed ~hashable ?size l
+
+  let of_alist_report_all_dups ?growth_allowed ?(hashable = hashable) ?size l =
+    of_alist_report_all_dups ?growth_allowed ~hashable ?size l
+
+  let of_alist_exn ?growth_allowed ?(hashable = hashable) ?size l =
+    of_alist_exn ?growth_allowed ~hashable ?size l
+
+  let of_alist_multi ?growth_allowed ?(hashable = hashable) ?size l =
+    of_alist_multi ?growth_allowed ~hashable ?size l
+
+  let create_mapped ?growth_allowed ?(hashable = hashable) ?size ~get_key ~get_data l =
+    create_mapped ?growth_allowed ~hashable ?size ~get_key ~get_data l
+
+  let create_with_key ?growth_allowed ?(hashable = hashable) ?size ~get_key l =
+    create_with_key ?growth_allowed ~hashable ?size ~get_key l
+
+  let create_with_key_exn ?growth_allowed ?(hashable = hashable) ?size ~get_key l =
+    create_with_key_exn ?growth_allowed ~hashable ?size ~get_key l
+
+  let group ?growth_allowed ?(hashable = hashable) ?size ~get_key ~get_data ~combine l =
+    group ?growth_allowed ~hashable ?size ~get_key ~get_data ~combine l
 end
+
+let create ?growth_allowed ?size hashable () =
+  create ?growth_allowed ~hashable ?size ()
+
+let of_alist ?growth_allowed ?size hashable l =
+  of_alist ?growth_allowed ~hashable ?size l
+
+let of_alist_report_all_dups ?growth_allowed ?size hashable l =
+  of_alist_report_all_dups ?growth_allowed ~hashable ?size l
+
+let of_alist_exn ?growth_allowed ?size hashable l =
+  of_alist_exn ?growth_allowed ~hashable ?size l
+
+let of_alist_multi ?growth_allowed ?size hashable l =
+  of_alist_multi ?growth_allowed ~hashable ?size l
+
+let create_mapped ?growth_allowed ?size hashable ~get_key ~get_data l =
+  create_mapped ?growth_allowed ~hashable ?size ~get_key ~get_data l
+
+let create_with_key ?growth_allowed ?size hashable ~get_key l =
+  create_with_key ?growth_allowed ~hashable ?size ~get_key l
+
+let create_with_key_exn ?growth_allowed ?size hashable ~get_key l =
+  create_with_key_exn ?growth_allowed ~hashable ?size ~get_key l
+
+let group ?growth_allowed ?size hashable ~get_key ~get_data ~combine l =
+  group ?growth_allowed ~hashable ?size ~get_key ~get_data ~combine l
 
 module Poly = struct
   include T_binable
@@ -583,8 +661,8 @@ module Make (Key: Key) = struct
 
   include Create_fns (struct type 'a key = Key.t let hashable = hashable end)
 
-  let of_alist_exn ?growth_allowed ?size lst =
-    match of_alist ?growth_allowed ?size lst with
+  let of_alist_exn ?growth_allowed ?(hashable = hashable) ?size lst =
+    match of_alist ?growth_allowed ~hashable ?size lst with
     | `Ok v -> v
     | `Duplicate_key key -> raise (Of_alist_exn_duplicate_key (Key.sexp_of_t key))
   ;;

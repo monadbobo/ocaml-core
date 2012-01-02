@@ -1,6 +1,7 @@
 module Array = Caml.ArrayLabels
 module Char = Core_char
 module String = Caml.StringLabels
+module List = Core_list
 open Sexplib.Std
 open Bin_prot.Std
 
@@ -27,7 +28,6 @@ let max_length = Caml.Sys.max_string_length
 let blit = String.blit
 let capitalize = String.capitalize
 let concat ?(sep="") l = String.concat ~sep l
-let contains_from = String.contains_from
 let copy = String.copy
 let escaped = String.escaped
 let fill = String.fill
@@ -36,7 +36,6 @@ let index_from_exn = String.index_from
 let length = String.length
 let lowercase = String.lowercase
 let make = String.make
-let rcontains_from = String.rcontains_from
 let rindex_exn = String.rindex
 let rindex_from_exn = String.rindex_from
 let sub = String.sub
@@ -217,15 +216,20 @@ let drop_suffix t n = wrap_sub_n ~name:"drop_suffix" t n ~pos:0 ~len:(length t -
 let prefix t n = wrap_sub_n ~name:"prefix" t n ~pos:0 ~len:n ~on_error:t
 let suffix t n = wrap_sub_n ~name:"suffix" t n ~pos:(length t - n) ~len:n ~on_error:t
 
-let lfindi t ~f =
+let lfindi ?(pos=0) t ~f =
   let n = length t in
   let rec loop i =
     if i = n then None
     else if f i t.[i] then Some i
     else loop (i + 1)
   in
-  loop 0
+  loop pos
 ;;
+
+TEST = lfindi "bob" ~f:(fun _ c -> 'b' = c) = Some 0
+TEST = lfindi ~pos:0 "bob" ~f:(fun _ c -> 'b' = c) = Some 0
+TEST = lfindi ~pos:1 "bob" ~f:(fun _ c -> 'b' = c) = Some 2
+TEST = lfindi "bob" ~f:(fun _ c -> 'x' = c) = None
 
 let find t ~f =
   match lfindi t ~f:(fun _ c -> f c) with
@@ -243,17 +247,26 @@ let find_map t ~f =
   loop 0
 ;;
 
-let rfindi t ~f =
+let rfindi ?pos t ~f =
   let rec loop i =
-    if i = 0 then None
+    if i < 0 then None
     else begin
-      let i = i - 1 in
       if f i t.[i] then Some i
-      else loop i
+      else loop (i - 1)
     end
   in
-  loop (length t)
+  let pos =
+    match pos with
+    | Some pos -> pos
+    | None -> length t - 1
+  in
+  loop pos
 ;;
+
+TEST = rfindi "bob" ~f:(fun _ c -> 'b' = c) = Some 2
+TEST = rfindi ~pos:2 "bob" ~f:(fun _ c -> 'b' = c) = Some 2
+TEST = rfindi ~pos:1 "bob" ~f:(fun _ c -> 'b' = c) = Some 0
+TEST = rfindi "bob" ~f:(fun _ c -> 'x' = c) = None
 
 let last_non_whitespace t = rfindi t ~f:(fun _ c -> not (Char.is_whitespace c))
 
@@ -432,6 +445,307 @@ let pp ppf s = Format.fprintf ppf "%s" s
     res
   *)
 
+let of_char c = String.make 1 c
+
+module Escaping = struct
+  exception Map_not_one_to_one with sexp
+  let escape_gen_exn ~escapeworthy_map ~escape_char =
+    (* Check that if escapeworthy_map is one-to-one. *)
+    ignore (List.fold escapeworthy_map ~init:Char.Set.empty ~f:(fun acc (_, c) ->
+      if Char.Set.mem acc c then raise Map_not_one_to_one
+      else Char.Set.add acc c));
+    let escapeworthy = (escape_char, escape_char) :: escapeworthy_map in
+    let escapeworthy =
+      let a = Array.create 256 (-1) in
+      List.iter ~f:(fun (k, v) -> a.(Char.to_int k) <- Char.to_int v)
+        escapeworthy;
+      a
+    in
+    (fun s ->
+      let len = String.length s in
+      let buf = ref None in
+      let copied = ref 0 in
+      for i = 0 to len - 1 do
+        let c = s.[i] in
+        let mapped = escapeworthy.(Char.to_int c) in
+        if mapped <> (-1) then begin
+          let buf =
+            match !buf with
+            | Some b -> b
+            | None ->
+              let b = Buffer.create (len + 10) in
+              buf := Some b;
+              b
+          in
+          Buffer.add_substring buf s !copied (i - !copied);
+          Buffer.add_char buf escape_char;
+          Buffer.add_char buf (Char.unsafe_of_int mapped);
+          copied := i + 1
+        end
+      done;
+      if !copied = 0 then s
+      else begin
+        let buf = Option.value_exn !buf in
+        Buffer.add_substring buf s !copied (len - !copied);
+        Buffer.contents buf
+      end)
+  ;;
+
+  TEST_MODULE "escape_gen" = struct
+    let escape = escape_gen_exn
+      ~escapeworthy_map:[('%','p');('^','c')] ~escape_char:'_'
+
+    TEST = escape "foo" = "foo"
+    TEST = escape "_" = "__"
+    TEST = escape "foo%bar" = "foo_pbar"
+    TEST = escape "^foo%" = "_cfoo_p"
+    TEST =
+      try
+        let _escape = escape_gen_exn
+          ~escapeworthy_map:[('%','p');('^','c');('$','c')] ~escape_char:'_'
+        in
+        false
+      with Map_not_one_to_one -> true
+  end
+
+  let escape ~escapeworthy ~escape_char =
+    let escapeworthy_map = List.map ~f:(fun c -> (c, c)) escapeworthy in
+    escape_gen_exn ~escapeworthy_map ~escape_char
+
+  let unescape_gen ~map ~escape_char =
+    let get_c_for_code code =
+      if code = escape_char then code else
+        match Core_list.Assoc.find map code with
+        | None -> code
+        | Some x -> x
+    in
+    let count_escape_chars s =
+      let ctr = ref 0 in
+      let i = ref 0 in
+      while !i < String.length s - 1 do
+        if s.[!i] = escape_char then
+          begin
+            incr ctr;
+            i := !i + 2
+          end
+        else
+          i := !i + 1
+      done;
+      !ctr
+    in
+    let really_unescape_string num_escape_char os =
+      let ns_length = String.length os - num_escape_char in
+      let ns = String.create ns_length in
+      let os_pos = ref 0 in
+      for i = 0 to ns_length - 1 do
+        if os.[!os_pos] = escape_char then
+          begin
+            ns.[i] <- get_c_for_code (os.[!os_pos + 1]);
+            os_pos := !os_pos + 2;
+          end
+        else
+          begin
+            ns.[i] <- os.[!os_pos];
+            os_pos := !os_pos + 1;
+          end
+      done;
+      ns
+    in
+    (fun str ->
+      let num_escape_chars = count_escape_chars str in
+      if num_escape_chars > 0 then really_unescape_string num_escape_chars str
+      else str)
+
+  TEST_MODULE "unescape_gen" = struct
+    let unescape = unescape_gen ~map:['p','%';'c','^'] ~escape_char:'_'
+
+    TEST = unescape "foo" = "foo"
+    TEST = unescape "__" = "_"
+    TEST = unescape "foo_pbar" = "foo%bar"
+    TEST = unescape "_cfoo_p" = "^foo%"
+  end
+
+  let unescape ~escape_char str = unescape_gen ~map:[] ~escape_char str
+
+  TEST_MODULE "unescape" = struct
+    let unescape = unescape ~escape_char:'_'
+    TEST = unescape "foo" = "foo"
+    TEST = unescape "__" = "_"
+    TEST = unescape "foo_%bar" = "foo%bar"
+    TEST = unescape "_^foo_%" = "^foo%"
+  end
+
+  let rec is_char_escaped ~escape_char str pos =
+    if pos >= String.length str || pos < 0
+    then invalid_argf "is_char_escaped: out of bounds" ();
+    if pos = 0 then false
+    else begin
+      str.[pos - 1] = escape_char
+      && (not (is_char_escaped ~escape_char str (pos - 1)))
+    end
+  ;;
+
+  TEST_MODULE "is_char_escaped" = struct
+    let is = is_char_escaped ~escape_char:'_'
+    TEST = is "___" 2 = false
+    TEST = is "x" 0 = false
+    TEST = is "_x" 1 = true
+    TEST = is "sadflkas____sfff" 12 = false
+  end
+
+  let is_char_literal ~escape_char str pos =
+    if pos >= String.length str || pos < 0
+    then invalid_argf "is_literal: out of bounds" ();
+    let escaped = is_char_escaped ~escape_char str pos in
+    let c = str.[pos] in
+    (not escaped && c <> escape_char)
+    || (escaped && c = escape_char)
+  ;;
+
+  TEST_MODULE "is_char_literal" = struct
+    let is_char_literal = is_char_literal ~escape_char:'_'
+    TEST = is_char_literal "123456" 4 = true
+    TEST = is_char_literal "12345_6" 6 = false
+    TEST = is_char_literal "12345_6" 5 = false
+    TEST = is_char_literal "123__456" 4 = true
+    TEST = is_char_literal "123456__" 7 = true
+    TEST = is_char_literal "__123456" 1 = true
+    TEST = is_char_literal "__123456" 0 = false
+    TEST = is_char_literal "__123456" 2 = true
+  end
+
+  let string_index_from = index_from
+  let rec index_from ~escape_char str pos char =
+    match string_index_from str pos char with
+    | None -> None
+    | Some pos ->
+      if is_char_literal ~escape_char str pos then
+        Some pos
+      else if pos = String.length str - 1 then
+        None
+      else
+        index_from ~escape_char str (pos + 1) char
+  ;;
+
+  let index_from_exn ~escape_char str pos char =
+    match index_from ~escape_char str pos char with
+    | None -> raise Not_found
+    | Some pos -> pos
+  ;;
+
+  let index ~escape_char str char = index_from ~escape_char str 0 char
+  let index_exn ~escape_char str char = index_from_exn ~escape_char str 0 char
+
+  TEST_MODULE "index_from" = struct
+    let f = index_from ~escape_char:'_'
+    TEST = f "1273456_7789" 3 '7' = Some 9
+  end
+
+  let string_rindex_from = rindex_from
+  let rec rindex_from ~escape_char str pos char =
+    match string_rindex_from str pos char with
+    | None -> None
+    | Some pos ->
+      if is_char_literal ~escape_char str pos then
+        Some pos
+      else if pos = 0 then
+        None
+      else
+        rindex_from ~escape_char str (pos - 1) char
+  ;;
+
+  let rindex_from_exn ~escape_char str pos char =
+    match rindex_from ~escape_char str pos char with
+    | None -> raise Not_found
+    | Some pos -> pos
+  ;;
+
+  let rindex ~escape_char str char =
+    rindex_from ~escape_char str (String.length str - 1) char
+  ;;
+
+  let rindex_exn ~escape_char str char =
+    match rindex_from ~escape_char str (String.length str - 1) char with
+    | None -> raise Not_found
+    | Some pos -> pos
+  ;;
+
+  TEST_MODULE "rindex_from" = struct
+    let f = rindex_from ~escape_char:'_'
+    TEST = f "123456_37839" 9 '3' = Some 2
+  end
+
+  let split_gen ~escape_char str ~on =
+    let rec char_list_mem l (c:char) =
+      match l with
+      | [] -> false
+      | hd::tl -> hd = c || char_list_mem tl c
+    in
+    let is_delim on str pos =
+      match on with
+      | `char c -> str.[pos] = c && is_char_literal ~escape_char str pos
+      | `char_list l -> char_list_mem l str.[pos] && is_char_literal ~escape_char str pos
+    in
+    let len = String.length str in
+    let rec loop acc last_pos pos =
+      if pos = -1 then
+        String.sub str ~pos:0 ~len:last_pos :: acc
+      else
+        if is_delim on str pos then
+          let pos1 = pos + 1 in
+          let sub_str = String.sub str ~pos:pos1 ~len:(last_pos - pos1) in
+          loop (sub_str :: acc) pos (pos - 1)
+        else loop acc last_pos (pos - 1)
+    in
+    loop [] len (len - 1)
+  ;;
+
+  let split str ~on = split_gen str ~on:(`char on) ;;
+
+  let split_on_chars str ~on:chars =
+    split_gen str ~on:(`char_list chars)
+  ;;
+
+  TEST_MODULE "split_on_gen" = struct
+    let split_gen = split_gen ~escape_char:'_' ~on:(`char ',')
+    TEST = split_gen "foo,bar,baz" = ["foo"; "bar"; "baz"]
+    TEST = split_gen "foo_,bar,baz" = ["foo_,bar"; "baz"]
+    TEST = split_gen "foo_,bar_,baz" = ["foo_,bar_,baz"]
+    TEST = split_gen "foo__,bar,baz" = ["foo__"; "bar"; "baz"]
+    TEST = split_gen "foo,bar,baz_," = ["foo"; "bar"; "baz_,"]
+    TEST = split_gen "foo,bar_,baz_,," = ["foo"; "bar_,baz_,"; ""]
+  end
+
+  let split2 str ~on ~escape_char f =
+    match f ~escape_char str on with
+    | None -> None
+    | Some pos ->
+      Some
+        (String.sub str ~pos:0 ~len:pos,
+         String.sub str ~pos:(pos + 1) ~len:(String.length str - pos - 1))
+  ;;
+
+  let split2_exn str ~on ~escape_char f =
+    match split2 str ~on ~escape_char f with
+    | None -> raise Not_found
+    | Some x -> x
+  ;;
+
+  let lsplit2 str ~on ~escape_char = split2 str ~on ~escape_char index
+  let rsplit2 str ~on ~escape_char = split2 str ~on ~escape_char rindex
+  let lsplit2_exn str ~on ~escape_char = split2_exn str ~on ~escape_char index
+  let rsplit2_exn str ~on ~escape_char = split2_exn str ~on ~escape_char rindex
+
+  TEST_MODULE "split2" = struct
+    let split2 = split2 ~escape_char:'_' ~on:','
+    TEST = split2 "foo_,bar,baz_,0" index = Some ("foo_,bar", "baz_,0")
+    TEST = split2 "foo_,bar,baz_,0" rindex = Some ("foo_,bar", "baz_,0")
+    TEST = split2 "foo_,bar" index = None
+    TEST = split2 "foo_,bar" rindex = None
+  end
+end
+;;
+
 let min (x : t) y = if x < y then x else y
 let max (x : t) y = if x > y then x else y
 let compare (x : t) y = compare x y
@@ -443,5 +757,3 @@ let ( = ) x y = (x : t) = y
 let ( > ) x y = (x : t) > y
 let ( < ) x y = (x : t) < y
 let ( <> ) x y = (x : t) <> y
-
-let of_char c = String.make 1 c

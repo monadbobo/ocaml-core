@@ -461,458 +461,6 @@ let is_substring  ~substring t =
   in
   f ~q:0 ~i:1
 
-module Escaping = struct
-  let escape_gen ~escapeworthy_map ~escape_char s =
-    let get_code_for c =
-      if c = escape_char then c else
-        match List.Assoc.find escapeworthy_map c with
-        | None -> failwith "escape_gen bug"
-        | Some x -> x
-    in
-    let escapeworthy c =
-      c = escape_char || List.exists ~f:(fun (c',_) -> c = c') escapeworthy_map in
-    let count_escapeworthy_chars s =
-      let ctr = ref 0 in
-      for i = 0 to String.length s - 1 do
-        if escapeworthy s.[i] then ctr := !ctr + 1
-      done;
-      !ctr
-    in
-    let really_escape_string count s =
-      let ns = String.create count in
-      let ns_pos = ref 0 in
-      for i = 0 to String.length s - 1 do
-        if escapeworthy s.[i] then
-          begin
-            ns.[!ns_pos] <- escape_char;
-            ns.[!ns_pos + 1] <- get_code_for s.[i];
-            ns_pos := !ns_pos + 2
-          end
-        else
-          begin
-            ns.[!ns_pos] <- s.[i];
-            ns_pos := !ns_pos + 1
-          end
-      done;
-      ns
-    in
-    let ewc = count_escapeworthy_chars s in
-    if ewc > 0 then really_escape_string (ewc + String.length s) s
-    else s
-
-  TEST_MODULE "escape_gen" = struct
-    let escape = escape_gen
-      ~escapeworthy_map:[('%','p');('^','c')] ~escape_char:'_'
-
-    TEST = escape "foo" = "foo"
-    TEST = escape "_" = "__"
-    TEST = escape "foo%bar" = "foo_pbar"
-    TEST = escape "^foo%" = "_cfoo_p"
-  end
-
-
-  let escape ~escapeworthy ~escape_char str =
-    let escapeworthy = escape_char :: escapeworthy in
-    let threshold = List.fold ~f:(fun m p -> if p < fst m then (p, snd m)
-                                       else if p > snd m then (fst m, p) else m)
-      ~init:(List.hd_exn escapeworthy, List.hd_exn escapeworthy) escapeworthy in
-    let min = fst threshold in
-    let max = snd threshold in
-    let strlen = (String.length str) - 1 in
-    let smark = ref 0
-    and dmark = ref 0 in
-    let newstr =  String.create ((strlen + 1) * 2) in
-    let blit send =   (* copies smark to send into newstr *)
-      let len = (send - !smark + 1) in
-      String.blit ~src:str ~src_pos:!smark ~dst:newstr ~dst_pos:!dmark ~len:len;
-      smark := send + 1;
-      dmark := !dmark + len;
-    in
-    let rec exists lst c =
-      match lst with
-      | [] -> false
-      | p :: rst -> if p = c then true else exists rst c
-    in
-    for i = 0 to strlen do
-      if str.[i] >= min && str.[i] <= max &&
-        List.exists ~f:(fun c -> c = str.[i]) escapeworthy then
-          begin
-            blit i;
-            newstr.[!dmark - 1] <- escape_char;
-            newstr.[!dmark] <- str.[i];
-            dmark := !dmark + 1;
-          end
-    done;
-    if !smark > 0 then
-      begin
-        if !smark <= strlen then blit strlen;
-        String.sub newstr ~pos:0 ~len:!dmark
-      end
-    else
-      str
-
-   TEST_MODULE "escape" = struct
-     let escape = escape
-       ~escapeworthy:['%';'^'] ~escape_char:'_'
-
-     TEST = escape "foo" = "foo"
-     TEST = escape "_" = "__"
-     TEST = escape "foo%bar" = "foo_%bar"
-     TEST = escape "^foo%" = "_^foo_%"
-
-   end
-
-  let escape_one_orig ~escapeworthy ~escape_char str =
-    let len = String.length str in
-    let rec loop cnt i =
-      if i < 0 then cnt
-      else
-        let new_i = i - 1 in
-        let c = str.[i] in
-        if c = escapeworthy || c = escape_char then loop (cnt + 2) new_i
-        else loop (cnt + 1) new_i
-    in
-    let len_1 = len - 1 in
-    let cnt = loop 0 len_1 in
-    if cnt = len then str
-    else
-      let res = String.create cnt in
-      let rec loop src_pos dst_pos =
-        if src_pos < 0 then res
-        else
-          let new_src_pos = src_pos - 1 in
-          let c = str.[src_pos] in
-          res.[dst_pos] <- c;
-          if c = escapeworthy || c = escape_char then (
-            res.[dst_pos - 1] <- escape_char;
-            loop new_src_pos (dst_pos - 2))
-          else loop new_src_pos (dst_pos - 1)
-      in
-      loop len_1 (cnt - 1)
-
-    TEST_MODULE "escape_one_orig" = struct
-      let escape = escape_one_orig
-        ~escapeworthy:'%' ~escape_char:'_'
-
-      TEST = escape "foo" = "foo"
-      TEST = escape "_" = "__"
-      TEST = escape "foo%bar" = "foo_%bar"
-      TEST = escape "%foo%" = "_%foo_%"
-    end
-
-  let escape_two_orig ~escapeworthy1 ~escapeworthy2 ~escape_char str =
-    let len = String.length str in
-    let rec loop cnt i =
-      if i < 0 then cnt
-      else
-        let new_i = i - 1 in
-        let c = str.[i] in
-        if c = escapeworthy1 || c = escapeworthy2 || c = escape_char
-        then loop (cnt + 2) new_i
-        else loop (cnt + 1) new_i
-    in
-    let len_1 = len - 1 in
-    let cnt = loop 0 len_1 in
-    if cnt = len then str
-    else
-      let res = String.create cnt in
-      let rec loop src_pos dst_pos =
-        if src_pos < 0 then res
-        else
-          let new_src_pos = src_pos - 1 in
-          let c = str.[src_pos] in
-          res.[dst_pos] <- c;
-          if c = escapeworthy1 || c = escapeworthy2 || c = escape_char then (
-            res.[dst_pos - 1] <- escape_char;
-            loop new_src_pos (dst_pos - 2))
-          else loop new_src_pos (dst_pos - 1)
-      in
-      loop len_1 (cnt - 1)
-
-  TEST_MODULE "escape_two_orig" = struct
-    let escape = escape_two_orig
-      ~escapeworthy1:'%' ~escapeworthy2:'^' ~escape_char:'_'
-
-    TEST = escape "foo" = "foo"
-    TEST = escape "_" = "__"
-    TEST = escape "foo%bar" = "foo_%bar"
-    TEST = escape "^foo%" = "_^foo_%"
-  end
-
-  let unescape_gen ~map ~escape_char =
-    let get_c_for_code code =
-      if code = escape_char then code else
-        match List.Assoc.find map code with
-        | None -> code
-        | Some x -> x
-    in
-    let count_escape_chars s =
-      let ctr = ref 0 in
-      let i = ref 0 in
-      while !i < String.length s - 1 do
-        if s.[!i] = escape_char then
-          begin
-            incr ctr;
-            i := !i + 2
-          end
-        else
-          i := !i + 1
-      done;
-      !ctr
-    in
-    let really_unescape_string num_escape_char os =
-      let ns_length = String.length os - num_escape_char in
-      let ns = String.create ns_length in
-      let os_pos = ref 0 in
-      for i = 0 to ns_length - 1 do
-        if os.[!os_pos] = escape_char then
-          begin
-            ns.[i] <- get_c_for_code (os.[!os_pos + 1]);
-            os_pos := !os_pos + 2;
-          end
-        else
-          begin
-            ns.[i] <- os.[!os_pos];
-            os_pos := !os_pos + 1;
-          end
-      done;
-      ns
-    in
-    (fun str ->
-       let num_escape_chars = count_escape_chars str in
-       if num_escape_chars > 0 then really_unescape_string num_escape_chars str
-       else str)
-
-   TEST_MODULE "unescape_gen" = struct
-     let unescape = unescape_gen ~map:['p','%';'c','^'] ~escape_char:'_'
-
-     TEST = unescape "foo" = "foo"
-     TEST = unescape "__" = "_"
-     TEST = unescape "foo_pbar" = "foo%bar"
-     TEST = unescape "_cfoo_p" = "^foo%"
-  end
-
-
-  let unescape ~escape_char str = unescape_gen ~map:[] ~escape_char str
-
-  TEST_MODULE "unescape" = struct
-    let unescape = unescape ~escape_char:'_'
-    TEST = unescape "foo" = "foo"
-    TEST = unescape "__" = "_"
-    TEST = unescape "foo_%bar" = "foo%bar"
-    TEST = unescape "_^foo_%" = "^foo%"
-  end
-
-  let rec is_char_escaped ~escape_char str pos =
-    if pos >= String.length str || pos < 0
-    then invalid_argf "is_char_escaped: out of bounds" ();
-    if pos = 0 then false
-    else begin
-      str.[pos - 1] = escape_char
-      && (not (is_char_escaped ~escape_char str (pos - 1)))
-    end
-  ;;
-
-  TEST_MODULE "is_char_escaped" = struct
-    let is = is_char_escaped ~escape_char:'_'
-    TEST = is "___" 2 = false
-    TEST = is "x" 0 = false
-    TEST = is "_x" 1 = true
-    TEST = is "sadflkas____sfff" 12 = false
-  end
-
-  let is_char_literal ~escape_char str pos =
-    if pos >= String.length str || pos < 0
-    then invalid_argf "is_literal: out of bounds" ();
-    let escaped = is_char_escaped ~escape_char str pos in
-    let c = str.[pos] in
-    (not escaped && c <> escape_char)
-    || (escaped && c = escape_char)
-  ;;
-
-  TEST_MODULE "is_char_literal" = struct
-    let is_char_literal = is_char_literal ~escape_char:'_'
-    TEST = is_char_literal "123456" 4 = true
-    TEST = is_char_literal "12345_6" 6 = false
-    TEST = is_char_literal "12345_6" 5 = false
-    TEST = is_char_literal "123__456" 4 = true
-    TEST = is_char_literal "123456__" 7 = true
-    TEST = is_char_literal "__123456" 1 = true
-    TEST = is_char_literal "__123456" 0 = false
-    TEST = is_char_literal "__123456" 2 = true
-  end
-
-  let rec index_from ~escape_char str pos char =
-    match String.index_from str pos char with
-    | None -> None
-    | Some pos ->
-      if is_char_literal ~escape_char str pos then
-        Some pos
-      else if pos = String.length str - 1 then
-        None
-      else
-        index_from ~escape_char str (pos + 1) char
-  ;;
-
-  let index_from_exn ~escape_char str pos char =
-    match index_from ~escape_char str pos char with
-    | None -> raise Not_found
-    | Some pos -> pos
-  ;;
-
-  let index ~escape_char str char = index_from ~escape_char str 0 char
-  let index_exn ~escape_char str char = index_from_exn ~escape_char str 0 char
-
-  TEST_MODULE "index_from" = struct
-    let f = index_from ~escape_char:'_'
-    TEST = f "1273456_7789" 3 '7' = Some 9
-  end
-
-  let rec rindex_from ~escape_char str pos char =
-    match String.rindex_from str pos char with
-    | None -> None
-    | Some pos ->
-      if is_char_literal ~escape_char str pos then
-        Some pos
-      else if pos = 0 then
-        None
-      else
-        rindex_from ~escape_char str (pos - 1) char
-  ;;
-
-  let rindex_from_exn ~escape_char str pos char =
-    match rindex_from ~escape_char str pos char with
-    | None -> raise Not_found
-    | Some pos -> pos
-  ;;
-
-  let rindex ~escape_char str char =
-    rindex_from ~escape_char str (String.length str - 1) char
-  ;;
-
-  let rindex_exn ~escape_char str char =
-    match rindex_from ~escape_char str (String.length str - 1) char with
-    | None -> raise Not_found
-    | Some pos -> pos
-  ;;
-
-  TEST_MODULE "rindex_from" = struct
-    let f = rindex_from ~escape_char:'_'
-    TEST = f "123456_37839" 9 '3' = Some 2
-  end
-
-  let split_gen ~escape_char str ~on =
-    let rec char_list_mem l (c:char) =
-      match l with
-      | [] -> false
-      | hd::tl -> hd = c || char_list_mem tl c
-    in
-    let is_delim on str pos =
-      match on with
-      | `char c -> str.[pos] = c && is_char_literal ~escape_char str pos
-      | `char_list l -> char_list_mem l str.[pos] && is_char_literal ~escape_char str pos
-    in
-    let len = String.length str in
-    let rec loop acc last_pos pos =
-      if pos = -1 then
-        String.sub str ~pos:0 ~len:last_pos :: acc
-      else
-        if is_delim on str pos then
-          let pos1 = pos + 1 in
-          let sub_str = String.sub str ~pos:pos1 ~len:(last_pos - pos1) in
-          loop (sub_str :: acc) pos (pos - 1)
-        else loop acc last_pos (pos - 1)
-    in
-    loop [] len (len - 1)
-  ;;
-
-  let split str ~on = split_gen str ~on:(`char on) ;;
-
-  let split_on_chars str ~on:chars =
-    split_gen str ~on:(`char_list chars)
-  ;;
-
-  TEST_MODULE "split_on_gen" = struct
-    let split_gen = split_gen ~escape_char:'_' ~on:(`char ',')
-    TEST = split_gen "foo,bar,baz" = ["foo"; "bar"; "baz"]
-    TEST = split_gen "foo_,bar,baz" = ["foo_,bar"; "baz"]
-    TEST = split_gen "foo_,bar_,baz" = ["foo_,bar_,baz"]
-    TEST = split_gen "foo__,bar,baz" = ["foo__"; "bar"; "baz"]
-    TEST = split_gen "foo,bar,baz_," = ["foo"; "bar"; "baz_,"]
-    TEST = split_gen "foo,bar_,baz_,," = ["foo"; "bar_,baz_,"; ""]
-  end
-
-  let split2 str ~on ~escape_char f =
-    match f ~escape_char str on with
-    | None -> None
-    | Some pos ->
-      Some
-        (String.sub str ~pos:0 ~len:pos,
-         String.sub str ~pos:(pos + 1) ~len:(String.length str - pos - 1))
-  ;;
-
-  let split2_exn str ~on ~escape_char f =
-    match split2 str ~on ~escape_char f with
-    | None -> raise Not_found
-    | Some x -> x
-  ;;
-
-  let lsplit2 str ~on ~escape_char = split2 str ~on ~escape_char index
-  let rsplit2 str ~on ~escape_char = split2 str ~on ~escape_char rindex
-  let lsplit2_exn str ~on ~escape_char = split2_exn str ~on ~escape_char index
-  let rsplit2_exn str ~on ~escape_char = split2_exn str ~on ~escape_char rindex
-
-  TEST_MODULE "split2" = struct
-    let split2 = split2 ~escape_char:'_' ~on:','
-    TEST = split2 "foo_,bar,baz_,0" index = Some ("foo_,bar", "baz_,0")
-    TEST = split2 "foo_,bar,baz_,0" rindex = Some ("foo_,bar", "baz_,0")
-    TEST = split2 "foo_,bar" index = None
-    TEST = split2 "foo_,bar" rindex = None
-  end
-
-  (* this implementation is faster, if need be: *)
-  (*
-  let unescape ~escape_char str =
-    let count_escape_chars s =
-      let ctr = ref 0 in
-      let i = ref 0 in
-      while !i < String.length s - 1 do
-        if s.[!i] = escape_char then
-          begin
-            incr ctr;
-            i := !i + 2
-          end
-        else
-          i := !i + 1
-      done;
-      !ctr
-    in
-    let really_unescape_string num_escape_char os =
-      let ns_length = String.length os - num_escape_char in
-      let ns = String.create ns_length in
-      let os_pos = ref 0 in
-      for i = 0 to ns_length - 1 do
-        if os.[!os_pos] = escape_char then
-          begin
-            ns.[i] <- os.[!os_pos + 1];
-            os_pos := !os_pos + 2;
-          end
-        else
-          begin
-            ns.[i] <- os.[!os_pos];
-            os_pos := !os_pos + 1;
-          end
-      done;
-      ns
-    in
-    let num_escape_chars = count_escape_chars str in
-    if num_escape_chars > 0 then really_unescape_string num_escape_chars str
-    else str
-      *)
-
-end
-;;
-
 let consolidate_strings ?(int_sets: [`Exact | `Bounds | `Asterisk] = `Exact) strings =
   (* is_int and tokenize_string could be easier implemented with Pcre, but we do not want
      to introduce the dependency here. *)
@@ -1281,3 +829,43 @@ TEST_MODULE "consolidate_strings" = struct
 
 end
 ;;
+
+
+let edit_distance_matrix ?transpose s1 s2 =
+  let transpose = Option.is_some transpose in
+  let l1, l2 = String.length s1, String.length s2 in
+  let d = Array.make_matrix 0 ~dimx:(l1+1) ~dimy:(l2+1) in
+  for x=0 to l1 do d.(x).(0) <- x done;
+  for y=0 to l2 do d.(0).(y) <- y done;
+  for y=1 to l2 do
+    for x=1 to l1 do
+      let min_d =
+        if s1.[x-1] = s2.[y-1] then d.(x-1).(y-1)
+        else List.reduce_exn ~f:min
+          [d.(x-1).(y) + 1;
+           d.(x).(y-1) + 1;
+           d.(x-1).(y-1) + 1]
+      in
+      let min_d =
+        if transpose && x > 1 && y > 1
+          && s1.[x-1] = s2.[y-2] && s1.[x-2] = s2.[y-1]
+        then min min_d (d.(x-2).(y-2) + 1)
+        else min_d
+      in
+      d.(x).(y) <- min_d
+    done;
+  done;
+  d
+
+let edit_distance ?transpose s1 s2 =
+  (edit_distance_matrix ?transpose s1 s2).(String.length s1).(String.length s2)
+
+TEST = edit_distance "" "" = 0
+TEST = edit_distance "stringStringString" "stringStringString" = 0
+TEST = edit_distance "ocaml" "coaml" = 2
+TEST = edit_distance ~transpose:() "ocaml" "coaml" = 1
+TEST = edit_distance "sitting" "kitten" = 3
+TEST = edit_distance ~transpose:() "sitting" "kitten" = 3
+TEST = edit_distance "abcdef" "1234567890" = 10
+TEST = edit_distance "foobar" "fubahr" = 3
+TEST = edit_distance "hylomorphism" "zylomorphism" = 1

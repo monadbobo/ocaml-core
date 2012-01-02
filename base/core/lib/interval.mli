@@ -22,15 +22,14 @@ module Int   : S with type bound = Core_int.t and type 'a poly_t = Core_int.t t
 module Time : sig
   include      S with type bound = Time.t     and type 'a poly_t = Time.t     t
 
-  (* [create_ending_after (od1, od2) ~now] returns the smallest interval [(t1 t2)]
-     with minimum [t2] such that [t2 >= ubound], [to_ofday t1 = od1], and
-     [to_ofday t2 = od2].  Contrary to the name, it is not guaranteed that
-     [contains (t1 t2) now], which will be false iff there is no interval
-     containing [now] with [to_ofday t1 = od1] and [to_ofday t2 = od1] . *)
-  val create_ending_after : (Ofday.t * Ofday.t) -> now:   Time.t -> t
+  (* [create_ending_after (od1, od2) ~now] returns the smallest interval [(t1 t2)] with
+     minimum [t2] such that [t2 >= ubound], [to_ofday t1 = od1], and [to_ofday t2 = od2].
+     It is not guaranteed that [contains (t1 t2) now], which will be false iff there is no
+     interval containing [now] with [to_ofday t1 = od1] and [to_ofday t2 = od1] . *)
+  val create_ending_after : Ofday.t * Ofday.t -> now:Time.t -> t
 
   (* [create_ending_before (od1, od2) ~ubound] returns the smallest interval [(t1 t2)]
-     with maximum [t2] such that [t2 <= ubound], [to_ofday t1 = od1], and
-     [to_ofday t2 = od2]. *)
-  val create_ending_before     : (Ofday.t * Ofday.t) -> ubound:Time.t -> t
+     with maximum [t2] such that [t2 <= ubound], [to_ofday t1 = od1], and [to_ofday t2 =
+     od2]. *)
+  val create_ending_before : Ofday.t * Ofday.t -> ubound:Time.t -> t
 end

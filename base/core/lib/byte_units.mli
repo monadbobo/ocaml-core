@@ -21,3 +21,10 @@ val kilobytes : t -> float
 val megabytes : t -> float
 val gigabytes : t -> float
 val words     : t -> float
+
+module Infix : sig
+  val ( - ) : t -> t -> t
+  val ( + ) : t -> t -> t
+  val ( * ) : t -> t -> t
+  val ( / ) : t -> t -> t
+end

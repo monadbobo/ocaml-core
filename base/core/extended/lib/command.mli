@@ -29,6 +29,8 @@ module Flag : sig
   val float      : (unit, float -> unit)  create
   val bool       : (unit, bool -> unit)   create
 
+  val gen : (string -> 'gen) -> (unit, 'gen -> unit) create
+
   val set_string     : (unit, string ref)        create
   val set_string_opt : (unit, string option ref) create
   val set_int        : (unit, int ref)           create
@@ -39,6 +41,9 @@ module Flag : sig
   val set_date_opt   : (unit, Date.t option ref) create
   val set            : (unit, bool ref)          create
   val clear          : (unit, bool ref)          create
+
+  val set_gen : (string -> 'gen) -> (unit, 'gen ref) create
+  val set_gen_opt : (string -> 'gen) -> (unit, 'gen option ref) create
 
   (** {6 flag handling meant for use with immutable accumulator} *)
 
@@ -51,6 +56,8 @@ module Flag : sig
   (** [rest f]: a flag that signals the end of flag processing.  all remaining arguments
       are passed to the [f] *)
   val rest_acc   : ('a, 'a -> string list -> 'a) create
+
+  val gen_acc : (string -> 'gen) -> ('a, 'a -> 'gen -> 'a) create
 
   (** {6 flag handling meant for use with mutable accumulator} *)
 
@@ -65,6 +72,7 @@ module Flag : sig
       are passed to the [f] *)
   val rest_mut : ('a, 'a -> string list -> unit) create
 
+  val gen_mut : (string -> 'gen) -> ('a, 'a -> 'gen -> unit) create
 
   (** {2 Deprecated } This is the old deprecated interface to Flag *)
   module Action : sig
@@ -211,6 +219,7 @@ end
         {li [autocomplete] an optional argument defining a bash autocompletion
             function for the base command. }
         {li [summary] a short description of what the command does }
+        {li [readme] a longer description of what the command does }
         {li [usage_arg] an abbreviation of the arguments it expects }
         {li [init] a function that creates an mutable
               accumulator of type ['accum] }
@@ -229,6 +238,7 @@ end
 *)
 val create :
   ?autocomplete : Autocomplete.t
+  -> ?readme : (unit -> string)
   -> summary : string
   -> usage_arg : string
   -> init : (unit -> 'accum)
@@ -239,6 +249,7 @@ val create :
 
 val create0 :
   ?autocomplete : Autocomplete.t
+  -> ?readme : (unit -> string)
   -> summary : string
   -> usage_arg : string
   -> init : (unit -> 'accum)
@@ -249,6 +260,7 @@ val create0 :
 
 val create_no_accum :
   ?autocomplete : Autocomplete.t
+  -> ?readme : (unit -> string)
   -> summary : string
   -> usage_arg : string
   -> flags : unit Flag.t list
@@ -258,6 +270,7 @@ val create_no_accum :
 
 val create_no_accum0 :
   ?autocomplete : Autocomplete.t
+  -> ?readme : (unit -> string)
   -> summary : string
   -> usage_arg : string
   -> flags : unit Flag.t list
@@ -272,11 +285,18 @@ val create_no_accum0 :
     The name cannot contain underscores, however passing [allow_underscores=true] into run
     will parse underscores as dashes on the command line.
 *)
-val group : summary:string -> (string * t) list -> t
+val group
+  :  summary:string
+  -> ?readme:(unit -> string)
+  -> (string * t) list
+  -> t
 
-type 'a with_run_flags =
+
+type 'a with_run_flags
+  =  ?version:string
+  -> ?build_info:string
   (* Defaults to [Sys.argv]. *)
-  ?argv:string list
+  -> ?argv:string list
   (* if true, unknown flags will be passed to the anon command handler *)
   -> ?allow_unknown_flags:bool
   (* if true, "-multi_arg_flag", will be handled the same as "-multi-arg-flag".  If
@@ -291,8 +311,6 @@ type 'a with_run_flags =
 
 val run : unit with_run_flags
 
-val run_with_version_flags : version:string -> build_info:string -> unit with_run_flags
-
 val get_expanded_argv : unit -> string list
 
 val get_expanded_cmdline : unit -> string
@@ -303,7 +321,7 @@ module Version : sig
      munge the strings before passing them to [command]. Also, passing
      in the strings instead of using Version_util directly prevents this
      module from being rebuilt constantly, I think(?). *)
-  val command : version:string -> build_info:string -> t
+  val command : ?version:string -> ?build_info:string -> unit -> t
 end
 
 (** This module is intended to help in using pa_fields to easily generate

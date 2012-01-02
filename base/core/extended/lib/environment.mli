@@ -26,3 +26,6 @@ val append_to_path : ?where:[`Front|`Back] -> key:string -> data:string -> t -> 
 
 (* Converts the Env.t into a value suitable for passing to Unix.exec and friends *)
 val to_exec_env : t -> string array
+
+(* Converts the a Unix.environment style environment into a Env.t *)
+val of_exec_env : string array -> t

@@ -5,15 +5,12 @@ let command ~lock_file ~name main =
     let release_parent = Daemon.daemonize_wait () in
     (* lock file created after [daemonize_wait] so that *child* pid is written
        to the lock file rather than the parent pid *)
-    if Lock_file.create ~close_on_exec:false lock_file
+    if Lock_file.create ~close_on_exec:false ~unlink_on_exit:true lock_file
       (* this writes our pid in the file *) then begin
       (* we release the daemon's parent *after* the lock file is created
          so that any error messages during lock file creation happen
          prior to severing the daemon's connection to std{out,err} *)
       release_parent ();
-      (* unix automatically handles unlocking the lock file, but it is
-         our responsibility to delete it *)
-      at_exit (fun () -> Unix.unlink lock_file);
       main ()
     end;
     0

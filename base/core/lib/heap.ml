@@ -174,17 +174,17 @@ let heap_el_mem heap h_el = heap_el_is_valid h_el && h_el.heap == heap
 
 (***************************************************************)
 
-let top_heap_el_exn { ar = ar } =
+let top_heap_el_exn { ar; _ } =
   if P.(Array.length ar = 0) then raise Empty;
   ar.(0)
 
-let top_heap_el { ar = ar } =
+let top_heap_el { ar; _ } =
   if P.(Array.length ar = 0) then None
   else Some ar.(0)
 
 let top_exn t = (top_heap_el_exn t).el
 
-let top { ar = ar } =
+let top { ar; _ } =
   if P.(Array.length ar = 0) then None
   else Some (get_el ar 0)
 
@@ -202,7 +202,7 @@ let iter t ~f =
   loop 0
 ;;
 
-let pop_heap_el_exn ({ ar = ar } as h) =
+let pop_heap_el_exn ({ ar; _ } as h) =
   let len = Array.length ar in
   if P.(len = 0) then raise Empty;
   let min_h_el = Array.get ar 0 in
@@ -214,24 +214,24 @@ let pop_heap_el_exn ({ ar = ar } as h) =
     heapify ar h.cmp (len - 1) 0;
     min_h_el)
 
-let pop_heap_el ({ ar = ar } as h) =
+let pop_heap_el ({ ar; _ } as h) =
   if P.(Array.length ar = 0) then None
   else Some (pop_heap_el_exn h)
 
 let pop_exn h = (pop_heap_el_exn h).el
 
-let pop ({ ar = ar } as h) =
+let pop ({ ar; _ } as h) =
   if P.(Array.length ar = 0) then None
   else Some (pop_exn h)
 
-let cond_pop_heap_el ({ ar = ar } as h) cond =
+let cond_pop_heap_el ({ ar; _ } as h) cond =
   if P.(Array.length ar = 0) then None
   else
     let min_h_el = Array.get ar 0 in
     if cond min_h_el.el then Some (pop_heap_el_exn h)
     else None
 
-let cond_pop ({ ar = ar } as h) cond =
+let cond_pop ({ ar; _ } as h) cond =
   if P.(Array.length ar = 0) then None
   else
     let min_el = get_el ar 0 in
@@ -254,7 +254,7 @@ let move_up_h_el h_el ar cmp el pos =
   Array.set ar pos h_el;
   h_el.pos <- pos
 
-let push_heap_el { ar = ar; cmp = cmp } h_el =
+let push_heap_el { ar; cmp } h_el =
   let len = Array.length ar in
   Array.add_one ar h_el;
   let pos = move_up ar cmp h_el.el len in
@@ -277,13 +277,13 @@ let remove_move_down ar cmp len pos last =
   last.pos <- pos;
   heapify ar cmp len pos
 
-let remove ({ heap = { ar = ar; cmp = cmp }; pos = pos } as h_el) =
+let remove ({ heap = { ar; cmp }; pos; _ } as h_el) =
   assert (heap_el_is_valid h_el);
   invalidate h_el;
   let lix = Array.lix ar in
   if P.(pos = lix) then Array.remove_one ar
   else
-    let { el = last_el } as last = Array.get ar lix in
+    let { el = last_el; _ } as last = Array.get ar lix in
     Array.remove_one ar;
     if P.(pos = 0) then remove_move_down ar cmp lix pos last
     else
@@ -292,7 +292,7 @@ let remove ({ heap = { ar = ar; cmp = cmp }; pos = pos } as h_el) =
       if P.(cmp last_el parent.el < 0) then move_up_h_el last ar cmp last_el pos
       else remove_move_down ar cmp lix pos last
 
-let update ({ pos = pos } as h_el) el =
+let update ({ pos; _ } as h_el) el =
   assert (heap_el_is_valid h_el);
   h_el.el <- el;
   let { ar = ar; cmp = cmp } = h_el.heap in

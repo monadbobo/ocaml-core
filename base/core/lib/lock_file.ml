@@ -21,12 +21,17 @@ let lock fd =
   let lockfed = lockf fd in
   flocked && lockfed
 
-let create ?(message = Pid.to_string (Unix.getpid ())) ?(close_on_exec=true) path =
+let create
+    ?(message = Pid.to_string (Unix.getpid ()))
+    ?(close_on_exec=true)
+    ?(unlink_on_exit=false)
+    path =
   let message = sprintf "%s\n" message in
   let fd = Unix.openfile path ~mode:[Unix.O_WRONLY; Unix.O_CREAT] ~perm:0o664 in
   try
     if lock fd then begin
       if close_on_exec then Unix.set_close_on_exec fd;
+      if unlink_on_exit then at_exit (fun () -> try Unix.unlink path with _ -> ());
       Unix.ftruncate fd ~len:Int64.zero;
       ignore (Unix.write fd ~buf:message ~pos:0 ~len:(String.length message));
       (* we truncated the file, so we need the region lock back.  We don't really
@@ -43,14 +48,14 @@ let create ?(message = Pid.to_string (Unix.getpid ())) ?(close_on_exec=true) pat
     Unix.close fd; (* releases any locks from [flock] and/or [lockf] *)
     raise e
 
-let create_exn ?message ?close_on_exec path =
-  if not (create ?message ?close_on_exec path) then
+let create_exn ?message ?close_on_exec ?unlink_on_exit path =
+  if not (create ?message ?close_on_exec ?unlink_on_exit path) then
     failwithf "Lock_file.create_exn '%s' was unable to acquire the lock" path ()
 
-let rec blocking_create ?message path =
-  if not (create ?message path) then begin
+let rec blocking_create ?message ?close_on_exec ?unlink_on_exit path =
+  if not (create ?message ?close_on_exec ?unlink_on_exit path) then begin
     Time.pause (Span.of_sec 1.);
-    blocking_create ?message path
+    blocking_create ?message ?close_on_exec ?unlink_on_exit path
   end
 
 let is_locked path =

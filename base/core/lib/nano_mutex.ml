@@ -83,7 +83,7 @@ let invariant t =
   try
     assert (t.num_using_blocker >= 0);
   with
-  | exn -> Error.raise (Error.arg "invariant failed" <:sexp_of< exn * t >> (exn, t))
+  | exn -> Error.fail "invariant failed" (exn, t) <:sexp_of< exn * t >>
 ;;
 
 let equal (t : t) t' = phys_equal t t'
@@ -104,8 +104,8 @@ let current_thread_id () = Thread.id (Thread.self ())
 let current_thread_has_lock t = t.id_of_thread_holding_lock = current_thread_id ()
 
 let recursive_lock t =
-  Error.arg "attempt to lock mutex by thread already holding it"
-  <:sexp_of< int * t >> (current_thread_id (), t)
+  Error.create "attempt to lock mutex by thread already holding it"
+  (current_thread_id (), t) <:sexp_of< int * t >>
 ;;
 
 let try_lock t =
@@ -216,11 +216,11 @@ let unlock ?(allow_from_any_thread = Bool.False_.default) t =
       if Option.is_some t.blocker then with_blocker t Blocker.signal;
       Result.ok_unit;
     end else
-      Error (Error.arg "attempt to unlock mutex held by another thread"
-             <:sexp_of< int * t >> (current_thread_id, t))
+      Error (Error.create "attempt to unlock mutex held by another thread"
+             (current_thread_id, t) <:sexp_of< int * t >>)
   end else
-    Error (Error.arg "attempt to unlock an unlocked mutex"
-           <:sexp_of< int * t >> (current_thread_id, t));
+    Error (Error.create "attempt to unlock an unlocked mutex"
+           (current_thread_id, t) <:sexp_of< int * t >>);
 ;;
 
 let unlock_exn ?allow_from_any_thread t = ok_exn (unlock ?allow_from_any_thread t)
@@ -241,7 +241,6 @@ TEST_UNIT =
       (  10, 100, Span.zero);
       (  10, 100, Span.millisecond);
       ( 100,  10, Span.millisecond);
-(*    (1000,  10, Span.millisecond); *)
     ]
     ~f:(fun (num_threads, num_iterations, pause_for) ->
       try
@@ -262,7 +261,7 @@ TEST_UNIT =
         List.iter threads ~f:Thread.join
       with
       | exn ->
-        Error.raise (Error.arg "test failed"
-                       <:sexp_of< int * int * Span.t * exn >>
-                         (num_threads, num_iterations, pause_for, exn)))
+        Error.fail "test failed"
+          (num_threads, num_iterations, pause_for, exn)
+          <:sexp_of< int * int * Span.t * exn >>)
 ;;

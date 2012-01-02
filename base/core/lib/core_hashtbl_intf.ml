@@ -9,6 +9,9 @@ module type Key = sig
   type t
 
   val compare : t -> t -> int
+
+  (** Values returned by [hash] must be non-negative. An exception will be raised in the
+      case that [hash] returns a negative value. *)
   val hash : t -> int
 
   include Sexpable.S with type t := t
@@ -45,6 +48,7 @@ module Access_sig (T : T2) (Key : T1) = struct
 
     val replace : ('a, 'b) t -> key:'a Key.t -> data:'b -> unit
     val set : ('a, 'b) t -> key:'a Key.t -> data:'b -> unit
+
     val add : ('a, 'b) t -> key:'a Key.t -> data:'b -> [ `Ok | `Duplicate ]
     val add_exn : ('a, 'b) t -> key:'a Key.t -> data:'b -> unit
 
@@ -55,6 +59,11 @@ module Access_sig (T : T2) (Key : T1) = struct
     (* [add_multi t ~key ~data] if [key] is present in the table then cons
        [data] on the list, otherwise add [key] with a single element list. *)
     val add_multi : ('a, 'b list) t -> key:'a Key.t -> data:'b -> unit
+
+    (** [remove_multi t key] updates the table, removing the head of the list bound to
+        [key]. If the list has only one element (or is empty) then the binding is
+        removed. *)
+    val remove_multi : ('a, 'b list) t -> 'a Key.t -> unit
 
     (** [map t f] returns new table with bound values replaced by
         [f] applied to the bound values *)
@@ -113,16 +122,13 @@ module Access_sig (T : T2) (Key : T1) = struct
 
         d(k) =
         - f ~key:k (Some d1) None
-        if the *most recent* binding of [k] in [h1] is to d1,
-        and [h2] does not map [k];
+        if [k] in [h1] is to d1, and [h2] does not map [k];
 
         - f ~key:k None (Some d2)
-        if the *most recent* binding of [k] in [h2] is to d2,
-        and [h1] does not map [k];
+        if [k] in [h2] is to d2, and [h1] does not map [k];
 
         - f ~key:k (Some d1) (Some d2)
-        otherwise, where the *most recent* binding of [k] in [h1]
-        is to [d1] and the *most recent* binding of [k] in [h2]
+        otherwise, where [k] in [h1] is to [d1] and [k] in [h2]
         is to [d2].
 
         Each key [k] is mapped to a single piece of data x, where
@@ -165,9 +171,10 @@ module Access_sig (T : T2) (Key : T1) = struct
   end
 end
 
-type 'a with_options =
+type ('key, 'a) with_options =
   ?growth_allowed:bool
-  -> ?size:int   (* initial size -- default 128 *)
+  -> ?hashable:'key hashable
+  -> ?size:int (* initial size -- default 128 *)
   -> 'a
 
 module Create_sig (T : T2) (Key : T1) = struct
@@ -175,43 +182,56 @@ module Create_sig (T : T2) (Key : T1) = struct
 
   module type S = sig
 
-    val create : (unit -> ('a, 'b) t) with_options
+    val create : ('a Key.t, unit -> ('a, 'b) t) with_options
 
     val of_alist :
-      (('a Key.t * 'b) list
+      ('a Key.t,
+       ('a Key.t * 'b) list
        -> [ `Ok of ('a, 'b) t
           | `Duplicate_key of 'a Key.t
           ]) with_options
 
     val of_alist_report_all_dups :
-      (('a Key.t * 'b) list
+      ('a Key.t,
+       ('a Key.t * 'b) list
        -> [ `Ok of ('a, 'b) t
           | `Duplicate_keys of 'a Key.t list
           ]) with_options
 
-    val of_alist_exn : (('a Key.t * 'b) list -> ('a, 'b) t) with_options
+    val of_alist_exn : ('a Key.t, ('a Key.t * 'b) list -> ('a, 'b) t) with_options
 
-    val of_alist_multi : (('a Key.t * 'b) list -> ('a, 'b list) t) with_options
+    val of_alist_multi : ('a Key.t, ('a Key.t * 'b) list -> ('a, 'b list) t) with_options
 
 
 
     (* create_mapped get_key get_data [x1,...,xn] =
          of_alist [get_key x1, get_data x1; ...; get_key xn, get_data xn] *)
     val create_mapped :
-      (get_key:('r -> 'a Key.t)
+      ('a Key.t,
+       get_key:('r -> 'a Key.t)
        -> get_data:('r -> 'b)
        -> 'r list
-       -> ('a, 'b) t) with_options
+       -> [ `Ok of ('a, 'b) t
+          | `Duplicate_keys of 'a Key.t list ]) with_options
 
     (* create_with_key ~get_key [x1,...,xn] =
          of_alist [get_key x1, x1; ...; get_key xn, xn] *)
     val create_with_key :
-      (get_key:('r -> 'a Key.t)
+      ('a Key.t,
+       get_key:('r -> 'a Key.t)
+       -> 'r list
+       -> [ `Ok of ('a, 'r) t
+          | `Duplicate_keys of 'a Key.t list ]) with_options
+
+    val create_with_key_exn :
+      ('a Key.t,
+       get_key:('r -> 'a Key.t)
        -> 'r list
        -> ('a, 'r) t) with_options
 
     val group :
-      (get_key:('r -> 'a Key.t)
+      ('a Key.t,
+       get_key:('r -> 'a Key.t)
        -> get_data:('r -> 'b)
        -> combine:('b -> 'b -> 'b)
        -> 'r list
@@ -233,5 +253,73 @@ module Monomorphic (T : T2) (Key : T0) = struct
     include Access_sig (T) (Key1).S
     include Create_sig (T) (Key1).S
     include Sexpable.S1 with type 'a t := 'a t
+  end
+end
+
+type ('key, 'a) with_poly_options =
+  ?growth_allowed:bool
+  -> ?size:int (* initial size -- default 128 *)
+  -> 'key hashable
+  -> 'a
+
+module Global_sig (T : T2) = struct
+  open T
+
+  module type S = sig
+
+    val create : ('a, unit -> ('a, 'b) t) with_poly_options
+
+    val of_alist :
+      ('a,
+       ('a * 'b) list
+       -> [ `Ok of ('a, 'b) t
+          | `Duplicate_key of 'a
+          ]) with_poly_options
+
+    val of_alist_report_all_dups :
+      ('a,
+       ('a * 'b) list
+       -> [ `Ok of ('a, 'b) t
+          | `Duplicate_keys of 'a list
+          ]) with_poly_options
+
+    val of_alist_exn : ('a, ('a * 'b) list -> ('a, 'b) t) with_poly_options
+
+    val of_alist_multi : ('a, ('a * 'b) list -> ('a, 'b list) t) with_poly_options
+
+
+
+    (* create_mapped get_key get_data [x1,...,xn] =
+         of_alist [get_key x1, get_data x1; ...; get_key xn, get_data xn] *)
+    val create_mapped :
+      ('a,
+       get_key:('r -> 'a)
+       -> get_data:('r -> 'b)
+       -> 'r list
+       -> [ `Ok of ('a, 'b) t
+          | `Duplicate_keys of 'a list ]) with_poly_options
+
+    (* create_with_key ~get_key [x1,...,xn] =
+         of_alist [get_key x1, x1; ...; get_key xn, xn] *)
+    val create_with_key :
+      ('a,
+       get_key:('r -> 'a)
+       -> 'r list
+       -> [ `Ok of ('a, 'r) t
+          | `Duplicate_keys of 'a list ]) with_poly_options
+
+    val create_with_key_exn :
+      ('a,
+       get_key:('r -> 'a)
+       -> 'r list
+       -> ('a, 'r) t) with_poly_options
+
+    val group :
+      ('a,
+       get_key:('r -> 'a)
+       -> get_data:('r -> 'b)
+       -> combine:('b -> 'b -> 'b)
+       -> 'r list
+       -> ('a, 'b) t) with_poly_options
   end
 end

@@ -104,6 +104,7 @@ val step : ('m1 -> 'm2) -> ('m1, 'm2) t
 
 val cmd :
   summary:string
+  -> ?readme:(unit -> string)
   -> ?global_flags:(unit Command.Flag.t list)
   -> ('main, unit) t
   -> 'main

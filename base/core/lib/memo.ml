@@ -15,7 +15,9 @@ module Result = struct
 
 end
 
-(* special case of [general] where input type is [unit] *)
+(* using (=) instead of compare would be a minor bug since nan <> nan. *)
+let default_equal x y = (compare x y = 0)
+
 let unit f =
   let l = Lazy.lazy_from_fun f in
   (fun () -> Lazy.force l)
@@ -36,7 +38,18 @@ let lru (type a) ~max_cache_size f =
       type t = a
       let compare = Pervasives.compare
       let hash = Hashtbl.hash
-      (* dead code *)
+      (* these [assert false]s are unreachable because
+          1. the only use of these sexp conversions in [Hash_queue.Make] is
+             to define sexp conversions on various exceptions.
+          2. the only exception raising functions returned by this functor
+             application are called in contexts where they will not raise
+             exceptions.
+             * remove_exn raises if the key is missing from the hash
+               queue, but we only call it after just having checked that
+               it is not missing.
+             * enqueue_exn raises if the key is already present in the
+               hash queue, but we only call it after either checking that
+               the key is not present or removing it if it was present. *)
       let t_of_sexp _ = assert false
       let sexp_of_t _ = assert false
     end)

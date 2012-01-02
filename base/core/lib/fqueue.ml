@@ -30,24 +30,21 @@ let test_invariants queue =
 
 let empty = { inlist = []; outlist = []; length = 0 }
 
-let push el queue =
+let enqueue queue el =
   let inlist, outlist =
     if queue.length = 0 then [], [el]
     else el :: queue.inlist, queue.outlist
   in
   { inlist = inlist; outlist = outlist; length = queue.length + 1 }
 
-(** pushes el on the top of the queue, effectively making it
+(** enqueue el on the top of the queue, effectively making it
     the least recently enqueued element *)
-let push_top el queue =
+let enqueue_top queue el =
   let inlist, outlist =
     if queue.inlist = [] then List.rev queue.outlist, [el]
     else queue.inlist, el :: queue.outlist
   in
   { inlist = inlist; outlist = outlist; length = queue.length + 1 }
-
-(** same as push *)
-let enq = push
 
 (** returns bottom (most-recently enqueued) item  *)
 let bot_exn queue =
@@ -68,26 +65,21 @@ let top_exn queue =
 let top queue = try Some (top_exn queue) with Empty -> None
 
 (** returns top of queue and queue with top removed  *)
-let pop_exn queue =
+let dequeue_exn queue =
   let x, inlist, outlist =
     match queue.inlist, queue.outlist with
     | [_] as inlist, [x] -> x, [], inlist
     | y :: ytl, [x] -> x, [y], List.rev ytl
     | inlist, x :: xtl -> x, inlist, xtl
     | [], [] -> raise Empty
-    | _ :: _, [] -> raise (Bug "Fqueue.pop_exn: outlist empty, inlist not")
+    | _ :: _, [] -> raise (Bug "Fqueue.dequeue_exn: outlist empty, inlist not")
   in
   x, { inlist = inlist; outlist = outlist; length = queue.length - 1 }
 
-let pop queue = try Some (pop_exn queue) with Empty -> None
-
-(** same as pop *)
-let deq = pop
-
-let deq_exn = pop_exn
+let dequeue queue = try Some (dequeue_exn queue) with Empty -> None
 
 (** returns queue with top removed *)
-let discard_exn queue = snd (pop_exn queue)
+let discard_exn queue = snd (dequeue_exn queue)
 
 let to_list queue = List.append queue.outlist (List.rev queue.inlist)
 

@@ -28,7 +28,7 @@ let to_string = string_of_float
 let max_value = infinity
 let min_value = neg_infinity
 let max_finite_value = Pervasives.max_float
-let min_finite_value = Pervasives.min_float
+let min_positive_value = Pervasives.min_float
 let zero = 0.
 
 let is_nan x = (x : t) <> x

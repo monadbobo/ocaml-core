@@ -535,15 +535,17 @@ let with_username_exn name = with_uid (Unix.Passwd.getbyname_exn name).Unix.Pass
 
 let with_username name = Option.try_with (fun () -> with_username_exn name) ;;
 
+let get_uptime () =
+  match string_of_file "/proc/uptime" |! String.split ~on:' ' with
+  | secs_since_boot :: _ -> Float.of_string secs_since_boot
+  | _ -> failwithf "Error parsing /proc/uptime" ()
+;;
+
 (*
  * This is a partial translation of
  *   sysinfo.c:init_Hertz_value from procps (top)
  *)
 let jiffies_per_second_exn () =
-  let get_uptime () =
-    let uptime1 = string_of_file "/proc/uptime" in
-    sscanf uptime1 "%f" (fun x -> x)
-  in
   let rec sample () =
     let up1 = get_uptime () in
 
@@ -641,3 +643,4 @@ let supported_filesystems () =
     | _ -> failwithf "Procfs.supported_filesystems: bad format: %s" line ())
 ;;
 
+let uptime () = get_uptime () |! Time.Span.of_float ;;

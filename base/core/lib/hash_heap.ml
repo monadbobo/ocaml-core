@@ -69,10 +69,12 @@ module Make (Key : Key) : S with module Key = Key = struct
         Hashtbl.replace t.tbl ~key ~data:el;
         `Ok
 
+  exception Key_already_present of Key.t with sexp
+
   let push_exn t ~key ~data =
     match push t ~key ~data with
     | `Ok -> ()
-    | `Key_already_present -> failwith "Hash_heap: key already present"
+    | `Key_already_present -> raise (Key_already_present key)
 
   let replace t ~key ~data =
     match Hashtbl.find t.tbl key with
@@ -134,10 +136,12 @@ module Make (Key : Key) : S with module Key = Key = struct
     | None -> None
     | Some el -> Some (snd (Heap.heap_el_get_el el))
 
+  exception Key_not_found of Key.t with sexp
+
   let find_exn t key =
     match find t key with
     | Some el -> el
-    | None -> failwith "Hash_heap.find_exn"
+    | None -> raise (Key_not_found key)
 
   let find_pop t key =
     match Hashtbl.find t.tbl key with
@@ -151,7 +155,7 @@ module Make (Key : Key) : S with module Key = Key = struct
   let find_pop_exn t key =
     match find_pop t key with
     | Some el -> el
-    | None -> failwith "Hash_heap.find_pop_exn"
+    | None -> raise (Key_not_found key)
 
   let iter t ~f = Heap.iter t.heap ~f:(fun (k, v) -> f ~key:k ~data:v)
   let iter_vals t ~f = Heap.iter t.heap ~f:(fun (_k, v) -> f v)

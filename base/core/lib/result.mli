@@ -31,6 +31,7 @@ val error : (_, 'err) t -> 'err option
 val of_option : 'ok option -> error:'err -> ('ok, 'err) t
 
 val iter : ('ok, _) t -> f:('ok -> unit) -> unit
+val iter_error : (_, 'err) t -> f:('err -> unit) -> unit
 val map : ('ok, 'err) t  -> f:('ok -> 'c) -> ('c, 'err) t
 val map_error : ('ok, 'err) t  -> f:('err -> 'c) -> ('ok, 'c) t
 
@@ -57,11 +58,8 @@ val ok_if_true : bool -> error : 'err -> (unit, 'err) t
 
 val try_with : (unit -> 'a) -> ('a, exn) t
 
-(** [ok_exn t] returns [x] if [t = Ok x], otherwise it raises an exn. *)
-val ok_exn : ?fail:exn -> ('ok, _) t -> 'ok
-
-(** [raise_error t] returns [x] if [t = Ok x], and raises [exn] if [t = Error exn] *)
-val raise_error : ('ok, exn) t -> 'ok
+(** [ok_exn t] returns [x] if [t = Ok x], and raises [exn] if [t = Error exn] *)
+val ok_exn : ('ok, exn) t -> 'ok
 
 (* raises Failure in the Error case *)
 val failwith_error : ('ok, string) t -> 'ok

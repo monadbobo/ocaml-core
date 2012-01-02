@@ -11,6 +11,7 @@ let create ~host ~port = (host, port)
 
 let host = fst
 let port = snd
+let tuple t = t
 
 let to_string (host, port) = sprintf "%s:%d" host port
 let of_string s =

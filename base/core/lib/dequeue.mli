@@ -19,7 +19,6 @@ include Sexpable.S1 with type 'a t := 'a t
 include Binable.S1 with type 'a t := 'a t
 
 (* if never_shrink is true, the physical array will never shrink; only expand *)
-(* initial_index is the index at which the first push_back operation will insert *)
 (* a dummy element is required to satisfy the type-checker and will never be returned *)
 val create : ?never_shrink:bool -> ?initial_index:int -> dummy:'a -> unit -> 'a t
 

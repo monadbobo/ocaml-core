@@ -87,7 +87,7 @@ module Comparable (S1 : Comparable_sexpable) (S2 : Comparable_sexpable) = struct
 
   end
 
-  type t = T.t
+  include T
   include Comparable.Make (T)
 end
 

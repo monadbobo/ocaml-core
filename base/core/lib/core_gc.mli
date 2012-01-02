@@ -210,58 +210,58 @@ val allocated_bytes : unit -> float
 
 val finalise : ('a -> unit) -> 'a -> unit
 (** [finalise f v] registers [f] as a finalisation function for [v].
-   [v] must be heap-allocated.  [f] will be called with [v] as
-   argument at some point between the first time [v] becomes unreachable
-   and the time [v] is collected by the GC.  Several functions can
-   be registered for the same value, or even several instances of the
-   same function.  Each instance will be called once (or never,
-   if the program terminates before [v] becomes unreachable).
+    [v] must be heap-allocated.  [f] will be called with [v] as
+    argument at some point between the first time [v] becomes unreachable
+    and the time [v] is collected by the GC.  Several functions can
+    be registered for the same value, or even several instances of the
+    same function.  Each instance will be called once (or never,
+    if the program terminates before [v] becomes unreachable).
 
-   The GC will call the finalisation functions in the order of
-   deallocation.  When several values become unreachable at the
-   same time (i.e. during the same GC cycle), the finalisation
-   functions will be called in the reverse order of the corresponding
-   calls to [finalise].  If [finalise] is called in the same order
-   as the values are allocated, that means each value is finalised
-   before the values it depends upon.  Of course, this becomes
-   false if additional dependencies are introduced by assignments.
+    The GC will call the finalisation functions in the order of
+    deallocation.  When several values become unreachable at the
+    same time (i.e. during the same GC cycle), the finalisation
+    functions will be called in the reverse order of the corresponding
+    calls to [finalise].  If [finalise] is called in the same order
+    as the values are allocated, that means each value is finalised
+    before the values it depends upon.  Of course, this becomes
+    false if additional dependencies are introduced by assignments.
 
-   Anything reachable from the closure of finalisation functions
-   is considered reachable, so the following code will not work
-   as expected:
-   - [ let v = ... in Gc.finalise (fun x -> ...) v ]
+    Anything reachable from the closure of finalisation functions
+    is considered reachable, so the following code will not work
+    as expected:
+    - [ let v = ... in Gc.finalise (fun x -> ...) v ]
 
-   Instead you should write:
-   - [ let f = fun x -> ... ;; let v = ... in Gc.finalise f v ]
-
-
-   The [f] function can use all features of O'Caml, including
-   assignments that make the value reachable again.  It can also
-   loop forever (in this case, the other
-   finalisation functions will be called during the execution of f).
-   It can call [finalise] on [v] or other values to register other
-   functions or even itself.  It can raise an exception; in this case
-   the exception will interrupt whatever the program was doing when
-   the function was called.
+    Instead you should write:
+    - [ let f = fun x -> ... ;; let v = ... in Gc.finalise f v ]
 
 
-   [finalise] will raise [Invalid_argument] if [v] is not
-   heap-allocated.  Some examples of values that are not
-   heap-allocated are integers, constant constructors, booleans,
-   the empty array, the empty list, the unit value.  The exact list
-   of what is heap-allocated or not is implementation-dependent.
-   Some constant values can be heap-allocated but never deallocated
-   during the lifetime of the program, for example a list of integer
-   constants; this is also implementation-dependent.
-   You should also be aware that compiler optimisations may duplicate
-   some immutable values, for example floating-point numbers when
-   stored into arrays, so they can be finalised and collected while
-   another copy is still in use by the program.
+    The [f] function can use all features of O'Caml, including
+    assignments that make the value reachable again.  It can also
+    loop forever (in this case, the other
+    finalisation functions will be called during the execution of f).
+    It can call [finalise] on [v] or other values to register other
+    functions or even itself.  It can raise an exception; in this case
+    the exception will interrupt whatever the program was doing when
+    the function was called.
 
 
-   The results of calling {!String.make}, {!String.create},
-   {!Array.make}, and {!Pervasives.ref} are guaranteed to be
-   heap-allocated and non-constant except when the length argument is [0].
+    [finalise] will raise [Invalid_argument] if [v] is not
+    heap-allocated.  Some examples of values that are not
+    heap-allocated are integers, constant constructors, booleans,
+    the empty array, the empty list, the unit value.  The exact list
+    of what is heap-allocated or not is implementation-dependent.
+    Some constant values can be heap-allocated but never deallocated
+    during the lifetime of the program, for example a list of integer
+    constants; this is also implementation-dependent.
+    You should also be aware that compiler optimisations may duplicate
+    some immutable values, for example floating-point numbers when
+    stored into arrays, so they can be finalised and collected while
+    another copy is still in use by the program.
+
+
+    The results of calling {!String.make}, {!String.create},
+    {!Array.make}, and {!Pervasives.ref} are guaranteed to be
+    heap-allocated and non-constant except when the length argument is [0].
 *)
 
 

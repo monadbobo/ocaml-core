@@ -16,13 +16,13 @@
 module List = Core_list
 
 type 'a queue_end = 'a z option ref
-and 'a z = 
+and 'a z =
   { value : 'a;
     next : 'a queue_end;
   }
 
 let queue_end_to_list queue_end =
-  let rec loop queue_end ac = 
+  let rec loop queue_end ac =
     match !queue_end with
     | None -> List.rev ac
     | Some z -> loop z.next (z.value :: ac)
@@ -31,10 +31,11 @@ let queue_end_to_list queue_end =
 ;;
 
 
-type 'a t = 
+type 'a t =
   { mutable front : 'a queue_end;
     mutable back : 'a queue_end;
-  }
+    mutable length : int;
+  } with fields
 
 let to_list t = queue_end_to_list t.front
 
@@ -42,12 +43,13 @@ let sexp_of_t sexp_of_a t = List.sexp_of_t sexp_of_a (to_list t)
 
 let create () =
   let queue_end = ref None in
-  { front = queue_end; back = queue_end }
+  { front = queue_end; back = queue_end; length = 0 }
 
 let enqueue t a =
   let next = ref None in
   let el = Some { value = a; next = next } in
   (* BEGIN ATOMIC SECTION *)
+  t.length <- t.length + 1;
   t.back := el;
   t.back <- next;
   (* END ATOMIC SECTION *)
@@ -59,8 +61,15 @@ let dequeue t =
   | None -> None
   | Some el ->
     t.front <- el.next;
+    t.length <- t.length - 1;
     (* END ATOMIC SECTION *)
     Some el.value
+;;
+
+let rec dequeue_until_empty t f =
+  match dequeue t with
+  | None -> ()
+  | Some x -> f x; dequeue_until_empty t f
 ;;
 
 let create' () =

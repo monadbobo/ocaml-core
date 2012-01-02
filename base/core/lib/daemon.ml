@@ -97,7 +97,7 @@ let daemonize_wait ?(cd = "/") ?umask:(umask_value = default_umask) () =
         if wait_result = 0 then begin
           match Caml.Unix.select [read_end] [] [] 0.1 with
           | [read_end], [], [] ->
-            (* select will return a ready file descriptor (but with zero bytes to 
+            (* select will return a ready file descriptor (but with zero bytes to
                read) when the child closes it. *)
             if Unix.read read_end ~buf:(String.create len) ~pos:0 ~len > 0 then
               exit 0

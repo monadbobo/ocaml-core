@@ -135,6 +135,19 @@ module Make_sexp_maybe2 (Random_state:sig val state:Random.State.t end) : sig
   val final_pass : Sexp.t -> use_sexp_maybe:bool -> Sexp.t
 end
 
+(* This module is intended to be used when [T.t] is a record type and
+   [T.explicit_sexp_option_fields] is a list of fields declared with [sexp_option].
+
+   The sexp conversions are changed so that [None] and [Some "foo"] are written out as
+   [()] and [("foo")] respectively, so that you can switch to regular options more easily.
+*)
+module Make_explicit_sexp_option (T: sig
+  type t with sexp
+  val explicit_sexp_option_fields : string list
+end) : sig
+  type t = T.t with sexp
+end
+
 val load_sexp_conv_exn_sample :
   ?strict:bool
   -> ?buf:string

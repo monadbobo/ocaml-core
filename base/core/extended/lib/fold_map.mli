@@ -56,18 +56,18 @@ module type S = sig
   val remove    : 'a t -> 'a -> 'a t
   val set       : key:'a -> data:out_value -> 'a t -> 'a t
   val mem       : 'a t -> 'a -> bool
-  val iter      : f:(key:'a -> data:out_value -> unit) -> 'a t -> unit
+  val iter      : 'a t -> f:(key:'a -> data:out_value -> unit) -> unit
   val fold      :
-    f:(key:'a -> data:out_value -> 'b -> 'b)
-    -> 'a t
+    'a t
+    -> f:(key:'a -> data:out_value -> 'b -> 'b)
     -> init:'b -> 'b
-  val filter    : f:(key:'a -> data:out_value -> bool) -> 'a t -> 'a t
+  val filter    : 'a t -> f:(key:'a -> data:out_value -> bool) -> 'a t
   val keys      : 'a t -> 'a list
   val data      : _ t -> out_value list
   val to_alist  : 'a t -> ('a * out_value) list
   val of_list   : ('a * in_value) list -> 'a t
-  val for_all   : f:(out_value -> bool) -> _ t -> bool
-  val exists    : f:(out_value -> bool) -> _ t -> bool
+  val for_all   : _ t -> f:(out_value -> bool) -> bool
+  val exists    : _ t -> f:(out_value -> bool) -> bool
   val to_map    : 'a t -> ('a , out_value) Map.t
   val of_map    : ('a , out_value) Map.t -> 'a t
 
@@ -127,21 +127,21 @@ module type S2 = sig
   val remove    : ('a,'b) t -> 'a -> ('a,'b) t
   val set       : key:'a -> data:'b out_value -> ('a,'b) t -> ('a,'b) t
   val mem       : ('a,_) t -> 'a -> bool
-  val iter      : f:(key:'a -> data:'b out_value -> unit) -> ('a,'b) t -> unit
+  val iter      : ('a,'b) t -> f:(key:'a -> data:'b out_value -> unit) -> unit
   val fold      :
-    f:(key:'a -> data:'b out_value -> 'c -> 'c)
-    -> ('a,'b) t
+    ('a,'b) t
+    -> f:(key:'a -> data:'b out_value -> 'c -> 'c)
     -> init:'c -> 'c
   val filter    :
-    f:(key:'a -> data:'b out_value -> bool)
-    -> ('a,'b) t
+    ('a,'b) t
+    -> f:(key:'a -> data:'b out_value -> bool)
     -> ('a,'b) t
   val keys      : ('a,_) t -> 'a list
   val data      : (_,'b) t -> 'b out_value list
   val to_alist  : ('a,'b) t -> ('a * 'b out_value) list
   val of_list   : ('a * 'b) list -> ('a,'b) t
-  val for_all   : f:('b out_value -> bool) -> (_,'b) t -> bool
-  val exists    : f:('b out_value -> bool) -> (_,'b) t -> bool
+  val for_all   : (_,'b) t -> f:('b out_value -> bool) -> bool
+  val exists    : (_,'b) t -> f:('b out_value -> bool) -> bool
   val to_map    : ('a,'b) t -> ('a,'b out_value) Map.t
   val of_map    : ('a,'b out_value) Map.t -> ('a,'b) t
 end

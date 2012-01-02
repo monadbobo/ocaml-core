@@ -18,7 +18,6 @@ end
 module Gen (T : Types) = struct
   open T
 
-
   module type S = sig
     (** the empty map *)
     val empty: (_, _) t
@@ -34,11 +33,11 @@ module Gen (T : Types) = struct
 
     (** returns a new map with the specified new binding;
         if the key was already bound, its previous binding disappears. *)
-    val add: key:'k key -> data:'v -> ('k, 'v) t -> ('k, 'v) t
+    val add: ('k, 'v) t -> key:'k key -> data:'v -> ('k, 'v) t
 
     (** if key is not present then add a singleton list, otherwise, cons data
         on the head of the existing list. *)
-    val add_multi: key:'k key -> data:'v -> ('k, 'v list) t -> ('k, 'v list) t
+    val add_multi: ('k, 'v list) t -> key:'k key -> data:'v -> ('k, 'v list) t
 
     (** [change map key f] updates the given map by changing the value stored
         under [key] according to [f].  Thus, for example, one might write:
@@ -63,32 +62,32 @@ module Gen (T : Types) = struct
     val mem: ('k, _) t -> 'k key -> bool
 
     (** iterator for map *)
-    val iter: f:(key:'k key -> data:'v -> unit) -> ('k, 'v) t -> unit
+    val iter: ('k, 'v) t -> f:(key:'k key -> data:'v -> unit) -> unit
 
     (** returns new map with bound values replaced by f applied to the bound values *)
-    val map: f:('v1 -> 'v2) -> ('k, 'v1) t -> ('k, 'v2) t
+    val map: ('k, 'v1) t -> f:('v1 -> 'v2) -> ('k, 'v2) t
 
     (** like [map], but function takes both key and data as arguments *)
-    val mapi: f:(key:'k key -> data:'v1 -> 'v2) -> ('k, 'v1) t -> ('k, 'v2) t
+    val mapi: ('k, 'v1) t -> f:(key:'k key -> data:'v1 -> 'v2) -> ('k, 'v2) t
 
     (** folds over keys and data in map *)
     val fold:
-      f:(key:'k key -> data:'v -> 'a -> 'a) -> ('k, 'v) t -> init:'a -> 'a
+      ('k, 'v) t -> f:(key:'k key -> data:'v -> 'a -> 'a) -> init:'a -> 'a
 
     (** folds over keys and data in map in reverse order *)
     val fold_right:
-      f:(key:'k key -> data:'v -> 'a -> 'a) -> ('k, 'v) t -> init:'a -> 'a
+      ('k, 'v) t -> f:(key:'k key -> data:'v -> 'a -> 'a) -> init:'a -> 'a
 
     (** filter for map *)
-    val filter: f:(key:'k key -> data:'v -> bool) -> ('k, 'v) t -> ('k, 'v) t
+    val filter:('k, 'v) t -> f:(key:'k key -> data:'v -> bool) -> ('k, 'v) t
 
     (** returns new map with bound values filtered by f applied to the bound
         values *)
-    val filter_map: f:('v1 -> 'v2 option) -> ('k, 'v1) t -> ('k, 'v2) t
+    val filter_map: ('k, 'v1) t -> f:('v1 -> 'v2 option) -> ('k, 'v2) t
 
     (** like [filter_map], but function takes both key and data as arguments*)
     val filter_mapi:
-      f:(key:'k key -> data:'v1 -> 'v2 option) -> ('k, 'v1) t -> ('k, 'v2) t
+      ('k, 'v1) t -> f:(key:'k key -> data:'v1 -> 'v2 option) -> ('k, 'v2) t
 
     (** Total ordering between maps.  The first argument is a total ordering
         used to compare data associated with equal keys in the two maps. *)
@@ -132,10 +131,12 @@ module Gen (T : Types) = struct
 
     (** merges two maps *)
     val merge:
-      f:(key:'k key
-         -> [ `Left of 'v1 | `Right of 'v2 | `Both of 'v1 * 'v2 ]
-         -> 'v3 option)
-      -> ('k, 'v1) t -> ('k, 'v2) t -> ('k, 'v3) t
+      ('k, 'v1) t
+      -> ('k, 'v2) t
+      -> f:(key:'k key
+          -> [ `Left of 'v1 | `Right of 'v2 | `Both of 'v1 * 'v2 ]
+          -> 'v3 option)
+      -> ('k, 'v3) t
 
     (** [min_elt map] @return Some [(key, data)] pair corresponding to the
         minimum key in [map], None if empty. *)
@@ -154,8 +155,8 @@ module Gen (T : Types) = struct
     val max_elt_exn : ('k, 'v) t -> 'k key * 'v
 
     (** same semantics as similar functions in List *)
-    val for_all : f:('v -> bool) -> ('k, 'v) t -> bool
-    val exists  : f:('v -> bool) -> ('k, 'v) t -> bool
+    val for_all : ('k, 'v) t -> f:('v -> bool) -> bool
+    val exists  : ('k, 'v) t -> f:('v -> bool) -> bool
 
     (** [fold_range_inclusive t ~min ~max ~init ~f]
         folds f (with initial value ~init) over all keys (and their associated values)
@@ -192,22 +193,22 @@ module type S = sig
   val singleton: key -> 'a -> 'a t
   val is_empty: _ t -> bool
   val length : _ t -> int
-  val add: key:key -> data:'a -> 'a t -> 'a t
-  val add_multi: key:key -> data:'a -> 'a list t -> 'a list t
+  val add: 'a t -> key:key -> data:'a -> 'a t
+  val add_multi: 'a list t -> key:key -> data:'a -> 'a list t
   val change : 'a t -> key -> ('a option -> 'a option) -> 'a t
   val find_exn: 'a t -> key -> 'a
   val find: 'a t -> key -> 'a option
   val remove: 'a t -> key -> 'a t
   val mem: 'a t -> key -> bool
-  val iter: f:(key:key -> data:'a -> unit) -> 'a t -> unit
-  val map: f:('a -> 'b) -> 'a t -> 'b t
-  val mapi: f:(key:key -> data:'a -> 'b) -> 'a t -> 'b t
-  val fold: f:(key:key -> data:'a -> 'b -> 'b) -> 'a t -> init:'b -> 'b
-  val fold_right: f:(key:key -> data:'a -> 'b -> 'b) -> 'a t -> init:'b -> 'b
+  val iter: 'a t -> f:(key:key -> data:'a -> unit) -> unit
+  val map: 'a t -> f:('a -> 'b) -> 'b t
+  val mapi: 'a t -> f:(key:key -> data:'a -> 'b) -> 'b t
+  val fold: 'a t -> f:(key:key -> data:'a -> 'b -> 'b) -> init:'b -> 'b
+  val fold_right: 'a t -> f:(key:key -> data:'a -> 'b -> 'b) -> init:'b -> 'b
 
-  val filter: f:(key:key -> data:'a -> bool) -> 'a t -> 'a t
-  val filter_map: f:('a -> 'b option) -> 'a t -> 'b t
-  val filter_mapi: f:(key:key -> data:'a -> 'b option) -> 'a t -> 'b t
+  val filter: 'a t -> f:(key:key -> data:'a -> bool) -> 'a t
+  val filter_map: 'a t -> f:('a -> 'b option) -> 'b t
+  val filter_mapi: 'a t -> f:(key:key -> data:'a -> 'b option) -> 'b t
   val compare: ('a -> 'a -> int) -> 'a t -> 'a t -> int
   val equal: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
   val keys: 'a t -> key list
@@ -219,18 +220,18 @@ module type S = sig
   val to_alist: 'a t -> (key * 'a) list
   val of_alist_fold: (key * 'b) list -> init:'a -> f:('a -> 'b -> 'a) -> 'a t
   val merge:
-    f:(key:key
-       -> [ `Left of 'data1 | `Right of 'data2 | `Both of 'data1 * 'data2 ]
-       -> 'data3 option)
-    -> 'data1 t
+    'data1 t
     -> 'data2 t
+    -> f:(key:key
+          -> [ `Left of 'data1 | `Right of 'data2 | `Both of 'data1 * 'data2 ]
+          -> 'data3 option)
     -> 'data3 t
   val min_elt : 'data t -> (key * 'data) option
   val min_elt_exn : 'data t -> key * 'data
   val max_elt : 'data t -> (key * 'data) option
   val max_elt_exn : 'data t -> key * 'data
-  val for_all : f:('data -> bool) -> 'data t -> bool
-  val exists : f:('data -> bool) -> 'data t -> bool
+  val for_all : 'data t -> f:('data -> bool) -> bool
+  val exists  : 'data t -> f:('data -> bool) -> bool
   val fold_range_inclusive :
     'data t -> min:key -> max:key -> init:'a
     -> f:(key:key -> data:'data -> 'a -> 'a) -> 'a
@@ -251,21 +252,21 @@ module type S2 = sig
   val singleton: 'k -> 'v -> ('k, 'v) t
   val is_empty: ('k, 'v) t -> bool
   val length : (_, _) t -> int
-  val add: key:'k -> data:'v -> ('k, 'v) t -> ('k, 'v) t
-  val add_multi: key:'k -> data:'v -> ('k, 'v list) t -> ('k, 'v list) t
+  val add: ('k, 'v) t -> key:'k -> data:'v -> ('k, 'v) t
+  val add_multi: ('k, 'v list) t -> key:'k -> data:'v -> ('k, 'v list) t
   val change : ('k, 'v) t -> 'k -> ('v option -> 'v option) -> ('k,'v) t
   val find_exn: ('k, 'v) t -> 'k -> 'v
   val find: ('k, 'v) t -> 'k -> 'v option
   val remove: ('k, 'v) t -> 'k -> ('k, 'v) t
   val mem: ('k, 'v) t -> 'k -> bool
-  val iter: f:(key:'k -> data:'v -> unit) -> ('k, 'v) t -> unit
-  val map: f:('v -> 'b) -> ('k, 'v) t -> ('k, 'b) t
-  val mapi: f:(key:'k -> data:'v -> 'b) -> ('k, 'v) t -> ('k, 'b) t
-  val fold: f:(key:'k -> data:'v -> 'b -> 'b) -> ('k, 'v) t -> init:'b -> 'b
-  val fold_right: f:(key:'k -> data:'v -> 'b -> 'b) -> ('k, 'v) t -> init:'b -> 'b
-  val filter: f:(key:'k -> data:'v -> bool) -> ('k, 'v) t -> ('k, 'v) t
-  val filter_map: f:('v -> 'b option) -> ('k, 'v) t -> ('k, 'b) t
-  val filter_mapi: f:(key:'k -> data:'v -> 'b option) -> ('k, 'v) t -> ('k, 'b) t
+  val iter: ('k, 'v) t -> f:(key:'k -> data:'v -> unit) -> unit
+  val map: ('k, 'v) t -> f:('v -> 'b) -> ('k, 'b) t
+  val mapi: ('k, 'v) t -> f:(key:'k -> data:'v -> 'b) -> ('k, 'b) t
+  val fold: ('k, 'v) t -> f:(key:'k -> data:'v -> 'b -> 'b) -> init:'b -> 'b
+  val fold_right: ('k, 'v) t -> f:(key:'k -> data:'v -> 'b -> 'b) -> init:'b -> 'b
+  val filter: ('k, 'v) t -> f:(key:'k -> data:'v -> bool) -> ('k, 'v) t
+  val filter_map: ('k, 'v) t -> f:('v -> 'b option) -> ('k, 'b) t
+  val filter_mapi: ('k, 'v) t -> f:(key:'k -> data:'v -> 'b option) -> ('k, 'b) t
   val compare: ('v -> 'v -> int) -> ('k, 'v) t -> ('k, 'v) t -> int
   val equal: ('v -> 'v -> bool) -> ('k, 'v) t -> ('k, 'v) t -> bool
   val keys: ('k, 'v) t -> 'k list
@@ -277,18 +278,18 @@ module type S2 = sig
   val to_alist: ('k, 'v) t -> ('k * 'v) list
   val of_alist_fold: ('k * 'v1) list -> init:'v2 -> f:('v2 -> 'v1 -> 'v2) -> ('k, 'v2) t
   val merge:
-    f:(key:'k
-       -> [ `Left of 'data1 | `Right of 'data2 | `Both of 'data1 * 'data2 ]
-       -> 'data3 option)
-    -> ('k, 'data1) t
+    ('k, 'data1) t
     -> ('k, 'data2) t
+    -> f:(key:'k
+          -> [ `Left of 'data1 | `Right of 'data2 | `Both of 'data1 * 'data2 ]
+          -> 'data3 option)
     -> ('k, 'data3) t
   val min_elt : ('k, 'data) t -> ('k * 'data) option
   val min_elt_exn : ('k, 'data) t -> 'k * 'data
   val max_elt : ('k, 'data) t -> ('k * 'data) option
   val max_elt_exn : ('k, 'data) t -> 'k * 'data
-  val for_all : f:('data -> bool) -> ('k, 'data) t -> bool
-  val exists : f:('data -> bool) -> ('k, 'data) t -> bool
+  val for_all : ('k, 'data) t -> f:('data -> bool) -> bool
+  val exists  : ('k, 'data) t -> f:('data -> bool) -> bool
   val fold_range_inclusive :
     ('k, 'data) t -> min:'k -> max:'k -> init:'a
     -> f:(key:'k -> data:'data -> 'a -> 'a) -> 'a

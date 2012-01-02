@@ -201,21 +201,27 @@ CAMLprim value fixed_close_channel(value vchannel)
 {
   int result;
   int tmp_fd = -1;
+  int tries = 0;
   struct channel *channel = Channel(vchannel);
 
-  if (channel->fd == -1) result = 0;
-  else {
+  if (channel->fd != -1) {
     tmp_fd = channel->fd;
     channel->fd = -1;
 
     caml_enter_blocking_section();
-    result = close(tmp_fd);
+    do {
+      tries++;
+      result = close(tmp_fd);
+    } while(result == -1 && (errno == EINTR || errno == EAGAIN) && tries < 1000);
     caml_leave_blocking_section();
 
-    channel->curr = channel->max = channel->end;
+    if(result == -1) {
+      channel->fd = tmp_fd;
+      uerror("error closing channel", Nothing);
+    } else
+      channel->curr = channel->max = channel->end;
   }
 
-  if (result == -1) caml_failwith("error closing channel");
   return Val_unit;
 }
 

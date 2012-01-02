@@ -9,6 +9,14 @@ include Sexp_intf.S
 
 val of_int_style : [ `Underscores | `No_underscores ] ref
 
+(** [no_raise] is the identity, but by using ['a no_raise] in a sexpable type, the
+    resulting use [sexp_of_no_raise] protects the conversion of ['a] to a sexp so that if
+    it fails, one gets a sexp with an error message about the failure, rather than an
+    exception being raised.
+
+    The resulting [no_raise_of_sexp] can still raise. *)
+type 'a no_raise = 'a with bin_io, sexp
+
 (* Please refer to the Sexplib documentation in base/sexplib/doc to learn
    more about sexp_option, sexp_list, and sexp_array generators. *)
 

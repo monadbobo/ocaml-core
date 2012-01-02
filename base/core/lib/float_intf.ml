@@ -20,7 +20,7 @@ module type S = sig
   val epsilon : t         (* WARNING: This is not [epsilon_float].  See Robust_compare. *)
 
   val max_finite_value : t
-  val min_finite_value : t
+  val min_positive_value : t
 
   val of_int : int -> t
   val to_int : t -> int

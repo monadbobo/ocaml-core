@@ -12,13 +12,14 @@
     It will only be released when the process dies. If close_on_exec is false,
     then the lock will not be released until children created via fork and
     exec also terminate. If not specified, close_on_exec=true.
-    Note the lock file is not cleaned up for you when the process exits.
-    Consider setting up an at_exit handler to unlink the lock-file on
-    program termination.
+    Note that by default, the lock file is not cleaned up for you when
+    the process exits. If you pass [unlink_on_exit:true], an at_exit handler
+    will be set up to remove the lock-file on program termination.
  *)
 val create :
   ?message : string
   -> ?close_on_exec : bool
+  -> ?unlink_on_exit : bool
   -> string
   -> bool
 
@@ -27,12 +28,18 @@ val create :
 val create_exn :
   ?message : string
   -> ?close_on_exec : bool
+  -> ?unlink_on_exit : bool
   -> string
   -> unit
 
 (** [blocking_create t] tries to create the lock. If another process holds
     the lock this function will wait until it is released. *)
-val blocking_create : ?message : string -> string -> unit
+val blocking_create :
+  ?message : string
+  -> ?close_on_exec : bool
+  -> ?unlink_on_exit : bool
+  -> string
+  -> unit
 
 (** [is_locked path] returns true when the file at [path] exists and
     is locked, false otherwise. *)

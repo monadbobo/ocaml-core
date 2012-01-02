@@ -30,7 +30,7 @@ let really_input t ~buf ~pos ~len =
 let input_byte t = may_eof (fun () -> Pervasives.input_byte t)
 let input_char t = may_eof (fun () -> Pervasives.input_char t)
 let input_binary_int t = may_eof (fun () -> Pervasives.input_binary_int t)
-let input_value t = may_eof (fun () -> Pervasives.input_value t)
+let unsafe_input_value t = may_eof (fun () -> Pervasives.input_value t)
 
 let set_binary_mode = Pervasives.set_binary_mode_in
 

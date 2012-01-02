@@ -62,6 +62,11 @@ CAMLprim value low_level_debug_stop_me_now(value v_unit)
   fprintf(stderr, "stopping process %d now\n", getpid());
   fflush(stderr);
   kill(getpid(), SIGSTOP);
+  /* endless loop so this never terminates, otherwise
+   * we might have gone past the point where we wanted
+   * to stop and that makes debugging harder..
+   */
+  while (1);
   return v_unit;
 }
 

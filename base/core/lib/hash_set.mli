@@ -5,9 +5,11 @@ type 'a t
 
 val copy : 'a t -> 'a t                 (* preserves the equality function *)
 val add : 'a t -> 'a -> unit
-val strict_add : 'a t -> 'a -> unit
+val strict_add : 'a t -> 'a -> (unit, exn) Result.t
+val strict_add_exn : 'a t -> 'a -> unit
 val remove : 'a t -> 'a -> unit
-val strict_remove : 'a t -> 'a -> unit
+val strict_remove : 'a t -> 'a -> (unit, exn) Result.t
+val strict_remove_exn : 'a t -> 'a -> unit
 val clear : 'a t -> unit
 val fold : 'a t -> init:'b -> f:('b -> 'a -> 'b) -> 'b
 val iter : 'a t -> f:('a -> unit) -> unit
@@ -29,14 +31,22 @@ type 'a hash_set = 'a t
 module Poly : sig
   type 'a t = 'a hash_set
   include Sexpable.S1 with type 'a t := 'a t
-  val create : ?growth_allowed:bool -> ?size:int -> unit -> 'a t
+  val create : ?growth_allowed:bool
+    -> ?hashable:'a Core_hashtbl_intf.hashable
+    -> ?size:int
+    -> unit
+    -> 'a t
   val of_list : 'a list -> 'a t
 end
 
 module Make (H : Core_hashtbl.Key) : sig
   type elem = H.t
   type t = elem hash_set
-  val create : ?growth_allowed:bool -> ?size:int -> unit -> t
+  val create : ?growth_allowed:bool
+    -> ?hashable:H.t Core_hashtbl_intf.hashable
+    -> ?size:int
+    -> unit
+    -> t
   val of_list : H.t list -> t
   include Sexpable.S with type t := t
 end
@@ -47,7 +57,11 @@ module Make_binable (H : sig
 end) : sig
   type elem = H.t
   type t = elem hash_set
-  val create : ?growth_allowed:bool -> ?size:int -> unit -> t
+  val create : ?growth_allowed:bool
+    -> ?hashable:H.t Core_hashtbl_intf.hashable
+    -> ?size:int
+    -> unit
+    -> t
   val of_list : H.t list -> t
   include Sexpable.S with type t := t
   include Binable.S with type t := t

@@ -56,7 +56,7 @@ module type Comparable_sexpable = sig
 end
 
 module Comparable (S1 : Comparable_sexpable) (S2 : Comparable_sexpable)
-  : Comparable.S with type t := Make (S1) (S2).t
+  : Comparable_sexpable with type t := Make (S1) (S2).t
 
 module type Hashable_sexpable = sig
   type t

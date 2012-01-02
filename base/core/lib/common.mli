@@ -49,7 +49,6 @@ val write_lines : _ -> _ -> [`Deprecated_use_Out_channel_write_lines]
 val input_lines : ?fix_win_eol:_ -> _ -> [`Deprecated_use_In_channel_input_lines]
 val read_lines : _ -> [`Deprecated_use_In_channel_read_lines]
 
-
 (**{6 triple handling }*)
 val fst3 : ('a * _  * _ ) -> 'a
 val snd3 : (_  * 'a * _ ) -> 'a
@@ -77,9 +76,9 @@ val descending : 'a -> 'a -> int
 (** same as [Filename.concat]*)
 val (^/) : string -> string -> string
 
-val failwithf    : ('a, unit, string, unit -> _) format4 -> 'a
-val invalid_argf : ('a, unit, string, unit -> _) format4 -> 'a
-val exitf        : ('a, unit, string, unit -> _) format4 -> 'a
+val failwithf    : ('r, unit, string, unit -> _) format4 -> 'r
+val invalid_argf : ('r, unit, string, unit -> _) format4 -> 'r
+val ksprintf     : (string -> 'a) -> ('r, unit, string, 'a) format4 -> 'r
 
 (* The following [sexp_of_X] functions ignore their argument and return [Sexp.Atom "_"].
    They are useful when one has a polymorphic type ['a t] with a sexp converter [val

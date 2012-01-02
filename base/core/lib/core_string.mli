@@ -42,8 +42,6 @@ val tc_concat : (t, 'container) Container.tc -> sep:t -> 'container -> t *)
 val escaped : t -> t
 
 val contains : ?pos:int -> ?len:int -> t -> char -> bool
-val contains_from  : t -> int -> char -> bool
-val rcontains_from : t -> int -> char -> bool
 
 val uppercase : t -> t
 val lowercase : t -> t
@@ -117,13 +115,13 @@ val split : t -> on:char -> t list
     produce multiple empty string splits in the result.  *)
 val split_on_chars : t -> on:char list -> t list
 
-(** [lfindi s ~f] returns the index [i] of the first character in [s]
-    satisfying [f i s.[i]]. *)
-val lfindi : t -> f:(int -> char -> bool) -> int option
+(** [lfindi ?pos t ~f] returns the smallest [i >= pos] such that [f i t.[i]], if there is
+    such an [i].  By default, [pos = 0]. *)
+val lfindi : ?pos : int -> t -> f:(int -> char -> bool) -> int option
 
-(** [rfindi s ~f] returns the index [i] of the last character in [s]
-    satisfying [f i s.[i]]. *)
-val rfindi : t -> f:(int -> char -> bool) -> int option
+(** [rfindi ?pos t ~f] returns the largest [i <= pos] such that [f i t.[i]], if there is
+    such an [i].  By default [pos = length t - 1]. *)
+val rfindi : ?pos : int -> t -> f:(int -> char -> bool) -> int option
 
 (* Warning: the following strip functions have copy-on-write semantics (i.e. they may
    return the same string passed in) *)
@@ -209,3 +207,106 @@ module Infix : sig
 end
 
 val of_char : char -> t
+
+module Escaping : sig
+  (**
+     String escaping.
+
+     Operations for escaping and unescaping strings, with paramaterized escape
+     and escapeworthy characters.
+  *)
+  (** [escape_gen_exn escapeworthy_map escape_char] returns a (string -> string) function that
+      will escape a string [s] as follows: if [(c1,c2)] is in [escapeworthy_map], then all
+      occurences of [c1] are replaced by [escape_char] concatenated to [c2].
+
+      If you have multiple strings to escape using the same set of rules it is important
+      to note that you will get much better performance (2 - 20x) if you save the result
+      of escape_gen_exn and apply it multiple times, e.g.
+
+      let escape_some_chars = escape_gen_exn ~escapeworthy_map:['c','c';'x','x' ~escape_char:'.' in
+      List.map strings_to_escape ~f:escape_some_chars
+
+      is MUCH faster than
+
+      List.map strings_to_escape ~f:(fun s -> escape_gen_exn
+        ~escapeworthy_map:['c','c';'x','x'] ~escape_char:'.' s)
+
+      Raises an exception if escapeworthy_map is not one-to-one.
+  *)
+  val escape_gen_exn : escapeworthy_map:(char * char) list -> escape_char:char
+    -> (string -> string)
+
+  (** [escape escapeworthy escape_char s] is
+      [escape_gen_exn ~escapeworthy_map:(List.zip_exn escapeworthy escapeworthy)
+      ~escape_char]. Escape is implemented in terms of escape_gen_exn, so the same
+      performance advice applies. *)
+  val escape : escapeworthy:char list -> escape_char:char
+    -> (string -> string)
+
+  (** [unescape_gen] is the inverse operation of [escape_gen_exn], assuming an inverse
+      map is given.  That is, [unescape_gen map escape_char s] returns an escaped string
+      based on [s] as follows: if [(c1,c2)] is in [map], then all occurrences of
+      [escape_char][c1] are replaced by [c2]. *)
+  val unescape_gen :
+    map:(char * char) list -> escape_char:char -> (string -> string)
+
+  (** [unescape escape_char s] is [unescape_gen ~map:\[\] ~escape_char str] *)
+  val unescape : escape_char:char -> string -> string
+
+  (** [is_escaped escape_char s pos] return true if the char at pos is escaped,
+      false otherwise. *)
+  val is_char_escaped : escape_char:char -> string -> int -> bool
+
+  (** [is_literal escape_char s pos] return true if the char at pos is not escaped
+      (literal). *)
+  val is_char_literal : escape_char:char -> string -> int -> bool
+
+  (** [index escape_char s char] find the first literal (not escaped) instance of
+      char in s starting from 0. *)
+  val index : escape_char:char -> string -> char -> int option
+  val index_exn : escape_char:char -> string -> char -> int
+
+  (** [rindex escape_char s char] find the first literal (not escaped) instance of
+      char in s starting from the end of s and proceeding towards 0. *)
+  val rindex : escape_char:char -> string -> char -> int option
+  val rindex_exn : escape_char:char -> string -> char -> int
+
+  (** [index_from escape_char s pos char] find the first literal (not escaped)
+      instance of char in s starting from pos and proceeding towards the end of s. *)
+  val index_from : escape_char:char -> string -> int -> char -> int option
+  val index_from_exn : escape_char:char -> string -> int -> char -> int
+
+  (** [rindex_from escape_char s pos char] find the first literal (not escaped)
+      instance of char in s starting from pos and towards 0. *)
+  val rindex_from : escape_char:char -> string -> int -> char -> int option
+  val rindex_from_exn : escape_char:char -> string -> int -> char -> int
+
+  (** [split escape_char s ~on] @return a list of substrings of [s] that are separated by
+      literal versions of [on].  Consecutive [on] characters will cause multiple empty
+      strings in the result.  Splitting the empty string returns a list of the empty
+      string, not the empty list.
+
+      e.g. split ~escape_char:'_' ~on:',' "foo,bar_,baz" = ["foo"; "bar_,baz"]
+  *)
+  val split : string -> on:char -> escape_char:char -> string list
+
+  (** [split_on_chars s ~on] @return a list of all substrings of [s]
+      that are separated by one of the literal chars from [on].  [on]
+      are not grouped.  So a grouping of [on] in the source string will
+      produce multiple empty string splits in the result.
+
+      e.g. split_on_chars ~escape_char:'_' ~on:[',';'|'] "foo_|bar,baz|0" ->
+      ["foo_|bar"; "baz"; "0"]
+  *)
+  val split_on_chars : string -> on:char list -> escape_char:char -> string list
+
+  (* [lsplit2 s on escape_char] splits s into a pair on the first literal instance
+     of [on] (meaning the first unescaped instance) starting from the left. *)
+  val lsplit2 : string -> on:char -> escape_char:char -> (string * string) option
+  val lsplit2_exn : string -> on:char -> escape_char:char -> (string * string)
+
+  (* [rsplit2 s on escape_char] splits s into a pair on the first literal instance
+     of [on] (meaning the first unescaped instance) starting from the right. *)
+  val rsplit2 : string -> on:char -> escape_char:char -> (string * string) option
+  val rsplit2_exn : string -> on:char -> escape_char:char -> (string * string)
+end

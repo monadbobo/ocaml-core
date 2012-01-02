@@ -156,3 +156,14 @@ let split_extension fn =
   | None -> (fn, None)
   | Some (base_fn, ext) -> (base_fn, Some ext)
 
+let parts filename =
+  let rec loop acc filename =
+    match split filename with
+    | "." as base, "." -> base :: acc
+    | "/" as base, "/" -> base :: acc
+    | rest, dir ->
+      loop (dir :: acc) rest
+  in
+  loop [] filename
+;;
+

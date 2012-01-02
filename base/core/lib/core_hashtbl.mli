@@ -67,7 +67,7 @@
     end
     let table = Key.Table.create () ~size:4 in
     List.iter ~f:(fun (key, data) -> Key.Table.replace table ~key ~data)
-      [ (("pi", Int63.zero), 3.41459);
+      [ (("pi", Int63.zero), 3.14159);
         (("e", Int63.minus_one), 2.71828);
         (("Euler", Int63.one), 0.577215);
       ];
@@ -91,6 +91,7 @@ end
 type ('a, 'b) t = ('a, 'b) T.t
 
 include Access_sig (T) (Key_poly).S
+include Global_sig (T).S
 
 include Binable.S2 with type  ('a, 'b) t := ('a, 'b) t
 include Sexpable.S2 with type ('a, 'b) t := ('a, 'b) t

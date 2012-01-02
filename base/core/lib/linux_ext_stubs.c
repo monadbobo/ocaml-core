@@ -3,6 +3,7 @@
 #define _FILE_OFFSET_BITS 64
 #define _GNU_SOURCE
 
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/prctl.h>
@@ -12,10 +13,13 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <net/if.h>
 #include <time.h>
 #include <sched.h>
 #include <termios.h>
 #include <sys/ioctl.h>
+#include <sys/syscall.h>
+#include <arpa/inet.h>
 
 #include <sys/sysinfo.h>
 
@@ -205,3 +209,73 @@ CAMLprim value linux_pr_get_name(value __unused v_unit)
   return caml_copy_string(buf);
 }
 #endif /* JSC_LINUX_EXT */
+
+/* copy of the ocaml's stdlib wrapper for getpid */
+CAMLprim value linux_ext_gettid(value v_unit __unused)
+{
+  return Val_int(syscall(SYS_gettid));
+}
+
+CAMLprim value linux_get_terminal_size(value __unused v_unit)
+{
+  int fd;
+  struct winsize ws;
+  int ret;
+  value v_res;
+
+  caml_enter_blocking_section();
+
+  fd = open("/dev/tty", O_RDWR);
+
+  if (fd == -1) {
+    caml_leave_blocking_section();
+    uerror("get_terminal_size__open", Nothing);
+  }
+
+  ret = ioctl(fd, TIOCGWINSZ, &ws);
+
+  if (ret == -1) {
+    int old_errno = errno;
+    do ret = close(fd);
+    while (ret == -1 && errno == EINTR);
+    caml_leave_blocking_section();
+    if (ret == -1) {
+      errno = old_errno;
+      uerror("get_terminal_size__ioctl_close", Nothing);
+    } else {
+      errno = old_errno;
+      uerror("get_terminal_size__ioctl", Nothing);
+    }
+  }
+
+  do ret = close(fd);
+  while (ret == -1 && errno == EINTR);
+
+  caml_leave_blocking_section();
+
+  if (ret == -1) uerror("get_terminal_size__close", Nothing);
+
+  v_res = caml_alloc_small(2, 0);
+  Field(v_res, 0) = Val_int(ws.ws_row);
+  Field(v_res, 1) = Val_int(ws.ws_col);
+
+  return v_res;
+}
+
+CAMLprim value linux_get_ipv4_address_for_interface(value v_interface)
+{
+  CAMLparam1(v_interface);
+  struct ifreq ifr;
+  int fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (fd == -1)
+    uerror("linux_get_ipv4_address_for_interface: couldn't allocate socket", Nothing);
+
+  ifr.ifr_addr.sa_family = AF_INET;
+  strncpy(ifr.ifr_name, String_val(v_interface), IFNAMSIZ-1);
+  if (ioctl(fd, SIOCGIFADDR, &ifr) < 0) {
+    close(fd);
+    uerror("linux_get_ipv4_address_for_interface: ioctl(fd, SIOCGIFADDR, ...) failed", Nothing);
+  }
+  close(fd);
+  CAMLreturn(caml_copy_string(inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr)));
+}

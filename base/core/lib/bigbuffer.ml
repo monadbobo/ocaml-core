@@ -37,7 +37,12 @@ let sub buf pos len =
 ;;
 
 let blit ~src ?src_pos ?src_len ~dst ?dst_pos () =
-  Bigstring.blit_bigstring_string ~src:src.bstr ?src_pos ?src_len ~dst ?dst_pos ()
+  let (pos, len) =
+    Ordered_collection_common.get_pos_len_exn
+      ?pos:src_pos ?len:src_len
+      ~length:src.pos
+  in
+  Bigstring.blit_bigstring_string ~src:src.bstr ~src_pos:pos ~src_len:len ~dst ?dst_pos ()
 ;;
 
 let nth buf pos =

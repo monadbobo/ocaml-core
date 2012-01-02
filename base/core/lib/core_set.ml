@@ -158,6 +158,7 @@ struct
     | Node(l, _, _, _, _) -> min_elt l
 
   exception Set_min_elt_exn_of_empty_set with sexp
+  exception Set_max_elt_exn_of_empty_set with sexp
 
   let rec min_elt_exn t =
     match min_elt t with
@@ -191,7 +192,7 @@ struct
 
   let rec max_elt_exn t =
     match max_elt t with
-    | None -> raise Not_found
+    | None -> raise Set_max_elt_exn_of_empty_set
     | Some v -> v
 
       (* Remove the smallest element of the given set *)
@@ -554,13 +555,17 @@ struct
 
   let t_of_sexp el_of_sexp = function
     | Type.List lst ->
-        let coll set el_sexp =
-          let el = el_of_sexp el_sexp in
-          if mem set el then
-            Conv.of_sexp_error "Set.t_of_sexp: duplicate element in set" el_sexp
-          else add set el
-        in
-        List.fold ~f:coll ~init:empty lst
+      let elt_lst = List.map lst ~f:el_of_sexp in
+      let set = of_list elt_lst in
+      if length set = List.length lst then
+        set
+      else
+        let compare (_, e) (_, e') = Elt.compare e e' in
+        begin match List.find_a_dup (List.zip_exn lst elt_lst) ~compare with
+        | None -> assert false
+        | Some (el_sexp, _) ->
+          Conv.of_sexp_error "Set.t_of_sexp: duplicate element in set" el_sexp
+        end
     | sexp -> Conv.of_sexp_error "Set.t_of_sexp: list needed" sexp
 
   let sexp_of_t sexp_of_el set =

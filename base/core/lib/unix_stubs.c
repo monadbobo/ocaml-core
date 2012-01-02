@@ -438,7 +438,6 @@ CAMLprim value core_getpwent(value v_unit)
   entry = getpwent();
   caml_leave_blocking_section();
 
-
   if (entry == NULL) {
     if (errno == 0)
       caml_raise_end_of_file();
@@ -817,7 +816,10 @@ CAMLprim value unix_clock_getres(value v_cl)
    extract the POSIX thread id given the OCaml-thread id due to lack of
    support for this feature in the OCaml-runtime.  The below function
    clearly does not do what is intended in the general case, but will
-   probably usually do the right thing. */
+   probably usually do the right thing.
+
+   mshinwell: I'll see about trying to fix the runtime.
+*/
 static inline pthread_t pthread_t_val(value __unused v_tid)
 {
   return pthread_self();
@@ -1349,7 +1351,6 @@ CAMLprim value unix_if_indextoname(value v_index)
           if (ifname_len > IFNAMSIZ) \
             caml_failwith("mcast_" STR(NAME) ": ifname string too long"); \
           strncpy(ifreq.ifr_name, ifname, IFNAMSIZ); \
-          \
           if (ioctl(fd, SIOCGIFADDR, &ifreq) < 0) \
             uerror("mcast_" STR(NAME), Nothing); \
           memcpy(&mreq.imr_interface, \
@@ -1442,51 +1443,6 @@ CAMLprim value unix_munlockall()
   return Val_unit;
 }
 
-CAMLprim value unix_get_terminal_size(value __unused v_unit)
-{
-  int fd;
-  struct winsize ws;
-  int ret;
-  value v_res;
-
-  caml_enter_blocking_section();
-
-  fd = open("/dev/tty", O_RDWR);
-
-  if (fd == -1) {
-    caml_leave_blocking_section();
-    uerror("get_terminal_size__open", Nothing);
-  }
-
-  ret = ioctl(fd, TIOCGWINSZ, &ws);
-
-  if (ret == -1) {
-    int old_errno = errno;
-    do ret = close(fd);
-    while (ret == -1 && errno == EINTR);
-    caml_leave_blocking_section();
-    if (ret == -1) {
-      errno = old_errno;
-      uerror("get_terminal_size__ioctl_close", Nothing);
-    } else {
-      errno = old_errno;
-      uerror("get_terminal_size__ioctl", Nothing);
-    }
-  }
-
-  do ret = close(fd);
-  while (ret == -1 && errno == EINTR);
-
-  caml_leave_blocking_section();
-
-  if (ret == -1) uerror("get_terminal_size__close", Nothing);
-
-  v_res = caml_alloc_small(2, 0);
-  Field(v_res, 0) = Val_int(ws.ws_row);
-  Field(v_res, 1) = Val_int(ws.ws_col);
-
-  return v_res;
-}
 
 CAMLprim value unix_strftime(value v_tm, value v_fmt)
 {
@@ -1496,7 +1452,7 @@ CAMLprim value unix_strftime(value v_tm, value v_fmt)
   int buf_len;
   value v_str;
 
-  buf_len = caml_string_length(v_fmt) * 10;
+  buf_len = 128*1024 + caml_string_length(v_fmt);
   buf = malloc(buf_len);
   if (!buf) caml_failwith("unix_strftime: malloc failed");
 

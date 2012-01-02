@@ -8,13 +8,13 @@ let h_name_of_sockaddr = function
   | ADDR_UNIX _ -> failwith "h_name_of_sockaddr: ADDR_UNIX"
 
 let string_of_sockaddr = function
-  | ADDR_INET (inet_addr, _) -> string_of_inet_addr inet_addr
+  | ADDR_INET (inet_addr, _) -> Inet_addr.to_string inet_addr
   | ADDR_UNIX file -> file
 
 let h_name_or_string_of_sockaddr = function
   | ADDR_INET (inet_addr, _) ->
       (try (Host.getbyaddr_exn inet_addr).Host.name
-      with Not_found -> string_of_inet_addr inet_addr)
+      with Not_found -> Inet_addr.to_string inet_addr)
   | ADDR_UNIX _ -> failwith "h_name_or_string_of_sockaddr: ADDR_UNIX"
 
 let inet_addr_of_sockaddr = function

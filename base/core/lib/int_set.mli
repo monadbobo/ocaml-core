@@ -8,7 +8,7 @@
 
 type t
 
-val create : unit -> t
+val empty : t
 
 val to_string : t -> string
 

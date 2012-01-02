@@ -31,7 +31,7 @@ let failure which s =
   in
   invalid_argf "Unrecognized %s format \"%s\"" which_s s ()
 
-let add_years d i = Date.add_months d (12 * i) ;;
+let add_years d i = Date.add_months d (12 * i)
 
 let parse_date dt =
   let dt' = String.lowercase dt in
@@ -71,9 +71,9 @@ let parse_time ts =
   with
     _ ->
       let words = Array.of_list (String.split ts ~on:' ') in
-      match Array.findi words ~f:((=) "at") with
+      match Array.findi words ~f:(fun _i word -> word = "at") with
       | None -> failure ()
-      | Some idx ->
+      | Some (idx, _) ->
         let range_to_string idx1 idx2 = String.concat (
           Array.to_list (Array.slice words idx1 idx2)
         ) ~sep:" "

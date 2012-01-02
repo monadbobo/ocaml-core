@@ -3,6 +3,7 @@ type t
 include Comparable.S with type t := t
 include Hashable.S with type t := t
 include Sexpable.S with type t := t
+include Stringable.S with type t := t
 
 val equal : t -> t -> bool
 
@@ -25,18 +26,19 @@ val to_string : t -> string
 (** The default behaviour of the system if these signals trickle to the top
     level of a program.  See include/linux/kernel.h in the Linux kernel
     source tree (not the file /usr/include/linux/kernel.h). *)
-type sys_behavior =
-    | Continue (** Continue the process if it is currently stopped*)
-    | Dump_core (** Terminate the process and dump core *)
-    | Ignore (** Ignore the signal*)
-    | Stop  (** Stop the process *)
-    | Terminate  (** Terminate the process *)
+type sys_behavior = [
+| `Continue (** Continue the process if it is currently stopped*)
+| `Dump_core (** Terminate the process and dump core *)
+| `Ignore (** Ignore the signal*)
+| `Stop  (** Stop the process *)
+| `Terminate  (** Terminate the process *)
+]
 with sexp
 
 type behavior = [
-  | `Default
-  | `Ignore
-  | `Handle of t -> unit
+| `Default
+| `Ignore
+| `Handle of t -> unit
 ]
 
 (** [default_sys_behavior t]
@@ -128,4 +130,4 @@ val usr1 : t (** Application-defined signal 1 *)
 val usr2 : t (** Application-defined signal 2 *)
 val vtalrm : t (** Timeout in virtual time *)
 val zero : t (** No-op; can be used to test whether the target process exists and the
-                current process has permission to signal it *)
+                 current process has permission to signal it *)

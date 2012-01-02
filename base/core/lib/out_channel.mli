@@ -39,7 +39,10 @@ val pos : t -> int64
 val length : t -> int64
 
 (** [write_lines file lines] works like output_lines, except that the output is sent to
-    the named file *)
+    the named file. *)
 val write_lines : string -> string list -> unit
+
+(** [write_all file data] writes all data to the named file. *)
+val write_all : string -> data:string -> unit
 
 

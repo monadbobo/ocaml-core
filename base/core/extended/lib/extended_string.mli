@@ -74,120 +74,19 @@ val word_wrap:
   -> string
   -> string
 
-module Escaping : sig
-  (**
-     String escaping.
-
-     Operations for escaping and unescaping strings, with paramaterized escape
-     and escapeworthy characters.
-  *)
-
-  (** [escape_gen escapeworthy_map escape_char s] returns an escaped string based on
-      [s] as follows: if [(c1,c2)] is in [escapeworthy_map], then all occurences of
-      [c1] are replaced by [escape_char] concatenated to [c2]. *)
-  val escape_gen :
-    escapeworthy_map:(char * char) list -> escape_char:char -> string -> string
-
-  (** [escape escapeworthy escape_char s] is
-      [escape_gen ~escapeworthy_map:(List.zip_exn escapeworthy escapeworthy)
-      ~escape_char]. *)
-  val escape : escapeworthy:char list -> escape_char:char -> string -> string
-
-  (** [escape_one_orig ~escapeworthy ~escape_char s] escapes character
-      [escapeworthy] with [escape_char] in string [s].  The function
-      returns the original string if no character had to be escaped. *)
-  val escape_one_orig :
-    escapeworthy : char -> escape_char : char -> string -> string
-
-  (** [escape_two_orig ~escapeworthy1 ~escapeworthy2 ~escape_char s]
-      escapes characters [escapeworthy1] and [escapeworthy2] with
-      [escape_char] in string [s].  The function returns the original
-      string if no character had to be escaped. *)
-  val escape_two_orig :
-    escapeworthy1 : char -> escapeworthy2 : char -> escape_char : char -> string
-    -> string
-
-  (** [unescape_gen] is the inverse operation of [escape_gen], assuming an inverse
-      map is given.  That is, [unescape_gen map escape_char s] returns an escaped string
-      based on [s] as follows: if [(c1,c2)] is in [map], then all occurrences of
-      [escape_char][c1] are replaced by [c2]. *)
-  val unescape_gen :
-    map:(char * char) list -> escape_char:char -> string -> string
-
-  (** [unescape escape_char s] is [unescape_gen ~map:\[\] ~escape_char str] *)
-  val unescape : escape_char:char -> string -> string
-
-  (** [is_escaped escape_char s pos] return true if the char at pos is escaped,
-      false otherwise. *)
-  val is_char_escaped : escape_char:char -> string -> int -> bool
-
-  (** [is_literal escape_char s pos] return true if the char at pos is not escaped
-      (literal). *)
-  val is_char_literal : escape_char:char -> string -> int -> bool
-
-  (** [index escape_char s char] find the first literal (not escaped) instance of
-      char in s starting from 0. *)
-  val index : escape_char:char -> string -> char -> int option
-  val index_exn : escape_char:char -> string -> char -> int
-
-  (** [rindex escape_char s char] find the first literal (not escaped) instance of
-      char in s starting from the end of s and proceeding towards 0. *)
-  val rindex : escape_char:char -> string -> char -> int option
-  val rindex_exn : escape_char:char -> string -> char -> int
-
-  (** [index_from escape_char s pos char] find the first literal (not escaped)
-      instance of char in s starting from pos and proceeding towards the end of s. *)
-  val index_from : escape_char:char -> string -> int -> char -> int option
-  val index_from_exn : escape_char:char -> string -> int -> char -> int
-
-  (** [rindex_from escape_char s pos char] find the first literal (not escaped)
-      instance of char in s starting from pos and towards 0. *)
-  val rindex_from : escape_char:char -> string -> int -> char -> int option
-  val rindex_from_exn : escape_char:char -> string -> int -> char -> int
-
-  (** [split escape_char s ~on] @return a list of substrings of [s] that are separated by
-      literal versions of [on].  Consecutive [on] characters will cause multiple empty
-      strings in the result.  Splitting the empty string returns a list of the empty
-      string, not the empty list.
-
-      e.g. split ~escape_char:'_' ~on:',' "foo,bar_,baz" = ["foo"; "bar_,baz"]
-  *)
-  val split : string -> on:char -> escape_char:char -> string list
-
-  (** [split_on_chars s ~on] @return a list of all substrings of [s]
-      that are separated by one of the literal chars from [on].  [on]
-      are not grouped.  So a grouping of [on] in the source string will
-      produce multiple empty string splits in the result.
-
-      e.g. split_on_chars ~escape_char:'_' ~on:[',';'|'] "foo_|bar,baz|0" ->
-      ["foo_|bar"; "baz"; "0"]
-  *)
-  val split_on_chars : string -> on:char list -> escape_char:char -> string list
-
-  (* [lsplit2 s on escape_char] splits s into a pair on the first literal instance
-     of [on] (meaning the first unescaped instance) starting from the left. *)
-  val lsplit2 : string -> on:char -> escape_char:char -> (string * string) option
-  val lsplit2_exn : string -> on:char -> escape_char:char -> (string * string)
-
-  (* [rsplit2 s on escape_char] splits s into a pair on the first literal instance
-     of [on] (meaning the first unescaped instance) starting from the right. *)
-  val rsplit2 : string -> on:char -> escape_char:char -> (string * string) option
-  val rsplit2_exn : string -> on:char -> escape_char:char -> (string * string)
-end
-
 (** Consolidates a list of strings (almost [^]) losslessly.  E.g.:
 
-     abc-def-1-ghijk
-     abc-def-2-ghijk
-     abc-def-5-ghijk
-     abc-xyz-2
-     abc-xyz-3
+    abc-def-1-ghijk
+    abc-def-2-ghijk
+    abc-def-5-ghijk
+    abc-xyz-2
+    abc-xyz-3
 
-   becomes:
+    becomes:
 
-     abc-{def-[1-2,5]-ghijk,xyz-[2-3]}
+    abc-{def-[1-2,5]-ghijk,xyz-[2-3]}
 
-   The algorithm is conceptually as follows:
+    The algorithm is conceptually as follows:
     1) if all strings are sequences of digits, return [ contiguous subranges ],
     otherwise:
     2) split all strings into groups of consecutive letters or digits (but not both)
@@ -197,7 +96,7 @@ end
     "common_prefix-<result_of_the_recursive_call>-common_suffix"
     6) return { String.concat ~sep:"," <compressed_sublists> }
 
-   In the implementation, we only tokenize the strings once, and then recursively work
+    In the implementation, we only tokenize the strings once, and then recursively work
     with lists of tokens.
 
    [^] Repeated entries and the original ordering of the list are not preserved.
@@ -207,6 +106,8 @@ end
    (so [1-2,5] becomes [1..5]), or just by an asterisk ("*"), when brevity is preferred
    over accuracy.
 
+   [^] Repeated entries and the original ordering of the list are not preserved.
+   Otherwise, this transformation is lossless.
 *)
 val consolidate_strings :
   ?int_sets : [`Exact | `Bounds | `Asterisk]
@@ -227,3 +128,8 @@ val consolidate_strings' :
   -> string list
   -> string
 
+(** Gives the Levenshtein distance between 2 strings, which is the number of insertions,
+    deletions, and substitutions necessary to turn either string into the other. With the
+    [transpose] argument, it alsos considers transpositions (Damerau-Levenshtein
+    distance). *)
+val edit_distance : ?transpose : unit -> string -> string -> int

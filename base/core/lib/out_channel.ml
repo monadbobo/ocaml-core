@@ -46,3 +46,5 @@ let with_file ?(binary = true) ?(append=false) ?(perm = 0o666) file ~f =
 let write_lines file lines =
   with_file file ~f:(fun t -> output_lines t lines)
 
+let write_all file ~data =
+  with_file file ~f:(fun t -> output_string t data)

@@ -23,5 +23,8 @@ val ok_exn : 'a t -> 'a
 (** [of_exn exn] is [Error (Error.of_exn exn)]. *)
 val of_exn : exn -> 'a t
 
-val error : string -> 'a -> ('a -> Sexp.t) -> _ t
+(** [error message value sexp_of_value] constructs an [Error.t] and returns it as a
+    [Result.Error]. [error_string] is a sepcial case with ['a = unit]. *)
+val error        : string -> 'a -> ('a -> Sexp.t) -> _ t
+val error_string : string                         -> _ t
 

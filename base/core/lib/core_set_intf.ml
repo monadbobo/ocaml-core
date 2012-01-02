@@ -1,7 +1,6 @@
 
 open Sexplib
 
-
 module type Elt = sig
   type t
   include Sexpable.S with type t := t
@@ -24,6 +23,7 @@ module Gen(T : Types) = struct
     val singleton: 'e elt -> 'e t
     val remove: 'e t -> 'e elt -> 'e t
     val union: 'e t -> 'e t -> 'e t
+    (* [equal x (union_list (List.map ~f:Set.singleton (elements x)))] *)
     val union_list : 'e t list -> 'e t
     val inter: 'e t -> 'e t -> 'e t
     val diff: 'e t -> 'e t -> 'e t
@@ -36,21 +36,44 @@ module Gen(T : Types) = struct
     val for_all: 'e t -> f:('e elt -> bool) -> bool
     val exists: 'e t -> f:('e elt -> bool) -> bool
     val filter: 'e t -> f:('e elt -> bool) -> 'e t
+    (** if [res = parition set ~f] then [fst res] are the elements on which [f] produced
+        [true], and [snd res] are the elements on which [f] produces [false] *)
     val partition: 'e t -> f:('e elt -> bool) -> 'e t * 'e t
     val length : _ t -> int
     val elements: 'e t -> 'e elt list
+
     val min_elt: 'e t -> 'e elt option
     val min_elt_exn: 'e t -> 'e elt
     val max_elt: 'e t -> 'e elt option
     val max_elt_exn: 'e t -> 'e elt
+    (* returns an arbitrary element, or None if the set is empty *)
     val choose: 'e t -> 'e elt option
     val choose_exn: 'e t -> 'e elt
+
     val of_list: 'e elt list -> 'e t
     val to_list: 'e t -> 'e elt list
+
     val of_array: 'e elt array -> 'e t
     val to_array: 'e t -> 'e elt array
+
+    (** [split x set] produces a triple [triple] where [fst3 triple] is the set of
+        elements strictly less than [x], [snd3 triple] = [mem set x], and [trd3 triple] is
+        the set of elements strictly larger than [x]. *)
     val split: 'e elt -> 'e t -> 'e t * bool * 'e t
+
+    (** if [equiv] is an equivalence predicate, then [group_by set ~equiv] produces a list
+        of equivalence classes (i.e., a set-theoretic quotient).  E.g.,
+
+          [let chars = Set.of_list ['A'; 'a'; 'b'; 'c'] in
+           let equiv c c' = Char.equal (Char.uppercase c) (Char.uppercase c') in
+           group_by chars ~equiv]
+
+        produces
+
+          [Set.of_list['A';'a']; Set.singleton 'b'; Set.singleton 'c']
+    *)
     val group_by: 'e t -> equiv:('e elt -> 'e elt -> bool) -> 'e t list
+
     val find: 'e t -> f:('e elt -> bool) -> 'e elt option
     val find_exn: 'e t -> f:('e elt -> bool) -> 'e elt
     val find_map: 'e t -> f:('e elt -> 'a option) -> 'a option

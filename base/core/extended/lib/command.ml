@@ -65,8 +65,9 @@ end
 
 module Help_page = struct
 
-  let render ~summary ~usage ~choice_type ~choices =
-    sprintf "\n%s\n\n  %s\n%s" summary usage
+  let render ~summary ~usage ~readme ~choice_type ~choices =
+    sprintf "\n%s\n\n  %s\n%s%s" summary usage
+      (match readme with None -> "" | Some s -> sprintf "\n%s\n" (s ()))
       (if choices = [] then "" else
           sprintf "\n  === %s ===\n\n%s\n" choice_type
             (List.fold choices ~init:""
@@ -130,6 +131,8 @@ module Flag : sig
   val float      : (unit, float -> unit)  create
   val bool       : (unit, bool -> unit)   create
 
+  val gen : (string -> 'gen) -> (unit, 'gen -> unit) create
+
   val set_string     : (unit, string ref)        create
   val set_string_opt : (unit, string option ref) create
   val set_int        : (unit, int ref)           create
@@ -140,6 +143,9 @@ module Flag : sig
   val set_date_opt   : (unit, Date.t option ref) create
   val set            : (unit, bool ref)          create
   val clear          : (unit, bool ref)          create
+
+  val set_gen : (string -> 'gen) -> (unit, 'gen ref) create
+  val set_gen_opt : (string -> 'gen) -> (unit, 'gen option ref) create
 
   (** {6 flag handling meant for use with immutable accumulator} *)
 
@@ -152,6 +158,8 @@ module Flag : sig
       are passed to the [f] *)
   val date_acc   : ('a, 'a -> Date.t -> 'a) create
   val rest_acc   : ('a, 'a -> string list -> 'a) create
+
+  val gen_acc : (string -> 'gen) -> ('a, 'a -> 'gen -> 'a) create
 
   (** {6 flag handling meant for use with mutable accumulator} *)
 
@@ -166,6 +174,7 @@ module Flag : sig
       are passed to the [f] *)
   val rest_mut : ('a, 'a -> string list -> unit) create
 
+  val gen_mut : (string -> 'gen) -> ('a, 'a -> 'gen -> unit) create
 
   (** {2 Deprecated } This is the old deprecated interface to Flag *)
   module Action : sig
@@ -242,6 +251,8 @@ end = struct
     let bool  f = Arg (fun x s -> f x (Bool.of_string  s))
     let float f = Arg (fun x s -> f x (Float.of_string s))
     let date  f = Arg (fun x s -> f x (Date.of_string  s))
+
+    let gen of_string f = Arg (fun x s -> f x (of_string  s))
 
     (* [project] extracts a record field together with a rebuilding
        function [inject] to fill in the remaining fields after modifying
@@ -366,6 +377,7 @@ end = struct
   let float_mut  x = of_action unmut Action'.float x
   let date_mut   x = of_action unmut Action'.date  x
   let rest_mut   x = of_action unmut Action'.rest  x
+  let gen_mut os x = of_action unmut (Action'.gen os)  x
 
   let noarg_acc  x = of_action Fn.id Action'.noarg x
   let string_acc x = of_action Fn.id Action'.arg   x
@@ -374,6 +386,7 @@ end = struct
   let float_acc  x = of_action Fn.id Action'.float x
   let date_acc   x = of_action Fn.id Action'.date  x
   let rest_acc   x = of_action Fn.id Action'.rest  x
+  let gen_acc os x = of_action Fn.id (Action'.gen os)  x
 
   let unref ref =
     (fun () x -> ref := x)
@@ -391,6 +404,7 @@ end = struct
   let int            x = of_action unclos     Action'.int   x
   let bool           x = of_action unclos     Action'.bool  x
   let float          x = of_action unclos     Action'.float x
+  let gen         os x = of_action unclos     (Action'.gen os) x
   let set_string     x = of_action unref      Action'.arg   x
   let set_string_opt x = of_action unref_opt  Action'.arg   x
   let set_int        x = of_action unref      Action'.int   x
@@ -399,7 +413,8 @@ end = struct
   let set_float_opt  x = of_action unref_opt  Action'.float x
   let set_date       x = of_action unref      Action'.date  x
   let set_date_opt   x = of_action unref_opt  Action'.date  x
-
+  let set_gen     os x = of_action unref      (Action'.gen os) x
+  let set_gen_opt os x = of_action unref_opt  (Action'.gen os) x
 
 
   let of_arg (key, spec, doc) =
@@ -510,11 +525,17 @@ let maybe_dashify ~allow_underscores =
       else '-'
     ))
 
+
+let is_help_flag = function
+  | ("--help" | "-help" | "help" | "h" | "?" | "-?") -> true
+  | _ -> false
+
 module Base = struct
   module type T = sig
     type accum
     type argv
     val summary : string
+    val readme : (unit -> string) option
     val usage_arg : string
     val init : unit -> accum
     val autocomplete : Autocomplete_.t option
@@ -534,6 +555,7 @@ module Base = struct
   let summary      t = let module T = (val t : T) in T.summary
   let usage_arg    t = let module T = (val t : T) in T.usage_arg
   let autocomplete t = let module T = (val t : T) in T.autocomplete
+  let readme       t = let module T = (val t : T) in T.readme
 
   let flags_help t =
     let module T = (val t : T) in List.concat_map ~f:Flag.help T.flags
@@ -545,6 +567,7 @@ module Base = struct
     let helps = flags_help t in
     Help_page.render
       ~summary:(summary t)
+      ~readme:(readme t)
       ~usage:(cmd ^ " " ^ usage_arg t)
       ~choice_type:"available flags"
       ~choices:(Columns.sort_align helps)
@@ -562,7 +585,7 @@ module Base = struct
           process_flags ~state argv ~anon_args:(arg :: anon_args)
         else
           let flag = maybe_dashify arg in
-          if String.equal flag "-help" then raise Help
+          if is_help_flag flag then raise Help
           else match Flag.lookup T.flags flag with
           | None ->
             if allow_unknown_flags then begin
@@ -594,6 +617,10 @@ module Base = struct
         eprintf "%s\n" (Exn.to_string exn);
         exit 1
       | Ok argv ->
+        let end_with_error msg =
+          Printf.eprintf "Error: %s\n%!" msg;
+          exit 1
+        in
         try T.main argv with
         | Help ->
           eprintf "%s\n" (help ~cmd t);
@@ -601,29 +628,38 @@ module Base = struct
         | Invalid_arguments args ->
           let args_string = String.concat args ~sep:" " in
           Printf.eprintf "Invalid arguments: %s\n%s\n%!" args_string (help ~cmd t);
-          exit 1)
+          exit 1
+        | Failure s -> end_with_error s
+        | exn -> end_with_error (Exn.to_string exn))
 end
 
-type t =
-  | Base of Base.t
-  | Group of string * t String.Table.t (* summary, subcommands *)
+type group = {
+  summary : string;
+  readme : (unit -> string) option;
+  subcommands : t String.Table.t;
+}
 
-let group ~summary alist =
+and t =
+  | Base of Base.t
+  | Group of group
+
+let group ~summary ?readme alist =
   List.iter alist ~f:(fun (name, _) -> assert_no_underscores name);
   match String.Table.of_alist alist with
-  | `Ok tbl -> Group (summary, tbl)
+  | `Ok subcommands -> Group { summary; readme; subcommands }
   | `Duplicate_key name -> failwith ("multiple subcommands named " ^ name)
 
 let summary = function
   | Base implicit -> Base.summary implicit
-  | Group (summary, _) -> summary
+  | Group grp -> grp.summary
 
-let create (type a) (type b) ?autocomplete ~summary ~usage_arg ~init ~flags ~final main =
+let create (type a) (type b) ?autocomplete ?readme ~summary ~usage_arg ~init ~flags ~final main =
   Base
     (module struct
       type accum = a
       type argv = b
       let summary = summary
+      let readme = readme
       let usage_arg = usage_arg
       let init = init
       let autocomplete = autocomplete
@@ -632,7 +668,7 @@ let create (type a) (type b) ?autocomplete ~summary ~usage_arg ~init ~flags ~fin
       let main = main
     end : Base.T)
 
-let create0 ?autocomplete ~summary ~usage_arg ~init ~flags ~final main =
+let create0 ?autocomplete ?readme ~summary ~usage_arg ~init ~flags ~final main =
   let final accum anonargs =
     match anonargs with
     | [] -> final accum
@@ -640,31 +676,32 @@ let create0 ?autocomplete ~summary ~usage_arg ~init ~flags ~final main =
       printf "Error: expected 0 anonymous arguments, got %i\n%!" (List.length lst);
       exit 1
   in
-  create ?autocomplete ~summary ~usage_arg ~init ~flags ~final main
+  create ?autocomplete ?readme ~summary ~usage_arg ~init ~flags ~final main
 ;;
 
-let create_no_accum ?autocomplete ~summary ~usage_arg ~flags ~final main =
+let create_no_accum ?autocomplete ?readme ~summary ~usage_arg ~flags ~final main =
   let init () = () in
   let final _ anonargs = final anonargs in
-  create ?autocomplete ~summary ~usage_arg ~init ~flags ~final main
+  create ?autocomplete ?readme ~summary ~usage_arg ~init ~flags ~final main
 ;;
 
-let create_no_accum0 ?autocomplete ~summary ~usage_arg ~flags main =
+let create_no_accum0 ?autocomplete ?readme ~summary ~usage_arg ~flags main =
   let init () = () in
   let final _ = () in
-  create0 ?autocomplete ~summary ~usage_arg ~init ~flags ~final main
+  create0 ?autocomplete ?readme ~summary ~usage_arg ~init ~flags ~final main
 ;;
 
 let help ~cmd t =
   match t with
   | Base base -> Base.help ~cmd base
-  | Group (mysummary, tbl) ->
+  | Group grp ->
       let alist =
         ("help [-r]", "explain a given subcommand (perhaps recursively)") ::
-        List.map ~f:(fun (cmd, t) -> (cmd, summary t)) (Hashtbl.to_alist tbl)
+        List.map ~f:(fun (cmd, t) -> (cmd, summary t)) (Hashtbl.to_alist grp.subcommands)
       in
       Help_page.render
-        ~summary:mysummary
+        ~summary:grp.summary
+        ~readme:grp.readme
         ~usage:(cmd ^ " SUBCOMMAND")
         ~choice_type:"available subcommands"
         ~choices:(Columns.sort_align alist)
@@ -676,6 +713,7 @@ let help_help ~cmd subcommands =
   in
   Help_page.render
     ~summary:("explain " ^ cmd ^ " or one of its subcommands, perhaps recursively")
+    ~readme:None
     ~usage:(cmd ^ " help [-r[ecursive] [-flags] [-expand-dots]] [SUBCOMMAND]\n"
             ^ "  " ^ cmd ^ " -? [SUBCOMMAND]\n"
             ^ "  " ^ cmd ^ " -?? [SUBCOMMAND]   # (shortcut for -help -r) \n"
@@ -697,10 +735,10 @@ let help_recursive ~cmd ~with_flags ~expand_dots t =
           ~f:(fun (flag, h) -> (new_s ^ flag, h)))
       else
         [base_help]
-    | Group (mysummary, tbl) ->
-      (s ^ cmd, mysummary) :: (List.concat
+    | Group grp ->
+      (s ^ cmd, grp.summary) :: (List.concat
         (List.map
-          (List.sort ~cmp:subcommand_cmp_fst (Hashtbl.to_alist tbl))
+          (List.sort ~cmp:subcommand_cmp_fst (Hashtbl.to_alist grp.subcommands))
           ~f:(fun (cmd', t) -> help_recursive_rec ~cmd:cmd' t new_s)))
   in
   let alist =
@@ -711,9 +749,10 @@ let help_recursive ~cmd ~with_flags ~expand_dots t =
   match t with
   | Base base ->
     Base.help ~cmd base (* just the plain help *)
-  | Group (mysummary, _) ->
+  | Group grp ->
     Help_page.render
-      ~summary:mysummary
+      ~summary:grp.summary
+      ~readme:grp.readme
       ~usage:(cmd ^ " SUBCOMMAND")
       ~choice_type:("available subcommands" ^ (if with_flags then " and flags" else ""))
       ~choices
@@ -809,15 +848,15 @@ complete -F %s %s" fname fname Sys.argv.(0)
           if key = "" || key.[0] <> '-' then
             external_completion ~autocomplete ~key ~command_line
           else filter_matching_prefixes_and_print ~autocomplete ~key ~command_line flags)
-    | Group (_, tbl) ->
+    | Group grp ->
       match command_line with
       | [key] ->
-        Hashtbl.keys tbl
+        Hashtbl.keys grp.subcommands
         |! filter_matching_prefixes_and_print ~autocomplete:None ~key ~command_line
       | [] -> (* We are at the root and all the options are requested *)
-          Hashtbl.keys tbl |! print_list
+          Hashtbl.keys grp.subcommands |! print_list
       | key :: argv ->
-        match Hashtbl.find tbl key with
+        match Hashtbl.find grp.subcommands key with
         | None -> ()
         | Some t -> autocomplete t argv
 
@@ -874,6 +913,7 @@ complete -F %s %s" fname fname Sys.argv.(0)
   ;;
 end
 
+INCLUDE "version_defaults.mlh"
 module Version = struct
   type command = t
 
@@ -882,42 +922,50 @@ module Version = struct
     flags : unit Flag.t list;
   }
 
-  let poly_flags ~version ~build_info = [
+  let print_version ?(version = DEFAULT_VERSION) () =
+    print_endline version
+
+  let print_build_info ?(build_info = DEFAULT_BUILDINFO) () =
+    print_endline build_info
+
+  let poly_flags ?version ?build_info () = [
     { Flag.Poly.flag = fun () ->
-        Flag.noarg_acc "-version" (fun _ -> print_endline version; exit 0)
-          ~doc:" Print the version of this build and exit" };
+      Flag.noarg_acc "-version"
+        (fun _ -> print_version ?version (); exit 0)
+        ~doc:" Print the version of this build and exit" };
     { Flag.Poly.flag = fun () ->
-        Flag.noarg_acc "-build-info" (fun _ -> print_endline build_info; exit 0)
-          ~doc:" Print build info as sexp and exit" };
+      Flag.noarg_acc "-build-info"
+        (fun _ -> print_build_info ?build_info (); exit 0)
+        ~doc:" Print build info as sexp and exit" };
   ]
 
-  let flags ~version ~build_info =
-    List.map ~f:Flag.Poly.instantiate (poly_flags ~version ~build_info)
+  let flags ?version ?build_info () =
+    List.map ~f:Flag.Poly.instantiate (poly_flags ?version ?build_info ())
 
-  let command ~version ~build_info =
+  let command ?version ?build_info () =
     let summary = "Print version information" in
     let usage_arg = "[-version | -build-info]" in
     let init () = () in
-    let flags = flags ~version ~build_info in
+    let flags = flags ?version ?build_info () in
     let final () _anons = () in
     let main () =
       eprintf "(no option given - printing version)\n%!";
-      print_endline version;
+      print_version ?version ();
       exit 0
     in
     create ~summary ~usage_arg ~init ~flags ~final main
 
-  let add unversioned ~version ~build_info =
+  let add ?version ?build_info unversioned =
     let command =
         match unversioned with
         | Base impl ->
-          Base (Base.add_flags impl (poly_flags ~version ~build_info))
-        | Group (summary, subcommands) ->
-          group ~summary
-            (("version", command ~version ~build_info)
-              :: String.Table.to_alist subcommands)
+          Base (Base.add_flags impl (poly_flags ?version ?build_info ()))
+        | Group grp ->
+          group ~summary:grp.summary
+            (("version", command ?version ?build_info ())
+              :: String.Table.to_alist grp.subcommands)
     in
-    { command; flags = flags ~version ~build_info }
+    { command; flags = flags ?version ?build_info () }
 end
 
 let run_internal versioned ~allow_unknown_flags ~allow_underscores ~cmd
@@ -949,9 +997,9 @@ let run_internal versioned ~allow_unknown_flags ~allow_underscores ~cmd
         (fun () -> printf "%s" (help ~cmd t); exit 0)
       else
         Base.run base ~allow_unknown_flags ~allow_underscores ~cmd ~argv
-    | Group (_, tbl) ->
+    | Group grp ->
       let execute_group (subcmd, rest) =
-        match partial_match tbl (maybe_dashify subcmd) with
+        match partial_match grp.subcommands (maybe_dashify subcmd) with
         | `Exact (full_subcmd, t)
         | `Partial (full_subcmd, t) ->
           update_expanded_argv [full_subcmd] rest;
@@ -1001,12 +1049,12 @@ let run_internal versioned ~allow_unknown_flags ~allow_underscores ~cmd
           update_expanded_argv ["-flags";"-recursive";"-help"] rest;
           loop t ~is_help:true ~is_help_rec:true ~is_help_rec_flags:true ~is_expand_dots
             cmd rest
-        | ("--help" | "-help" | "help" | "h" | "?" | "-?"), rest ->
+        | flag, rest when is_help_flag flag ->
           update_expanded_argv ["-help"] rest;
           if is_help then begin
             post_parse_call ~is_ok:true;
             (fun () ->
-              printf "%s" (help_help ~cmd (Hashtbl.keys tbl));
+              printf "%s" (help_help ~cmd (Hashtbl.keys grp.subcommands));
               exit 0)
           end
           else
@@ -1053,8 +1101,11 @@ let hash_bang_expand_arg = function
   | other -> other
 ;;
 
-type 'a with_run_flags =
-  ?argv:string list
+type 'a with_run_flags
+  =  ?version:string
+  -> ?build_info:string
+  (* Defaults to [Sys.argv]. *)
+  -> ?argv:string list
   (* if true, unknown flags will be passed to the anon command handler *)
   -> ?allow_unknown_flags:bool
   (* if true, "-multi_arg_flag", will be handled the same as "-multi-arg-flag".  If
@@ -1067,15 +1118,15 @@ type 'a with_run_flags =
   -> t
   -> 'a
 
-let run_with_version_flags
-    ~version ~build_info
+let (run : unit with_run_flags)
+    ?version ?build_info
     ?argv
     ?(allow_unknown_flags=false)
     ?(allow_underscores=true)
     ?(hash_bang_expand=false)
     ?post_parse
     t =
-  let t = Version.add t ~version ~build_info in
+  let t = Version.add ?version ?build_info t in
   match Autocomplete.execution_mode () with
   | `print_bash_autocomplete_function ->
       Autocomplete.output_bash_function ();
@@ -1092,12 +1143,6 @@ let run_with_version_flags
       let argv = if hash_bang_expand then hash_bang_expand_arg argv else argv in
       run_internal t ~allow_unknown_flags ~allow_underscores ~cmd ~argv ?post_parse ()
 ;;
-
-let run ?argv ?allow_unknown_flags ?allow_underscores ?hash_bang_expand ?post_parse t =
-  run_with_version_flags ?argv ?allow_unknown_flags ?allow_underscores
-    ?hash_bang_expand ?post_parse t
-    ~version:Version_util.version
-    ~build_info:Version_util.build_info
 
 module Annotated_field = struct
   type t = {

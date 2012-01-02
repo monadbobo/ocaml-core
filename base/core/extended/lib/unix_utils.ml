@@ -116,5 +116,5 @@ let get_ppids pid =
     unfold ~init:pid ~f:(fun p ->
       if p = Pid.init then None else Some (getppid_exn p)))
 
-let ip_of_hostname h = Unix.get_inet_addr h |! Unix.string_of_inet_addr
+let ip_of_hostname h = Unix.Inet_addr.of_string_or_getbyname h |! Unix.Inet_addr.to_string
 let get_ip () = ip_of_hostname (Unix.gethostname ())

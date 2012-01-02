@@ -548,10 +548,6 @@ module Gen_struct = struct
   let generate = function
     | Ast.TyDcl (_loc, name, tps, rhs, _) -> fields_of_ty _loc ~record_name:name ~tps ~rhs
     | Ast.TyAnd (_loc, _, _) as tds ->
-        (* bgrundmannn: There used to be a CR in this place for like ever
-           and I only got like 2 requests for it and when I said it won't
-           happen soon nobody was very unhappy so I removed the CR
-         *)
         ignore (_loc, tds);
         failwith "Not supported"
     | _                             -> assert false

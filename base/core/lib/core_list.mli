@@ -246,32 +246,17 @@ val exn_if_dup :
     predicate [f].  *)
 val count : 'a t -> f:('a -> bool) -> int
 
-(** [range ?stride start stop] is the list of integers from [start] (inclusive)
-    to [stop] (exclusive), stepping by [stride].  If unspecified, [stride]
-    defaults to 1.  If [stride] < 0 then we need [start] > [stop] for the result
-    to be nonempty. *)
-val range : ?stride:int -> int -> int -> int t
-
-(** [frange] is similar to [range], but for floats. *)
-val frange : ?stride:float -> float -> float -> float t
-
-(** [linspace] is similar to [frange], but it takes the number of elements in the output
-    as an argument, rather than the size of the stride, which is more numerically robust.
-    The [endpoint] parameter explicitly controls whether [stop] value should be included
-    in the output (the default) or not.
-
-    This function is a clone of [numpy.linspace].
-*)
-val linspace: ?endpoint:bool -> float -> float -> int -> float t
-
-(** [sum] sum a list of floats.  Uses the Kahan summation algorithm. *)
-val sum : float t -> float
-
-(** [sum_sq] sum the squares of a list of floats  *)
-val sum_sq : float t -> float
-
-(** [sum_product_exn] compute the sum of element-wise product of two lists of floats *)
-val sum_product_exn : float t -> float t -> float
+(** [range ?stride start stop] is the list of integers from [start] (defaults to
+    inclusive) to [stop] (defaults to exclusive), stepping by [stride].  If unspecified,
+    [stride] defaults to 1.  If [stride] < 0 then we need [start] > [stop] for the result
+    to be nonempty (or [start] = [stop] in the case where both bounds are inclusive). *)
+val range :
+  ?stride:int
+  -> ?start_inc_exc:[`inclusive|`exclusive] (* default = `inclusive *)
+  -> ?stop_inc_exc:[`inclusive|`exclusive]  (* default = `exclusive *)
+  -> int
+  -> int
+  -> int t
 
 (** [init f n] is [[(f 0); (f 1); ...; (f (n-1))]].
     It is an error if [n < 0].

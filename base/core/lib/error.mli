@@ -5,12 +5,13 @@
 
     For errors where you want to attach some content, you would write:
 
-    {[Error.arg "Unable to find file" <:sexp_of<string>> filename]}
+    {[Error.createy "Unable to find file" filename <:sexp_of<string>>]}
 
     Or even,
 
-    {[Error.arg "price too big" <:sexp_of<float * [`Max of float]>>
-        (price,[`Max max_price])
+    {[Error.create "price too big" (price, [`Max max_price])
+        (<:sexp_of<float * [`Max of float]>>)
+
     ]}
 *)
 open Sexplib
@@ -40,9 +41,9 @@ val of_thunk : (unit -> string) -> t
 
 (** Used for creating errors with arguments.  Be careful to use only immutable types as
     the actual argument. *)
-val create     : string -> 'a -> ('a -> Sexp.t) -> t
-val arg        : string -> ('a -> Sexp.t) -> 'a -> t
-val string_arg : string -> ('a -> string) -> 'a -> t
+val create_sexp :           'a -> ('a -> Sexp.t) -> t
+val create      : string -> 'a -> ('a -> Sexp.t) -> t
+val string_arg  : string -> ('a -> string) -> 'a -> t
 
 (** Functions for transforming errors *)
 
@@ -56,6 +57,16 @@ val tag_arg : t -> string -> ('a -> Sexp.t) -> 'a -> t
 val of_list : ?trunc_after:int -> t list -> t
 
 val of_exn : exn -> t
+val to_exn : t -> exn
 
 (* Note that the exception holds onto the [t]. *)
 val raise : t -> _
+
+(** [fail message value sexp_of_value] raises an exception with the supplied [message]
+    and [value], by constructing an [Error.t] and using [Error.raise].  As usual,
+    the [sexp_of_value] is only applied when the value is converted to a sexp or a
+    string. So, if you mutate [value] in between the time you call [fail] and the time
+    the error is displayed, those mutations will be reflected in the error message.
+
+    [fail s a f] = [raise (create s a f)] *)
+val fail : string -> 'a -> ('a -> Sexp.t) -> _

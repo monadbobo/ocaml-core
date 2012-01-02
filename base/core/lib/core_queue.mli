@@ -10,9 +10,6 @@
       [transfer]'s arguments are labeled.
 *)
 
-
-exception Empty
-
 type 'a t
 
 include Binable.S1   with type 'a t := 'a t

@@ -27,3 +27,6 @@ let append_to_path ?(where=`Back) ~key ~data t =
 
 let to_exec_env env =
   Array.of_list (List.map env ~f:(fun (k,v) -> k ^ "=" ^ v))
+
+let of_exec_env env =
+  Array.to_list (Array.map env ~f:(String.lsplit2_exn ~on:'='))

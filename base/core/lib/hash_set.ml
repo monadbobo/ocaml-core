@@ -14,13 +14,30 @@ let is_empty t = Hashtbl.length t = 0
 
 let add t k = Hashtbl.replace t ~key:k ~data:()
 
+exception Element_already_exists with sexp
+
 let strict_add t k =
-  if mem t k then failwith "Hash_set.strict_add"
-  else Hashtbl.replace t ~key:k ~data:()
+  if mem t k then Result.Error Element_already_exists
+  else begin
+    Hashtbl.replace t ~key:k ~data:();
+    Result.Ok ()
+  end
+
+let strict_add_exn t k =
+  Result.ok_exn (strict_add t k)
 
 let remove = Hashtbl.remove
+
+exception Element_not_in_set with sexp
+
 let strict_remove t k =
-  if mem t k then remove t k else failwith "Hash_set.strict_remove"
+  if mem t k then begin
+    remove t k;
+    Result.Ok ()
+  end else Result.Error Element_not_in_set
+
+let strict_remove_exn t k =
+  Result.ok_exn (strict_remove t k)
 
 let fold t ~init ~f = Hashtbl.fold t ~init ~f:(fun ~key ~data:() acc -> f acc key)
 let iter t ~f = Hashtbl.iter t ~f:(fun ~key ~data:() -> f key)
@@ -48,7 +65,7 @@ let t_of_sexp_internal create k_of_sexp sexp =
   let t = create () in
   let keys = list_of_sexp k_of_sexp sexp in
   try
-    List.iter keys ~f:(fun k -> strict_add t k);
+    List.iter keys ~f:(fun k -> strict_add_exn t k);
     t
   with
   | _ ->

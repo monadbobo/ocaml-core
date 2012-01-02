@@ -1,3 +1,5 @@
+open Sexplib
+open Sexplib.Conv
 open Result.Export
 
 type 'a t = ('a, Error.t) Result.t with sexp, bin_io
@@ -16,4 +18,6 @@ let ok_exn = function
 
 let of_exn exn = Error (Error.of_exn exn)
 
-let error string a sexp_of_a = Error (Error.create string a sexp_of_a)
+let error message a sexp_of_a = Error (Error.create message a sexp_of_a)
+
+let error_string message = error message () <:sexp_of< unit >>

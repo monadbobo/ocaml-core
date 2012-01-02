@@ -31,6 +31,10 @@ val get_groups : string -> string list
     file afterwards.  *)
 val with_tmp : pre:string -> suf:string -> (string -> 'a) -> 'a
 
+(** [diff s1 s2] returns diff (1) output of the two strings. Identical files returns the
+    empty string. *)
+val diff : ?options : string list -> string -> string -> string
+
 (**
    [checked_edit ~check file]
 

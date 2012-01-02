@@ -82,17 +82,15 @@ let blit_common
     Ordered_collection_common.get_pos_len_exn ?pos:src_pos ?len:src_len
       ~length:(get_src_len src)
   in
-  if len < 0 then invalid_argf "%s: len < 0" loc ()
-  else
-    let check_pos var total_len pos =
-      if pos < 0 then invalid_argf "%s: %s < 0" loc var ()
-      else if pos + len > total_len then
-        invalid_argf "%s: pos (%d) + len (%d) > total_len (%d)"
-          loc pos len total_len ()
-    in
-    check_pos "src_pos" (get_src_len src) src_pos;
-    check_pos "dst_pos" (get_dst_len dst) dst_pos;
-    if len > 0 then blit ~src ~src_pos ~dst ~dst_pos ~len
+  let check_pos var total_len pos =
+    if pos < 0 then invalid_argf "%s: %s < 0" loc var ()
+    else if pos + len > total_len then
+      invalid_argf "%s: pos (%d) + len (%d) > total_len (%d)"
+        loc pos len total_len ()
+  in
+  check_pos "src_pos" (get_src_len src) src_pos;
+  check_pos "dst_pos" (get_dst_len dst) dst_pos;
+  if len > 0 then blit ~src ~src_pos ~dst ~dst_pos ~len
 ;;
 
 type ('src, 'dst) blit

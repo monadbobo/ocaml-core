@@ -5,7 +5,7 @@ module Array = Core_array
 module Entry = struct
   module T = struct
     type ('key, 'data) t =
-      { key : 'key;
+      { mutable key : 'key;
         mutable data : 'data;
         (* The index in [defined_entries] where this [Entry.t] is placed. *)
         mutable defined_entries_index : int;
@@ -19,6 +19,7 @@ open Entry.T
 
 type ('key, 'data) t =
   { num_keys : int;
+    sexp_of_key : ('key -> Sexp.t) option;
     key_to_int : 'key -> int;
     (* The number of entries in the table, not the length of the arrays below. *)
     mutable length : int;
@@ -32,12 +33,14 @@ type ('key, 'data) t =
   }
 with fields, sexp_of
 
-let to_sexp_ignore_data t =
-  sexp_of_t
-    (fun key -> Int.sexp_of_t (t.key_to_int key))
-    (fun _ -> Sexp.Atom "<DATA>")
-    t
+let sexp_of_key t =
+  fun key ->
+    match t.sexp_of_key with
+    | None -> Int.sexp_of_t (t.key_to_int key)
+    | Some f -> f key
 ;;
+
+let to_sexp_ignore_data t = sexp_of_t (sexp_of_key t) (fun _ -> Sexp.Atom "<DATA>") t
 
 let invariant t =
   try
@@ -68,20 +71,20 @@ let invariant t =
     assert (t.length = Array.length entries);
     assert (Array.equal entries entries' ~equal:phys_equal)
   with exn ->
-    Error.raise (Error.arg "invariant failed"
-                 <:sexp_of< exn * Sexp.t >>
-                   (exn, to_sexp_ignore_data t))
+    Error.fail "invariant failed" (exn, to_sexp_ignore_data t)
+      (<:sexp_of< exn * Sexp.t >>)
 ;;
 
 let debug = ref false
 
 let check_invariant t = if !debug then invariant t
 
-let create ~num_keys ~key_to_int =
-  if num_keys < 0 then Error.raise (Error.arg "num_keys must be nonnegative"
-                                    <:sexp_of< int >> num_keys);
+let create ?sexp_of_key ~num_keys ~key_to_int () =
+  if num_keys < 0 then
+    Error.fail "num_keys must be nonnegative" num_keys <:sexp_of< int >>;
   let t =
     { num_keys;
+      sexp_of_key;
       key_to_int;
       length = 0;
       entries_by_key  = Array.create num_keys None;
@@ -127,27 +130,44 @@ let entry_opt t key =
   let index = t.key_to_int key in
   try t.entries_by_key.(index)
   with _ ->
-    Error.raise (Error.arg "key out of range"
-                 <:sexp_of< int * [ `Should_be_between_0_and of int ] >>
-                   (index, `Should_be_between_0_and (t.num_keys - 1)))
+    Error.fail "key out of range" (index, `Should_be_between_0_and (t.num_keys - 1))
+      (<:sexp_of< int * [ `Should_be_between_0_and of int ] >>)
 ;;
 
 let find t key = Option.map (entry_opt t key) ~f:Entry.data
 
 let mem t key = is_some (entry_opt t key)
 
-let replace t ~key ~data =
-  begin match entry_opt t key with
-  | Some entry ->
-    entry.data <- data;
-  | None ->
-    let defined_entries_index = t.length in
-    let entry_opt = Some { Entry. key; data; defined_entries_index } in
-    t.entries_by_key.(t.key_to_int key) <- entry_opt;
-    t.defined_entries.(defined_entries_index) <- entry_opt;
-    t.length <- t.length + 1;
-  end;
+let add_assuming_not_there t ~key ~data =
+  let defined_entries_index = t.length in
+  let entry_opt = Some { Entry. key; data; defined_entries_index } in
+  t.entries_by_key.(t.key_to_int key) <- entry_opt;
+  t.defined_entries.(defined_entries_index) <- entry_opt;
+  t.length <- t.length + 1;
   check_invariant t;
+;;
+
+let set t ~key ~data =
+   match entry_opt t key with
+  | None -> add_assuming_not_there t ~key ~data
+  | Some entry ->
+    entry.key <- key; (* we update the key because we want the latest key in the table *)
+    entry.data <- data;
+;;
+
+let add t ~key ~data =
+  match entry_opt t key with
+  | Some _ -> `Duplicate
+  | None -> add_assuming_not_there t ~key ~data; `Ok
+;;
+
+let add_exn t ~key ~data =
+  match add t ~key ~data with
+  | `Ok -> ()
+  | `Duplicate ->
+    let sexp_of_key = sexp_of_key t in
+    Error.fail "Bounded_int_table.add of key that is already present"
+      key <:sexp_of< key >>
 ;;
 
 let remove t key =
@@ -170,3 +190,99 @@ let remove t key =
   check_invariant t;
 ;;
 
+TEST_MODULE = struct
+  let () = debug := true
+
+  let create ~num_keys : (_, _) t = create ~num_keys ~key_to_int:Fn.id ()
+
+  let assert_empty t =
+    assert (length t = 0);
+    assert (to_alist t = []);
+    assert (keys t = []);
+    assert (data t = []);
+  ;;
+
+  TEST_UNIT =
+    begin
+      try ignore (create ~num_keys:(-1)); assert false with _ -> ()
+    end;
+
+  TEST_UNIT = ignore (create ~num_keys:0)
+  TEST_UNIT = ignore (create ~num_keys:1)
+  TEST_UNIT = ignore (create ~num_keys:10_000)
+
+  TEST_UNIT =
+    let num_keys = 10 in
+    let t = create ~num_keys in
+    let key_is_valid key = try ignore (find t key); true with _ -> false in
+    assert (not (key_is_valid (-1)));
+    for key = 0 to num_keys - 1 do
+      assert (key_is_valid key);
+      assert (is_none (find t key));
+    done;
+    assert (not (key_is_valid num_keys));
+    assert_empty t;
+  ;;
+
+  let table_data = data
+
+  TEST_UNIT =
+    let num_keys = 10 in
+    let t = create ~num_keys in
+    let key = 0 in
+    let data = "zero" in
+    add_exn t ~key ~data;
+    assert (length t = 1);
+    assert (find t key = Some data);
+    for key = 1 to num_keys - 1 do
+      assert (find t key = None)
+    done;
+    assert (to_alist t = [(key, data)]);
+    assert (keys t = [key]);
+    assert (table_data t = [data]);
+    remove t key;
+    assert_empty t;
+  ;;
+
+  TEST_UNIT =
+    let num_keys = 10 in
+    let t = create ~num_keys in
+    let key = 0 in
+    let data = "zero" in
+    add_exn t ~key ~data:"bad";
+    set t ~key ~data;
+    assert (find t key = Some data);
+    for key = 1 to num_keys - 1 do
+      assert (find t key = None)
+    done;
+    assert (to_alist t = [(key, data)]);
+    assert (keys t = [key]);
+    assert (table_data t = [data]);
+  ;;
+
+  TEST_UNIT =
+    let num_keys = 10 in
+    let t = create ~num_keys in
+    for key = 1 to 5 do
+      add_exn t ~key ~data:(Int.to_string key)
+    done;
+    assert (length t = 5);
+    for key = 1 to 5 do
+      remove t key;
+    done;
+    assert_empty t;
+  ;;
+
+  TEST_UNIT =
+    let num_keys = 10 in
+    let t = create ~num_keys in
+    for key = 0 to num_keys - 1 do
+      add_exn t ~key ~data:(Int.to_string key)
+    done;
+    assert (length t = num_keys);
+    for key = 0 to num_keys - 1 do
+      remove t key;
+    done;
+    assert_empty t;
+  ;;
+end

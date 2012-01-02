@@ -13,11 +13,7 @@ end
 
 include T
 
-(** [range ?stride start stop] is the list of integers from [start] (inclusive)
-    to [stop] (exclusive), stepping by [stride].  If unspecified, [stride]
-    defaults to 1.  If [stride] < 0 then we need [start] > [stop] for the result
-    to be nonempty. *)
-let range ?(stride=1) start stop =
+let range ?(stride=1) ?(start_inc_exc=`inclusive) ?(stop_inc_exc=`exclusive) start stop =
   if stride = 0 then
     invalid_arg "Core_list.range: stride must be non-zero";
   (* Generate the range from the last element, so that we do not need to rev it *)
@@ -26,6 +22,16 @@ let range ?(stride=1) start stop =
     else loop (last - stride) (counter - 1) (last::accum)
   in
   let stride_sign = if stride > 0 then 1 else -1 in
+  let start =
+    match start_inc_exc with
+    | `inclusive -> start
+    | `exclusive -> start + stride
+  in
+  let stop =
+    match stop_inc_exc with
+    | `inclusive -> stop + stride_sign
+    | `exclusive -> stop
+  in
   let num_elts = (stop - start + stride - stride_sign) / stride in
   loop (start + (stride * (num_elts - 1))) num_elts []
 ;;
@@ -50,142 +56,69 @@ TEST = range ~stride:(-3) 10 2 = [10;7;4]
 TEST = range ~stride:(-3) 10 1 = [10;7;4]
 TEST = range ~stride:(-3) 10 0 = [10;7;4;1]
 
-(** [linspace] is similar to [frange], but it takes the number of elements in the output
-    as an argument, rather than the size of the stride, which is more numerically robust.
-    The [endpoint] parameter explicitly controls whether [stop] value should be included
-    in the output (the default) or not.
+TEST = range ~start_inc_exc:`exclusive 3 1 = []
+TEST = range ~start_inc_exc:`exclusive 3 3 = []
+TEST = range ~start_inc_exc:`exclusive 3 4 = []
+TEST = range ~start_inc_exc:`exclusive 3 8 = [4;5;6;7]
+TEST = range ~start_inc_exc:`exclusive ~stride:3 4 10 = [7]
+TEST = range ~start_inc_exc:`exclusive ~stride:3 4 11 = [7;10]
+TEST = range ~start_inc_exc:`exclusive ~stride:3 4 12 = [7;10]
+TEST = range ~start_inc_exc:`exclusive ~stride:3 4 13 = [7;10]
+TEST = range ~start_inc_exc:`exclusive ~stride:3 4 14 = [7;10;13]
 
-    This function is a clone of [numpy.linspace].
-*)
-let linspace ?(endpoint=true) start stop num =
-  let num2 = if endpoint then (num - 1) else num in
-  if num2 < 1 then
-    invalid_arg "Core_list.linspace: num too small";
-  let stride = (stop -. start) /. float_of_int num2 in
-  let is_nan (x : float) = x <> x in
-  if is_nan stride then
-    invalid_arg "Core_list.linspace: got nans";
-  let rec loop counter accum =
-    if counter < 0 then accum
-    else
-      loop (counter - 1) ((start +. (float_of_int counter) *. stride)::accum)
-  in
-  loop (num2 - 1) (if endpoint then [stop] else [])
+TEST = range ~start_inc_exc:`exclusive ~stride:(-1)  1 3 = []
+TEST = range ~start_inc_exc:`exclusive ~stride:(-1)  3 3 = []
+TEST = range ~start_inc_exc:`exclusive ~stride:(-1)  4 3 = []
+TEST = range ~start_inc_exc:`exclusive ~stride:(-1)  8 3 = [7;6;5;4]
+TEST = range ~start_inc_exc:`exclusive ~stride:(-3) 10 4 = [7]
+TEST = range ~start_inc_exc:`exclusive ~stride:(-3) 10 3 = [7;4]
+TEST = range ~start_inc_exc:`exclusive ~stride:(-3) 10 2 = [7;4]
+TEST = range ~start_inc_exc:`exclusive ~stride:(-3) 10 1 = [7;4]
+TEST = range ~start_inc_exc:`exclusive ~stride:(-3) 10 0 = [7;4;1]
 
-(* For unit tests *)
-let rec float_lists_almost_equal l1 l2 =
-  match l1, l2 with
-  | [], [] -> true
-  | h1::t1, h2::t2 ->
-    if abs_float (h1 -. h2) < (abs_float h1 +. abs_float h2) *. 1e-16 then
-      float_lists_almost_equal t1 t2
-    else
-      false
-  | _h::_t, []
-  | [], _h::_t -> false
-;;
+TEST = range ~stop_inc_exc:`inclusive 3 1 = []
+TEST = range ~stop_inc_exc:`inclusive 3 3 = [3]
+TEST = range ~stop_inc_exc:`inclusive 3 4 = [3;4]
+TEST = range ~stop_inc_exc:`inclusive 3 8 = [3;4;5;6;7;8]
+TEST = range ~stop_inc_exc:`inclusive ~stride:3 4 10 = [4;7;10]
+TEST = range ~stop_inc_exc:`inclusive ~stride:3 4 11 = [4;7;10]
+TEST = range ~stop_inc_exc:`inclusive ~stride:3 4 12 = [4;7;10]
+TEST = range ~stop_inc_exc:`inclusive ~stride:3 4 13 = [4;7;10;13]
+TEST = range ~stop_inc_exc:`inclusive ~stride:3 4 14 = [4;7;10;13]
 
-TEST = float_lists_almost_equal (linspace 0.3 0.9 5) [0.3; 0.45; 0.6; 0.75; 0.9]
-TEST = float_lists_almost_equal
-      (linspace ~endpoint:false 0.3 0.9 5)[0.3; 0.42; 0.54; 0.66; 0.78]
+TEST = range ~stop_inc_exc:`inclusive ~stride:(-1)  1 3 = []
+TEST = range ~stop_inc_exc:`inclusive ~stride:(-1)  3 3 = [3]
+TEST = range ~stop_inc_exc:`inclusive ~stride:(-1)  4 3 = [4;3]
+TEST = range ~stop_inc_exc:`inclusive ~stride:(-1)  8 3 = [8;7;6;5;4;3]
+TEST = range ~stop_inc_exc:`inclusive ~stride:(-3) 10 4 = [10;7;4]
+TEST = range ~stop_inc_exc:`inclusive ~stride:(-3) 10 3 = [10;7;4]
+TEST = range ~stop_inc_exc:`inclusive ~stride:(-3) 10 2 = [10;7;4]
+TEST = range ~stop_inc_exc:`inclusive ~stride:(-3) 10 1 = [10;7;4;1]
+TEST = range ~stop_inc_exc:`inclusive ~stride:(-3) 10 0 = [10;7;4;1]
 
-(* The tests below are only using integers, so the result should be exact. *)
-TEST = linspace 3. 8. 6 = [3.; 4.; 5.; 6.; 7.; 8.]
-TEST = linspace ~endpoint:false 3. 8. 5 = [3.; 4.; 5.; 6.; 7.]
-TEST = linspace 3. 8. 2 = [3.; 8.]
-TEST = linspace ~endpoint:false 3. 8. 1 = [3.]
-TEST = linspace 3. (-7.) 6 = [3.; 1.; -1.; -3.; -5.; -7.]
-TEST = linspace (-3.) 7. 2 = [-3.; 7.]
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive 3 1 = []
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive 3 3 = []
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive 3 4 = [4]
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive 3 8 = [4;5;6;7;8]
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:3 4 10 = [7;10]
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:3 4 11 = [7;10]
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:3 4 12 = [7;10]
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:3 4 13 = [7;10;13]
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:3 4 14 = [7;10;13]
 
-(** [frange] is similar to [range], but for floats. *)
-let frange ?(stride=1.) start stop =
-  if 0. = stride then
-    invalid_arg "Core_list.frange: stride must be non-zero";
-  (* Generate the range starting at the last element, so that we do not need to rev it *)
-  let rec loop counter accum =
-    if counter <= 0.0 then accum
-    else
-      (* The following is a floating-point subtraction, but [counter] is a float
-         representing an exact integer value between 0 and 5e8.  So the operation is
-         guaranteed by IEEE to give no rounding errors. *)
-      let counter_minus_1 = counter -. 1.0 in
-      (* Using [first +. counter *. stride] is much more accurate then adding or
-         subtracting stride at each step. *)
-      loop counter_minus_1 ((start +. counter_minus_1 *. stride)::accum)
-  in
-  let strides_from_start_to_stop = (stop -. start) /. stride in
-  let is_nan x = (x : float) <> x in
-  if is_nan strides_from_start_to_stop then
-    (* We know that [stride] is non-zero, so some arguments must have been [nan] *)
-    invalid_arg "Core_list.frange: got nans";
-  if strides_from_start_to_stop > 5e8 then
-    (* This protects us from [stride] too close to 0.0, infinite [start] or [stop] etc. *)
-    invalid_arg "Core_list.frange: result too long";
-  if strides_from_start_to_stop <= 0.0 then
-    []
-  else
-    (* If [stop -. start] is epsilon-close to an exact multiple of [stride], we assume
-       that the caller's intention was for it to be the exact multiple, so that the last
-       element is [stop -. stride].  E.g. we have
-
-       For IEEE doubles: (0.9 -. 0.3) /. 0.3 = 2.0000000000000004 > 2.0
-
-       but thanks to the use of epsilon below, [frange ~stride:0.3 0.3 0.9] will still
-       return a 2-element list:
-
-       [0.3; 0.6]
-
-       while [~stride:0.3 0.3 0.9000001] returns something within a couple of ulps from
-
-       [0.3; 0.6; 0.9]
-    *)
-    let epsilon = 1e-7 in
-    let num_elts = 1.0 +. floor (strides_from_start_to_stop -. epsilon) in
-    loop num_elts []
-;;
-
-(* For IEEE doubles: (0.9 -. 0.3) /. 0.3 = 2.0000000000000004 > 2.0 *)
-TEST = float_lists_almost_equal (frange ~stride:0.3 0.3 0.8999999) [0.3; 0.6]
-TEST = float_lists_almost_equal (frange ~stride:0.3 0.3 0.9000000) [0.3; 0.6]
-TEST = float_lists_almost_equal (frange ~stride:0.3 0.3 0.9000001) [0.3; 0.6; 0.9]
-
-(* For IEEE doubles: (0.3 -. 0.1 /. 0.1 = 1.9999999999999998 < 2.0 *)
-TEST = float_lists_almost_equal (frange ~stride:0.1 0.1 0.2999999) [0.1; 0.2]
-TEST = float_lists_almost_equal (frange ~stride:0.1 0.1 0.3000000) [0.1; 0.2]
-TEST = float_lists_almost_equal (frange ~stride:0.1 0.1 0.3000001) [0.1; 0.2; 0.3]
-
-(* The tests below are only using integers, so the result should be exact. *)
-TEST = frange 3. 1.  = []
-TEST = frange 3. 3.  = []
-TEST = frange 3. 3.1 = [3.]
-TEST = frange 3. 8.  = [3.; 4.; 5.; 6.; 7.]
-TEST = frange ~stride:3. 4. 10. = [4.; 7.]
-TEST = frange ~stride:3. 4. 11. = [4.; 7.; 10.]
-TEST = frange ~stride:3. 4. 12. = [4.; 7.; 10.]
-TEST = frange ~stride:3. 4. 13. = [4.; 7.; 10.]
-TEST = frange ~stride:3. 4. 14. = [4.; 7.; 10.; 13.]
-
-TEST = frange ~stride:(-1.)  1. 3.  = []
-TEST = frange ~stride:(-1.)  3. 3.  = []
-TEST = frange ~stride:(-1.)  4. 3.9 = [4.]
-TEST = frange ~stride:(-1.)  8. 3.  = [8.; 7.; 6.; 5.; 4.]
-TEST = frange ~stride:(-3.) 10. 4.  = [10.; 7.]
-TEST = frange ~stride:(-3.) 10. 3.  = [10.; 7.; 4.]
-TEST = frange ~stride:(-3.) 10. 2.  = [10.; 7.; 4.]
-TEST = frange ~stride:(-3.) 10. 1.  = [10.; 7.; 4.]
-TEST = frange ~stride:(-3.) 10. 0.  = [10.; 7.; 4.; 1.]
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-1)  1 3 = []
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-1)  3 3 = []
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-1)  4 3 = [3]
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-1)  8 3 = [7;6;5;4;3]
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-3) 10 4 = [7;4]
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-3) 10 3 = [7;4]
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-3) 10 2 = [7;4]
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-3) 10 1 = [7;4;1]
+TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-3) 10 0 = [7;4;1]
 
 module Test_values = struct
   let long1 =
     let v = lazy (range 1 100_000) in
-    fun () -> Lazy.force v
-
-  let flong1 =
-    let v = lazy (linspace 0. 2000. 200_001) in
-    fun () -> Lazy.force v
-
-  let flong2 =
-    let v = lazy (linspace 0.01 0.01 100_000) in
     fun () -> Lazy.force v
 
   let l1 = [1;2;3;4;5;6;7;8;9;10]
@@ -644,9 +577,8 @@ let rec last list = match list with
   | _::tl -> last tl
   | [] -> None
 
-(** returns sorted version of list with duplicates removed *)
-let dedup ?(compare=Pervasives.compare) list =
-  let sorted = List.sort ~cmp:(fun x y -> compare y x) list in
+(* returns list without adjacent duplicates *)
+let dedup_without_sorting ?(compare=Pervasives.compare) list =
   let rec loop list accum = match list with
     | [] -> accum
     | hd::[] -> hd::accum
@@ -655,10 +587,21 @@ let dedup ?(compare=Pervasives.compare) list =
         then loop (hd2::tl) accum
         else loop (hd2::tl) (hd1::accum)
   in
-  loop sorted []
+  loop list []
+
+(** returns sorted version of list with duplicates removed *)
+let dedup ?(compare=Pervasives.compare) list =
+  let sorted = List.sort ~cmp:(fun x y -> compare y x) list in
+  dedup_without_sorting ~compare sorted
 
 TEST = dedup [] = []
 TEST = dedup [5;5;5;5;5] = [5]
+TEST = length (dedup [2;1;5;3;4]) = 5
+TEST = length (dedup [2;3;5;3;4]) = 4
+TEST = length (dedup [(0,1);(2,2);(0,2);(4,1)] ~compare:(fun (a,_) (b,_) ->
+  Pervasives.compare a b)) = 3
+TEST = length (dedup [(0,1);(2,2);(0,2);(4,1)] ~compare:(fun (_,a) (_,b) ->
+  Pervasives.compare a b)) = 2
 
 let contains_dup ?compare lst = length (dedup ?compare lst) <> length lst
 
@@ -667,7 +610,7 @@ let find_a_dup ?(compare=Pervasives.compare) l =
   let rec loop l = match l with
       [] | [_] -> None
     | hd1::hd2::tl ->
-      if hd1 = hd2 then Some (hd1) else loop (hd2::tl)
+      if compare hd1 hd2 = 0 then Some (hd1) else loop (hd2::tl)
   in
   loop sorted
 
@@ -678,6 +621,14 @@ TEST = find_a_dup [3;3] = Some 3
 TEST = find_a_dup [3;5;4;6;12] = None
 TEST = find_a_dup [3;5;4;5;12] = Some 5
 TEST = find_a_dup [3;5;12;5;12] = Some 5
+TEST = find_a_dup [(0,1);(2,2);(0,2);(4,1)] = None
+TEST = Option.is_some
+      (find_a_dup [(0,1);(2,2);(0,2);(4,1)]
+         ~compare:(fun (_,a) (_,b) -> Pervasives.compare a b))
+TEST = let dup = find_a_dup [(0,1);(2,2);(0,2);(4,1)]
+         ~compare:(fun (a,_) (b,_) -> Pervasives.compare a b)
+       in
+       Option.map dup ~f:fst = Some 0
 
 
 type sexp_thunk = unit -> Sexplib.Sexp.t
@@ -690,36 +641,6 @@ let exn_if_dup ?compare ?(context="exn_if_dup") t ~to_sexp =
   )
 
 let count t ~f = Container.fold_count fold t ~f
-
-(* Implements the Kahan summation:
-   http://en.wikipedia.org/wiki/Kahan_summation_algorithm
-   It has some good properties, but still doesn't do as well as Shewchuk's algorithm,
-   for example sum [1.; 1e100; 1.; -1e100] yields 0.0.
-*)
-let sum t =
-  let rec kahan_sum t accum compensation =
-    match t with
-    | [] -> accum
-    | hd::tl ->
-      let y = hd -. compensation in
-      let new_accum = accum +. y in
-      let compensation = (new_accum -. accum) -. y in
-      kahan_sum tl new_accum compensation
-  in kahan_sum t 0.0 0.0
-;;
-
-let naive_sum = fold ~init:0.0 ~f:(+.)
-let sum_vs_naive_sum_diff t = abs_float(naive_sum t -. sum t)
-TEST = sum (Test_values.flong1 ()) = 200001000.0
-TEST = sum_vs_naive_sum_diff (Test_values.flong1 ()) > 2e-8
-TEST = sum (Test_values.flong2 ()) = 1000.0
-TEST = sum_vs_naive_sum_diff (Test_values.flong2 ()) > 7e-10
-
-let sum_sq t =
-  sum (map t ~f:(fun x -> x *. x))
-
-let sum_product_exn s t =
-  sum (map2_exn s t ~f:( *. ))
 
 let init n ~f =
   if n < 0 then invalid_argf "List.init %d" n ();

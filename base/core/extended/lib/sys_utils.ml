@@ -15,7 +15,7 @@ let get_gen env_vars defaults =
   in first_valid programs
 ;;
 
-let get_editor () = get_gen ["EDITOR"; "VISUAL"] ["nano";"emacs"; "vim"; "vi"; "ed"] ;;
+let get_editor () = get_gen ["EDITOR"; "VISUAL"] ["vim"; "emacs"; "nano"] ;;
 
 let get_editor_exn () =
   get_editor ()
@@ -55,6 +55,14 @@ let with_tmp ~pre ~suf f =
   let tmp_file = Filename.temp_file pre suf in
   Exn.protect ~f:(fun () -> f tmp_file)
     ~finally:(fun () -> Sys.remove tmp_file)
+
+(* -d is supposed to make it find a smaller set of changes. *)
+let diff ?(options=["-d"]) s1 s2 =
+  with_tmp ~pre:"sysutils" ~suf:"diff1" (fun f1 ->
+    with_tmp ~pre:"sysutils" ~suf:"diff2" (fun f2 ->
+      Out_channel.write_all f1 ~data:s1;
+      Out_channel.write_all f2 ~data:s2;
+      Shell.run_full ~expect:[0;1] "/usr/bin/diff" (options @ ["--"; f1; f2])))
 
 let digest file =
   if Sys.file_exists file <> `No then

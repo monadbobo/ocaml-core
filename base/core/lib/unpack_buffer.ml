@@ -16,8 +16,7 @@ module Unpack_one = struct
   let create unpack_one =
     fun ?partial_unpack ?pos ?len buf ->
       let (pos, len) =
-        Ordered_collection_common.get_pos_len_exn
-          ?pos ?len ~length:(Bigstring.length buf)
+        Ordered_collection_common.get_pos_len_exn ?pos ?len ~length:(Bigstring.length buf)
       in
       unpack_one ?partial_unpack buf ~pos ~len
   ;;
@@ -27,7 +26,7 @@ module Unpack_one = struct
     let not_enough_data = `Not_enough_data ((), 0) in
     let pos_ref = ref 0 in
     let invalid_data message a sexp_of_a =
-      `Invalid_data (Error.arg message sexp_of_a a)
+      `Invalid_data (Error.create message a sexp_of_a)
     in
     let read bin_reader buf ~pos ~len =
       pos_ref := pos;
@@ -100,8 +99,7 @@ let invariant t =
       if t.len = 0 then assert (t.pos = 0);
       assert (t.pos + t.len <= Bigstring.length t.buf);
   with exn ->
-    Error.raise (Error.arg "invariant failed"
-                 <:sexp_of< exn * Sexp.t >> (exn, to_sexp_ignore t))
+    Error.fail "invariant failed" (exn, to_sexp_ignore t) <:sexp_of< exn * Sexp.t >>
 ;;
 
 let create ?partial_unpack unpack_one =
@@ -182,7 +180,7 @@ let unpack t =
           Result.try_with (fun () ->
             t.unpack_one t.buf ~pos:t.pos ~len:t.len ?partial_unpack:t.partial_unpack)
         with
-        | Error exn -> error (Error.arg "unpack error" <:sexp_of< Exn.t >> exn)
+        | Error exn -> error (Error.create "unpack error" exn <:sexp_of< Exn.t >>)
         | Ok unpack_result ->
           match unpack_result with
           | `Invalid_data e -> error (Error.tag e "invalid data")
@@ -190,8 +188,8 @@ let unpack t =
             (* Unpacking a value must have consumed at least one byte, and cannot have
                consumed more bytes than were available. *)
             if num_bytes <= 0 || num_bytes > t.len then
-              error (Error.arg "unpack consumed invalid amount"
-                     <:sexp_of< int >> num_bytes)
+              error (Error.create "unpack consumed invalid amount" num_bytes
+                       (<:sexp_of< int >>))
             else begin
               consume ~num_bytes;
               t.partial_unpack <- None;
@@ -202,8 +200,8 @@ let unpack t =
             (* Partial unpacking need not have consumed any bytes, and cannot have
                consumed more bytes than were available. *)
             if num_bytes < 0 || num_bytes > t.len then
-              error (Error.arg "partial unpack consumed invalid amount"
-                     <:sexp_of< int >> num_bytes)
+              error (Error.create "partial unpack consumed invalid amount" num_bytes
+                       (<:sexp_of< int >>))
             else begin
               consume ~num_bytes;
               t.partial_unpack <- Some partial_unpack;

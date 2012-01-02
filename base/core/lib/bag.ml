@@ -4,7 +4,7 @@ let add = insert_first
 
 let remove_one = remove_first
 
-let some_elt = first_elt
+let choose = first_elt
 
 let until_empty t f =
   let rec loop () =

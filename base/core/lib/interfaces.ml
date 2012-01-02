@@ -1,4 +1,3 @@
-
 module type Binable = Binable.S
 module type Comparable = Comparable.S
 module type Comparable_binable = Comparable.S_binable

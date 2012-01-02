@@ -235,7 +235,7 @@ end
 
 let width () =
   if Unix.isatty Unix.stdout then
-    Some (snd (Unix.get_terminal_size ()))
+    Some (snd (Linux_ext.get_terminal_size ()))
   else
     None
 

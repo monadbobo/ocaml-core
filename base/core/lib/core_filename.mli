@@ -123,6 +123,10 @@ val dirname : string -> string
 (** [split filename] returns (dirname filename, basename filename) *)
 val split : string -> string * string
 
+(** [parts filename] returns a list of path components in order.  For instance:
+  /tmp/foo/bar/baz -> ["/"; "tmp"; "foo"; "bar"; "baz" ] *)
+val parts : string -> string list
+
 (** The name of the temporary directory:
     Under Unix, the value of the [TMPDIR] environment variable, or "/tmp"
     if the variable is not set.

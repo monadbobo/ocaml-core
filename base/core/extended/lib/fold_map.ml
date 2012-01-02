@@ -28,24 +28,24 @@ sig
     -> ('a,'b) _t
   val mem       : ('a,_) _t -> 'a -> bool
   val iter      :
-    f:(key:'a -> data:'b _out_value -> unit)
-    -> ('a,'b) _t
+    ('a,'b) _t
+    -> f:(key:'a -> data:'b _out_value -> unit)
     -> unit
   val fold      :
-    f:(key:'a -> data:'b _out_value -> 'c -> 'c)
-    -> ('a,'b) _t
+    ('a,'b) _t
+    -> f:(key:'a -> data:'b _out_value -> 'c -> 'c)
     -> init:'c
     -> 'c
   val filter    :
-    f:(key:'a -> data:'b _out_value -> bool)
-    -> ('a,'b) _t
+    ('a,'b) _t
+    -> f:(key:'a -> data:'b _out_value -> bool)
     -> ('a,'b) _t
   val keys      : ('a,_) _t -> 'a list
   val data      : (_,'b) _t -> 'b _out_value list
   val to_alist  : ('a,'b) _t -> ('a * 'b _out_value) list
   val of_list   : ('a * 'b _in_value) list -> ('a,'b) _t
-  val for_all   : f:('b _out_value -> bool) -> (_,'b) _t -> bool
-  val exists    : f:('b _out_value -> bool) -> (_,'b) _t -> bool
+  val for_all   : (_,'b) _t -> f:('b _out_value -> bool) -> bool
+  val exists    : (_,'b) _t -> f:('b _out_value -> bool) -> bool
   val to_map    : ('a,'b) _t -> ('a,'b _out_value) Map.t
   val of_map    : ('a,'b _out_value) Map.t -> ('a,'b) _t
 end
@@ -82,7 +82,7 @@ struct
   let add ~key ~data t =
     Map.add ~key ~data:(Fold.f (find t key) data) t
 
-  let set = Map.add
+  let set ~key ~data t = Map.add t ~key ~data
 
   let of_list l = List.fold l ~init:empty ~f:(fun t (key,data) ->
     add t ~key ~data)

@@ -13,14 +13,11 @@ val test_invariants : 'a t -> unit
 (** The empty queue *)
 val empty : 'a t
 
-(** push a single element on queue *)
-val push : 'a -> 'a t -> 'a t
+(** [enqueue t x] returns a queue with adds [x] to the end of [t].*)
+val enqueue : 'a t -> 'a -> 'a t
 
-(** push a single element on the *top* of the queue *)
-val push_top : 'a -> 'a t -> 'a t
-
-(** alias for push *)
-val enq : 'a -> 'a t -> 'a t
+(** enqueue a single element on the *top* of the queue *)
+val enqueue_top : 'a t -> 'a -> 'a t
 
 (** returns the bottom (most-recently enqueued element).  Raises [Empty] if no element is
     found. *)
@@ -35,18 +32,12 @@ val top_exn : 'a t -> 'a
 (** like [top_exn], but returns result optionally, without exception *)
 val top : 'a t -> 'a option
 
-(** Like [top_exn], but returns pair of the top element, and a new queue with the top element
-    removed *)
-val pop_exn : 'a t -> 'a * 'a t
+(** [dequeue_exn t] removes and returns the front of [t], raising [Empty] if [t]
+    is empty. *)
+val dequeue_exn : 'a t -> 'a * 'a t
 
-(** Like [pop_exn], but returns result optionally, without exception *)
-val pop : 'a t -> ('a * 'a t) option
-
-(** alias for pop *)
-val deq : 'a t -> ('a * 'a t) option
-
-(** alias for pop_exn *)
-val deq_exn : 'a t -> 'a * 'a t
+(** Like [dequeue_exn], but returns result optionally, without exception *)
+val dequeue : 'a t -> ('a * 'a t) option
 
 (** Returns version of queue with top element removed *)
 val discard_exn : 'a t -> 'a t

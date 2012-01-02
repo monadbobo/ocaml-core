@@ -336,6 +336,65 @@ let filter_record t_of_sexp names =
       ~generated_sexp:(filter_record_sexp sexp names)
 ;;
 
+module Make_explicit_sexp_option (T: sig
+  type t with sexp
+  val explicit_sexp_option_fields : string list
+end) : sig
+  type t = T.t with sexp
+end = struct
+  type t = T.t
+
+  let fail () = failwith "Make_explicit_sexp_option failure"
+
+  let t_of_sexp sexp =
+    let sexp =
+      match sexp with
+      | Sexp.Atom _ -> sexp
+      | Sexp.List l when List.exists l ~f:(function
+          | Sexp.List [Sexp.Atom _;_] -> false
+          | _ -> true
+      ) -> sexp
+      | Sexp.List l -> Sexp.List (List.filter_map l ~f:(fun field ->
+        let name, value =
+          match field with
+          | Sexp.List [Sexp.Atom name;sexp] -> name,sexp
+          | _ -> assert false
+        in
+        if not (List.mem T.explicit_sexp_option_fields name)
+        then Some field
+        else
+          match value with
+          | Sexp.List [] -> None
+          | Sexp.List [sexp] -> Some sexp
+          | Sexp.Atom _ | Sexp.List (_::_::_) -> fail ()
+      ))
+    in
+    T.t_of_sexp sexp
+
+  let sexp_of_t t =
+    let sexp = T.sexp_of_t t in
+    let field_names =
+      match sexp with
+      | Sexp.Atom _ -> fail ()
+      | Sexp.List l -> Map.of_alist_exn (List.map l ~f:(fun field ->
+        match field with
+        | Sexp.List [Sexp.Atom name;sexp] -> name,sexp
+        | _ -> fail ()
+      ))
+    in
+    let field_names = List.fold T.explicit_sexp_option_fields ~init:field_names
+      ~f:(fun field_names explicit_sexp_option_field ->
+        let value = <:sexp_of<Sexp.t option>>
+          (Map.find field_names explicit_sexp_option_field)
+        in
+        Map.add field_names ~key:explicit_sexp_option_field ~data:value
+      )
+    in
+    Sexp.List (List.map (Map.to_alist field_names) ~f:(fun (name,sexp) ->
+      Sexp.List [Sexp.Atom name;sexp]
+    ))
+end
+
 module Make_sexp_maybe2 (Random_state:sig val state : Random.State.t end) = struct
   type ('a,'b) t = ('a * 'b) Sexp_maybe.t with of_sexp, bin_io
 

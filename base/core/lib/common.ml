@@ -69,9 +69,12 @@ let descending x y = compare y x
 
 open Sexplib
 
-let failwithf = Core_printf.failwithf
-let invalid_argf = Core_printf.invalid_argf
-let exitf = Core_printf.exitf
+include struct
+  open Core_printf
+  let failwithf = failwithf
+  let invalid_argf = invalid_argf
+  let ksprintf = ksprintf
+end
 
 let sexp_underscore = Sexp.Atom "_"
 let sexp_of_a  _ = sexp_underscore

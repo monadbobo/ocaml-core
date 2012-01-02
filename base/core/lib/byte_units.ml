@@ -48,6 +48,13 @@ module T = struct
     bytes : float;
   } with bin_io
 
+  module Infix = struct
+    let ( - ) t1 t2 = {t1 with bytes = t1.bytes -. t2.bytes}
+    let ( + ) t1 t2 = {t1 with bytes = t1.bytes +. t2.bytes}
+    let ( * ) t1 t2 = {t1 with bytes = t1.bytes *. t2.bytes}
+    let ( / ) t1 t2 = {t1 with bytes = t1.bytes /. t2.bytes}
+  end
+
   let number_of_preferred_measures t = t.bytes /. Measure.bytes t.preferred_measure
 
   let create m n = {

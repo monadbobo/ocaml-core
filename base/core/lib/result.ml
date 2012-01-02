@@ -1,6 +1,7 @@
 type ('a, 'b) t =
-  | Ok of 'a
-  | Error of 'b
+(* Note: There are C stubs that create Result.t's, so avoid re-ordering the variants. *)
+| Ok of 'a
+| Error of 'b
 with sexp, bin_io
 
 type ('a, 'b) _t = ('a, 'b) t
@@ -54,6 +55,10 @@ let iter v ~f = match v with
   | Ok x -> f x
   | Error _ -> ()
 
+let iter_error v ~f = match v with
+  | Ok _ -> ()
+  | Error x -> f x
+
 let call ~f x =
   match f with
   | Ok g -> g x
@@ -77,17 +82,9 @@ let try_with f =
   try Ok (f ())
   with exn -> Error exn
 
-let ok_exn ?fail = function
-  | Ok x -> x
-  | Error _ ->
-    match fail with
-    | None -> failwith "Result.ok_exn"
-    | Some exn -> raise exn
-;;
-
 let ok_unit = Ok ()
 
-let raise_error = function
+let ok_exn = function
   | Ok x -> x
   | Error exn -> raise exn
 ;;

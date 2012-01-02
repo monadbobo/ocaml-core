@@ -33,11 +33,27 @@ let of_bigstring (type a) m bigstring =
   t
 ;;
 
-let to_bigstring (type a) m t =
+module Bigstring = struct
+  let create size = Array1.create Bigarray.char Bigarray.c_layout size
+end
+
+let to_bigstring ?(prefix_with_length = false) (type a) m t =
   let module M = (val m : S with type t = a) in
-  let size = M.bin_size_t t in
-  let bigstring = Array1.create Bigarray.char Bigarray.c_layout size in
-  let pos = M.bin_write_t bigstring ~pos:0 t in
-  assert (pos = size);
+  let t_length = M.bin_size_t t in
+  let bigstring_length =
+    if prefix_with_length then
+      t_length + 8 (* the size of a 64-bit int *)
+    else
+      t_length
+  in
+  let bigstring = Bigstring.create bigstring_length in
+  let pos =
+    if prefix_with_length then
+      Bin_prot.Write_ml.bin_write_int_64bit bigstring ~pos:0 t_length
+    else
+      0
+  in
+  let pos = M.bin_write_t bigstring ~pos t in
+  assert (pos = bigstring_length);
   bigstring
 ;;

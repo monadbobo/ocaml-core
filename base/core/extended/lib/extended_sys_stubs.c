@@ -1,5 +1,4 @@
-#include <jane.h>
-
+#include <jane_common.h>
 #include <caml/mlvalues.h>
 
 CAMLprim value caml_running_byte_code_nc(

@@ -125,6 +125,29 @@ let of_list_rev l =
   rev_inplace t;
   t
 
+(* [list_length] and [of_list_rev_map] are based on functions from the
+   OCaml distribution. *)
+
+(* Cannot use List.length here because the List module depends on Array. *)
+let rec list_length accu = function
+  | [] -> accu
+  | _h::t -> list_length (succ accu) t
+
+let of_list_map xs ~f =
+  match xs with
+  | [] -> [||]
+  | hd::tl as l ->
+      let a = create (list_length 0 l) (f hd) in
+      let rec fill i = function
+        | [] -> a
+        | hd::tl -> unsafe_set a i (f hd); fill (i+1) tl in
+      fill 1 tl
+
+let of_list_rev_map xs ~f =
+  let t = of_list_map xs ~f in
+  rev_inplace t;
+  t
+
 (** [filter_opt array] returns a new array where [None] entries are omitted and [Some x]
     entries are replaced with [x]. Note that this changes the index at which elements
     will appear. *)
@@ -244,7 +267,7 @@ let findi t ~f =
   let length = length t in
   let rec loop i =
     if i >= length then None
-    else if f t.(i) then Some i
+    else if f i t.(i) then Some (i, t.(i))
     else loop (i + 1)
   in
   loop 0
@@ -257,12 +280,12 @@ let findi_exn t ~f =
 ;;
 
 let find_exn t ~f =
-  match findi t ~f with
+  match findi t ~f:(fun _i x -> f x) with
   | None -> raise Not_found
-  | Some i -> t.(i)
+  | Some (_i, x) -> x
 ;;
 
-let find t ~f = Option.map (findi t ~f) ~f:(fun i -> t.(i))
+let find t ~f = Option.map (findi t ~f:(fun _i x -> f x)) ~f:(fun (_i, x) -> x)
 
 let find_map t ~f =
   let length = length t in
@@ -316,6 +339,14 @@ let sorted_copy t ~cmp =
   let t1 = copy t in
   sort t1 ~cmp;
   t1
+
+let partitioni t ~f =
+  let (trues, falses) =
+    mapi t ~f:(fun i x -> if f i x then (Some x, None) else (None, Some x)) |! split in
+  (filter_opt trues, filter_opt falses)
+
+let partition t ~f =
+  partitioni t ~f:(fun _i x -> f x)
 
 let last t = t.(length t - 1)
 

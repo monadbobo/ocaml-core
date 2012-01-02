@@ -14,4 +14,8 @@ val create : unit -> 'a t
 val create' : unit -> (unit -> 'a option) * ('a -> unit)
 
 val dequeue : 'a t -> 'a option
+val dequeue_until_empty : 'a t -> ('a -> unit) -> unit
+
 val enqueue : 'a t -> 'a -> unit
+
+val length : 'a t -> int

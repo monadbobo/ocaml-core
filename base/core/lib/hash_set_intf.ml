@@ -10,7 +10,11 @@ module type S = sig
   type elem
   type t = elem Hash_set.t
   include Sexpable.S with type t := t
-  val create : ?growth_allowed:bool -> ?size:int -> unit -> t
+  val create : ?growth_allowed:bool
+    -> ?hashable:elem Core_hashtbl_intf.hashable
+    -> ?size:int
+    -> unit
+    -> t
   val of_list : elem list -> t
 end
 
@@ -19,6 +23,10 @@ module type S_binable = sig
   type t = elem Hash_set.t
   include Sexpable.S with type t := t
   include Binable.S with type t := t
-  val create : ?growth_allowed:bool -> ?size:int -> unit -> t
+  val create : ?growth_allowed:bool
+    -> ?hashable:elem Core_hashtbl_intf.hashable
+    -> ?size:int
+    -> unit
+    -> t
   val of_list : elem list -> t
 end

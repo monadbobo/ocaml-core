@@ -31,7 +31,7 @@ val input_byte : t -> int option
 val input_char : t -> char option
 
 val input_binary_int : t -> int option
-val input_value : t -> _ option
+val unsafe_input_value : t -> _ option  (* Ocaml's built-in marshal format *)
 val input_all : t -> string
 
 (** [input_line ?fix_win_eol t] reads a line from [t] and returns it, without

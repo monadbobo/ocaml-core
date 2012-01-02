@@ -57,7 +57,7 @@ type t = Range.t list
 (* invariant : the elements of [t] must be discrete (not mergeable) each other and sorted
    in DECREASING order. *)
 
-let create () = []
+let empty = []
 
 let to_string t = String.concat ~sep:"," (List.rev_map t ~f:Range.to_string)
 
@@ -85,9 +85,9 @@ let ranges t = List.map t ~f:(fun { Range.lo; hi } -> lo, hi)
 let max t =
   match t with
   | [] -> None
-  | { Range.hi } :: _ -> Some hi
+  | { Range.hi; _ } :: _ -> Some hi
 
 let min t =
   match List.last t with
   | None -> None
-  | Some { Range.lo } -> Some lo
+  | Some { Range.lo; _ } -> Some lo

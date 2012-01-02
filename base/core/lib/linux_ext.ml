@@ -7,6 +7,7 @@ external sendfile :
   sock : file_descr -> fd : file_descr -> pos : int -> len : int -> int
     = "linux_sendfile_stub"
 
+
 let sendfile ?(pos = 0) ?len ~fd sock =
   let len =
     match len with
@@ -223,3 +224,13 @@ let cores =
   )
 ;;
 ENDIF
+
+external get_terminal_size : unit -> int * int = "linux_get_terminal_size"
+
+external gettid : unit -> int = "linux_ext_gettid"
+
+let sched_setaffinity_this_thread ~cpuset =
+  sched_setaffinity ~pid:(Pid.of_int (gettid ())) ~cpuset ()
+
+external get_ipv4_address_for_interface : string -> string =
+  "linux_get_ipv4_address_for_interface" ;;

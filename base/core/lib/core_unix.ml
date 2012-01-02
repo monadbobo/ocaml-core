@@ -142,8 +142,6 @@ end
 (* Resource usage *)
 
 module Resource_usage = struct
-  type who = SELF | CHILDREN with sexp
-
   type t = {
     utime : float;
     stime : float;
@@ -164,26 +162,9 @@ module Resource_usage = struct
   }
   with sexp
 
-  external getrusage : who -> t = "unix_getrusage"
+  external getrusage : int -> t = "unix_getrusage"
 
-  let get who = getrusage who
-
-  let utime t = t.utime
-  let stime t = t.stime
-  let maxrss t = t.maxrss
-  let ixrss t = t.ixrss
-  let idrss t = t.idrss
-  let isrss t = t.isrss
-  let minflt t = t.minflt
-  let majflt t = t.majflt
-  let nswap t = t.nswap
-  let inblock t = t.inblock
-  let oublock t = t.oublock
-  let msgsnd t = t.msgsnd
-  let msgrcv t = t.msgrcv
-  let nsignals t = t.nsignals
-  let nvcsw t = t.nvcsw
-  let nivcsw t = t.nivcsw
+  let get who = getrusage (match who with `Self -> 0 | `Children -> 1)
 
   let add t1 t2 = {
     utime = t1.utime +. t2.utime;
@@ -342,7 +323,6 @@ external pselect :
 ;;
 
 (* Temporary file and directory creation *)
-
 external mkstemp : string -> string * File_descr.t = "unix_mkstemp"
 external mkdtemp : string -> string = "unix_mkdtemp"
 
@@ -764,9 +744,9 @@ let wait_gen
   match f waitpid_result with
   | Some a -> a
   | None ->
-    Error.raise (Error.arg "waitpid syscall returned invalid result for mode"
-                   <:sexp_of< int * mode * waitpid_result >>
-                     (pid, mode, waitpid_result))
+    Error.fail "waitpid syscall returned invalid result for mode"
+      (pid, mode, waitpid_result)
+      (<:sexp_of< int * mode * waitpid_result >>)
 ;;
 
 let wait =
@@ -1072,7 +1052,7 @@ let access filename ~perm =
 ;;
 
 let access filename perm =
-  Or_error.try_with (fun () ->
+  Result.try_with (fun () ->
     access filename
       ~perm:(List.map perm ~f:(function
         | `Read -> Unix.R_OK
@@ -1081,7 +1061,7 @@ let access filename perm =
         | `Exists -> Unix.F_OK)))
 ;;
 
-let access_exn filename perm = Or_error.ok_exn (access filename perm)
+let access_exn filename perm = Result.ok_exn (access filename perm)
 
 let dup = unary_fd Unix.dup
 
@@ -1100,6 +1080,28 @@ let mkdir dirname ~perm =
   improve (fun () -> Unix.mkdir dirname ~perm)
     (fun () -> [dirname_r dirname; file_perm_r perm])
 ;;
+
+let mkdir_p dirname ~perm =
+  let init,dirs =
+    match Core_filename.parts dirname with
+    | [] -> assert false
+    | init :: dirs -> (init, dirs)
+  in
+  let (_:string) =
+    (* just using the fold for the side effects *)
+    List.fold dirs ~init ~f:(fun acc dir ->
+      let dir = Filename.concat acc dir in
+      begin try
+        mkdir dir ~perm;
+      with
+      | Unix_error (EEXIST, _, _) -> ()
+      | e -> raise e
+      end;
+      dir)
+  in
+  ()
+;;
+
 let rmdir = unary_dirname Unix.rmdir
 let chdir = unary_dirname Unix.chdir
 let getcwd = Unix.getcwd
@@ -1348,14 +1350,17 @@ module Passwd = struct
   exception Getbyname of string with sexp
 
   let (getbyname, getbyname_exn) =
-    make_by (fun name -> of_unix (Unix.getpwnam name))
+    make_by
+      (fun name -> of_unix (Unix.getpwnam name))
       (fun s -> Getbyname s)
   ;;
 
   exception Getbyuid of int with sexp
 
   let (getbyuid, getbyuid_exn) =
-    make_by (fun uid -> of_unix (Unix.getpwuid uid)) (fun s -> Getbyuid s)
+    make_by
+      (fun uid -> of_unix (Unix.getpwuid uid))
+      (fun s -> Getbyuid s)
   ;;
 
   exception Getpwent with sexp
@@ -1364,11 +1369,29 @@ module Passwd = struct
   external core_endpwent : unit -> unit = "core_endpwent" ;;
   external core_getpwent : unit -> Unix.passwd_entry = "core_getpwent" ;;
 
-  let setpwent = core_setpwent ;;
-  let endpwent = core_endpwent ;;
+  let pwdb_lock = Mutex0.create () ;;
 
-  let getpwent_exn () = of_unix (core_getpwent ()) ;;
-  let getpwent () = Option.try_with (fun () -> getpwent_exn ()) ;;
+  let getpwents () =
+    Mutex0.critical_section pwdb_lock ~f:(fun () ->
+      core_setpwent ();
+      let rec loop acc =
+        try
+          let ent = core_getpwent () in
+          loop (of_unix ent :: acc)
+        with End_of_file ->
+          core_endpwent ();
+          List.rev acc
+      in
+      loop []
+    )
+  ;;
+  module Low_level = struct
+    let setpwent = core_setpwent ;;
+    let endpwent = core_endpwent ;;
+
+    let getpwent_exn () = of_unix (core_getpwent ()) ;;
+    let getpwent () = Option.try_with (fun () -> getpwent_exn ()) ;;
+  end ;;
 end
 
 module Group = struct
@@ -1406,57 +1429,94 @@ end
 let getlogin_orig = Unix.getlogin
 let getlogin () = (Unix.getpwuid (getuid ())).Unix.pw_name
 
-module Inet_addr = struct
-  type t = Unix.inet_addr
+module Protocol_family = struct
+  type t = [ `Unix | `Inet | `Inet6 ]
+  with bin_io, sexp
 
-  include (Binable.Of_stringable (struct
-    type t = Unix.inet_addr
-    let of_string = Unix.inet_addr_of_string
-    let to_string = Unix.string_of_inet_addr
-  end) : Binable.S with type t := t)
+  let of_unix = function
+    | Unix.PF_UNIX -> `Unix
+    | Unix.PF_INET -> `Inet
+    | Unix.PF_INET6 -> `Inet6
+  ;;
+
+  let to_unix = function
+    | `Unix -> Unix.PF_UNIX
+    | `Inet -> Unix.PF_INET
+    | `Inet6 -> Unix.PF_INET6
+  ;;
+end
+
+let gethostname = Unix.gethostname
+
+module Inet_addr0 = struct
+  type t = Unix.inet_addr
 
   let of_string = Unix.inet_addr_of_string
   let to_string = Unix.string_of_inet_addr
+
+  let sexp_of_t t = Sexp.Atom (to_string t)
 end
-
-type inet_addr = Inet_addr.t with bin_io
-
-let inet_addr_of_string = Unix.inet_addr_of_string
-let string_of_inet_addr = Unix.string_of_inet_addr
-
-let sexp_of_inet_addr addr = Sexp.Atom (Inet_addr.to_string addr)
-
-let gethostname = Unix.gethostname
 
 module Host = struct
   type t =
     { name : string;
       aliases : string array;
-      addrtype : Unix.socket_domain sexp_opaque;
-      addrs : inet_addr array;
+      family : Protocol_family.t;
+      addresses : Inet_addr0.t array;
     }
   with sexp_of
 
   let of_unix u =
     { name = u.Unix.h_name;
       aliases = u.Unix.h_aliases;
-      addrtype = u.Unix.h_addrtype;
-      addrs = u.Unix.h_addr_list;
+      family = Protocol_family.of_unix u.Unix.h_addrtype;
+      addresses = u.Unix.h_addr_list;
     }
+  ;;
 
   exception Getbyname of string with sexp
 
   let (getbyname, getbyname_exn) =
-    make_by (fun name -> of_unix (Unix.gethostbyname name))
-      (fun s -> Getbyname s)
+    make_by (fun name -> of_unix (Unix.gethostbyname name)) (fun s -> Getbyname s)
   ;;
 
-  exception Getbyaddr of inet_addr with sexp
+  exception Getbyaddr of Inet_addr0.t with sexp
 
   let (getbyaddr, getbyaddr_exn) =
-    make_by (fun addr -> of_unix (Unix.gethostbyaddr addr))
-      (fun a -> Getbyaddr a)
+    make_by (fun addr -> of_unix (Unix.gethostbyaddr addr)) (fun a -> Getbyaddr a)
   ;;
+end
+
+module Inet_addr = struct
+  include Inet_addr0
+
+  include (Binable.Of_stringable (Inet_addr0) : Binable.S with type t := t)
+
+  exception Get_inet_addr of string * string with sexp
+
+  let of_string_or_getbyname name =
+    try of_string name
+    with Failure _ ->
+      match Host.getbyname name with
+      | None -> raise (Get_inet_addr (name, "host not found"))
+      | Some host ->
+        match host.Host.family with
+        | `Unix -> assert false  (* impossible *)
+        | `Inet | `Inet6 ->
+          let addrs = host.Host.addresses in
+          if Array.length addrs > 0 then addrs.(0)
+          else raise (Get_inet_addr (name, "empty addrs"))
+  ;;
+
+  let t_of_sexp = function
+    | Sexp.Atom name -> of_string_or_getbyname name
+    | Sexp.List _ as sexp -> of_sexp_error "Inet_addr.t_of_sexp: atom expected" sexp
+  ;;
+
+  let bind_any       = Unix.inet_addr_any
+  let bind_any_inet6 = Unix.inet6_addr_any
+  let localhost       = Unix.inet_addr_loopback
+  let localhost_inet6 = Unix.inet6_addr_loopback
 end
 
 module Protocol = struct
@@ -1527,36 +1587,11 @@ module Service = struct
   ;;
 end
 
-exception Get_inet_addr of string * string with sexp
-
 type socket_domain = Unix.socket_domain =
   | PF_UNIX
   | PF_INET
   | PF_INET6
 with sexp, bin_io
-
-let get_inet_addr name =
-  try inet_addr_of_string name
-  with Failure _ ->
-    match Host.getbyname name with
-    | None -> raise (Get_inet_addr (name, "host not found"))
-    | Some host ->
-        match host.Host.addrtype with
-        | Unix.PF_INET | Unix.PF_INET6 ->
-            let addrs = host.Host.addrs in
-            if Array.length addrs > 0 then addrs.(0)
-            else raise (Get_inet_addr (name, "empty addrs"))
-        | Unix.PF_UNIX -> assert false  (* impossible *)
-
-let inet_addr_of_sexp = function
-  | Sexp.List _ as sexp ->
-      of_sexp_error "Core.Core_unix.inet_addr_of_sexp: atom expected" sexp
-  | Sexp.Atom name -> get_inet_addr name
-
-let inet_addr_any = Unix.inet_addr_any
-let inet_addr_loopback = Unix.inet_addr_loopback
-let inet6_addr_any = Unix.inet6_addr_any
-let inet6_addr_loopback = Unix.inet6_addr_loopback
 
 type socket_type = Unix.socket_type =
   | SOCK_STREAM
@@ -1567,7 +1602,7 @@ with sexp, bin_io
 
 type sockaddr = Unix.sockaddr =
   | ADDR_UNIX of string
-  | ADDR_INET of inet_addr * int
+  | ADDR_INET of Inet_addr.t * int
 with sexp, bin_io
 
 let domain_of_sockaddr = Unix.domain_of_sockaddr
@@ -1774,8 +1809,6 @@ let getnameinfo addr opts =
        ("opts", sexp_of_list sexp_of_getnameinfo_option opts)])
 ;;
 
-external get_terminal_size : unit -> int * int = "unix_get_terminal_size"
-
 module Terminal_io = struct
   type t = Unix.terminal_io = {
     mutable c_ignbrk : bool;
@@ -1868,7 +1901,7 @@ module Terminal_io = struct
   let setsid = Unix.setsid
 end
 
-let get_sockaddr name port = ADDR_INET (get_inet_addr name, port)
+let get_sockaddr name port = ADDR_INET (Inet_addr.of_string_or_getbyname name, port)
 
 let set_in_channel_timeout ic rcv_timeout =
   let s = descr_of_in_channel ic in

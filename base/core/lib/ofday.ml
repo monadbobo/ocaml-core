@@ -28,7 +28,7 @@ end = struct
 
   let to_span_since_start_of_day t = Span.of_sec t
 
-  (* ofday must be >= 0 and < 24h *)
+  (* ofday must be >= 0 and <= 24h *)
   let is_valid (t:t) =
     let t = to_span_since_start_of_day t in
     Span.(<=) Span.zero t && Span.(<=) t Span.day
@@ -213,7 +213,8 @@ let of_string s =
     in
     let h = Int.of_string h in
     let m = Int.of_string m in
-    if not Int.(h <= 23 && h >= 0) then
+    let is_end_of_day = Int.(h = 24 && m = 0) && Float.(s = 0.) in
+    if not (Int.(h <= 23 && h >= 0) || is_end_of_day) then
       failwithf "hour out of valid range: %i" h ();
     if not Int.(m <= 59 && m >= 0) then
       failwithf "minutes out of valid range: %i" m ();

@@ -206,11 +206,11 @@ end = struct
     let now = Time_internal.T.to_float (Time_internal.T.now ()) in
     let likely_transitions =
       match
-        Array.findi transitions ~f:(fun t ->
+        Array.findi transitions ~f:(fun _i t ->
           t.Transition.start_time <= now && t.Transition.end_time > now)
       with
       | None -> [||]
-      | Some i ->
+      | Some (i, _x) ->
         let last_pos = Array.length transitions - 1 in
         if i > 0 && i < last_pos then
           [| transitions.(i); transitions.(i + 1); transitions.(i - 1) |]

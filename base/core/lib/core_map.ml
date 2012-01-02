@@ -14,6 +14,7 @@ end
 
 type ('k, +'v) tree =
   | Empty
+  | Leaf of 'k * 'v
   | Node of ('k, 'v) tree * 'k * 'v * ('k, 'v) tree * int
 
 module Raw_impl
@@ -32,13 +33,17 @@ module Raw_impl
 
   let height = function
       Empty -> 0
+    | Leaf _ -> 1
     | Node(_,_,_,_,h) -> h
 
   let create l x d r =
     let hl = height l and hr = height r in
-    Node(l, x, d, r, (if hl >= hr then hl + 1 else hr + 1))
+    if hl = 0 && hr = 0 then
+      Leaf (x, d)
+    else
+      Node(l, x, d, r, (if hl >= hr then hl + 1 else hr + 1))
 
-  let singleton key data = create Empty key data Empty;;
+  let singleton key data = Leaf (key, data)
 
   let bal l x d r =
     let hl = height l in
@@ -46,37 +51,54 @@ module Raw_impl
     if hl > hr + 2 then begin
       match l with
         Empty -> invalid_arg "Map.bal"
+      | Leaf _ -> assert false (* height(Leaf) = 1 && 1 is not larger than hr + 2 *)
       | Node(ll, lv, ld, lr, _) ->
           if height ll >= height lr then
             create ll lv ld (create lr x d r)
           else begin
             match lr with
               Empty -> invalid_arg "Map.bal"
+            | Leaf (lrv, lrd) ->
+                create (create ll lv ld Empty) lrv lrd (create Empty x d r)
             | Node(lrl, lrv, lrd, lrr, _)->
                 create (create ll lv ld lrl) lrv lrd (create lrr x d r)
           end
     end else if hr > hl + 2 then begin
       match r with
         Empty -> invalid_arg "Map.bal"
+      | Leaf _ -> assert false (* height(Leaf) = 1 && 1 is not larger than hl + 2 *)
       | Node(rl, rv, rd, rr, _) ->
           if height rr >= height rl then
             create (create l x d rl) rv rd rr
           else begin
             match rl with
               Empty -> invalid_arg "Map.bal"
+            | Leaf (rlv, rld) ->
+                create (create l x d Empty) rlv rld (create Empty rv rd rr)
             | Node(rll, rlv, rld, rlr, _) ->
                 create (create l x d rll) rlv rld (create rlr rv rd rr)
           end
-    end else
+    end else if hl = 0 && hr = 0 then
+      Leaf(x, d)
+    else
       Node(l, x, d, r, (if hl >= hr then hl + 1 else hr + 1))
 
   let empty = Empty
 
   let is_empty = function Empty -> true | _ -> false
 
-  let rec add ~key:x ~data = function
+  let rec add t ~key:x ~data =
+    match t with
     | Empty ->
         Node(Empty, x, data, Empty, 1)
+    | Leaf(v, d) ->
+      let c = Key.compare x v in
+      if c = 0 then
+        Leaf(x, data)
+      else if c < 0 then
+        Node(Leaf(x, data), v, d, Empty, 2)
+      else
+        Node(Empty, v, d, Leaf(x, data), 2)
     | Node(l, v, d, r, h) ->
         let c = Key.compare x v in
         if c = 0 then
@@ -90,12 +112,13 @@ module Raw_impl
     match t with
     | Empty ->
         None
+    | Leaf (v, d) -> if Key.compare x v = 0 then Some d else None
     | Node(l, v, d, r, _) ->
         let c = Key.compare x v in
         if c = 0 then Some d
         else find (if c < 0 then l else r) x
 
-  let add_multi ~key ~data t =
+  let add_multi t ~key ~data =
     match find t key with
     | None -> add ~key ~data:[data] t
     | Some l -> add ~key ~data:(data :: l) t
@@ -110,11 +133,13 @@ module Raw_impl
 
   let rec min_elt = function
     | Empty -> None
+    | Leaf (k, d) -> Some (k, d)
     | Node (Empty, k, d, _, _) -> Some (k, d)
     | Node (l, _, _, _, _) -> min_elt l
   ;;
 
   exception Map_min_elt_exn_of_empty_map with sexp
+  exception Map_max_elt_exn_of_empty_map with sexp
 
   let rec min_elt_exn t =
     match min_elt t with
@@ -124,18 +149,20 @@ module Raw_impl
 
   let rec max_elt = function
     | Empty -> None
+    | Leaf (k, d) -> Some (k, d)
     | Node (_, k, d, Empty, _) -> Some (k, d)
     | Node (_, _, _, r, _) -> max_elt r
   ;;
   let rec max_elt_exn t =
     match max_elt t with
-    | None -> raise Not_found
+    | None -> raise Map_max_elt_exn_of_empty_map
     | Some v -> v
   ;;
 
   let rec remove_min_elt t =
     match t with
       Empty -> invalid_arg "Map.remove_min_elt"
+    | Leaf _ -> Empty
     | Node(Empty, _, _, r, _) -> r
     | Node(l, x, d, r, _) -> bal (remove_min_elt l) x d r
 
@@ -143,6 +170,12 @@ module Raw_impl
   let rec fold_range_inclusive t ~min ~max ~init ~f =
     match t with
     | Empty -> init
+    | Leaf (k, d) ->
+      if Key.compare k min = (-1) || Key.compare k max = 1 then
+        (* k < min || k > max *)
+        init
+      else
+        f ~key:k ~data:d init
     | Node (l, k, d, r, _) ->
       let c_min = Key.compare k min in
       if c_min < 0 then
@@ -180,6 +213,7 @@ module Raw_impl
     match t with
     | Empty ->
         Empty
+    | Leaf (v, _) -> if Key.compare x v = 0 then Empty else t
     | Node(l, v, d, r, _) ->
         let c = Key.compare x v in
         if c = 0 then
@@ -198,8 +232,18 @@ module Raw_impl
       | Empty ->
         begin match (f None) with
           | None -> raise Change_no_op (* equivalent to returning: Empty *)
-          | Some data -> Node(Empty, key, data, Empty, 1)
+          | Some data -> Leaf(key, data)
         end
+      | Leaf(v, d) ->
+        let c = Key.compare key v in
+        if c = 0 then
+          match f (Some d) with
+          | None -> Empty
+          | Some d' -> Leaf(v, d')
+        else if c < 0 then
+          bal (change_core Empty key f) v d Empty
+        else
+          bal Empty v d (change_core Empty key f)
       | Node(l, v, d, r, h) ->
         let c = Key.compare key v in
         if c = 0 then
@@ -215,46 +259,54 @@ module Raw_impl
     in
     try change_core t key f with Change_no_op -> t
 
-  let rec iter ~f = function
-      Empty -> ()
+  let rec iter t ~f =
+    match t with
+    | Empty -> ()
+    | Leaf(v, d) -> f ~key:v ~data:d
     | Node(l, v, d, r, _) ->
         iter ~f l; f ~key:v ~data:d; iter ~f r
 
-  let rec map ~f = function
-      Empty               -> Empty
+  let rec map t ~f =
+    match t with
+    | Empty               -> Empty
+    | Leaf(v, d)          -> Leaf(v, f d)
     | Node(l, v, d, r, h) ->
         let l' = map ~f l in
         let d' = f d in
         let r' = map ~f r in
         Node(l', v, d', r', h)
 
-  let rec mapi ~f = function
-      Empty               -> Empty
+  let rec mapi t ~f =
+    match t with
+    | Empty               -> Empty
+    | Leaf(v, d)          -> Leaf(v, f ~key:v ~data:d)
     | Node(l, v, d, r, h) ->
         let l' = mapi ~f l in
         let d' = f ~key:v ~data:d in
         let r' = mapi ~f r in
         Node(l', v, d', r', h)
 
-  let rec fold ~f t ~init:accu =
+  let rec fold t ~f ~init:accu =
     match t with
       Empty -> accu
+    | Leaf(v, d) -> f ~key:v ~data:d accu
     | Node(l, v, d, r, _) ->
         fold ~f r ~init:(f ~key:v ~data:d (fold ~f l ~init:accu))
 
-  let rec fold_right ~f t ~init:accu =
+  let rec fold_right t ~f ~init:accu =
     match t with
       Empty -> accu
+    | Leaf(v, d) -> f ~key:v ~data:d accu
     | Node(l, v, d, r, _) ->
         fold_right ~f l ~init:(f ~key:v ~data:d (fold_right ~f r ~init:accu))
 
-  let filter ~f t =
+  let filter t ~f =
     fold ~init:Empty t ~f:(fun ~key ~data accu ->
       if f ~key ~data then add ~key ~data accu else accu
     )
   ;;
 
-  let filter_map ~f t =
+  let filter_map t ~f =
     fold ~init:Empty t ~f:(fun ~key ~data accu ->
       match f data with
       | None -> accu
@@ -262,7 +314,7 @@ module Raw_impl
     )
   ;;
 
-  let filter_mapi ~f t =
+  let filter_mapi t ~f =
     fold ~init:Empty t ~f:(fun ~key ~data accu ->
       match f ~key ~data with
       | None -> accu
@@ -278,6 +330,7 @@ module Raw_impl
     let rec cons t e =
       match t with
         Empty -> e
+      | Leaf (v, d) -> More(v, d, Empty, End)
       | Node(l, v, d, r, _) -> cons l (More(v, d, r, e))
 
     let rec compare cmp t1 t2 =
@@ -310,6 +363,7 @@ module Raw_impl
 
   let rec length = function
     | Empty -> 0
+    | Leaf _ -> 1
     | Node (l, _, _, r, _) -> length l + length r + 1
 
   let of_alist_fold alist ~init ~f =
@@ -337,12 +391,12 @@ module Raw_impl
       in
       `Ok map)
 
-  let for_all ~f t =
+  let for_all t ~f =
     with_return (fun r ->
       iter t ~f:(fun ~key:_ ~data -> if not (f data) then r.return false);
       true)
 
-  let exists ~f t =
+  let exists t ~f =
     with_return (fun r ->
       iter t ~f:(fun ~key:_ ~data -> if f data then r.return true);
       false)
@@ -362,7 +416,7 @@ module Raw_impl
     fold_right t ~init:[] ~f:(fun ~key ~data x -> (key,data)::x)
   ;;
 
-  let merge ~f t1 t2 =
+  let merge t1 t2 ~f =
     let all_keys =
       Core_list.dedup ~compare:Key.compare (Core_list.append (keys t1) (keys t2))
     in
@@ -382,6 +436,11 @@ module Raw_impl
   let rec next_key t k =
     match t with
     | Empty -> None
+    | Leaf (k', v') ->
+      if Key.compare k' k = 1 then
+        Some (k', v')
+      else
+        None
     | Node (l, k', v', r, _) ->
       let c = Key.compare k' k in
       if c = 0 then min_elt r
@@ -394,6 +453,11 @@ module Raw_impl
   let rec prev_key t k =
     match t with
     | Empty -> None
+    | Leaf (k', v') ->
+      if Key.compare k' k = (-1) then
+        Some (k', v')
+      else
+        None
     | Node (l, k', v', r, _) ->
       let c = Key.compare k' k in
       if c = 0 then max_elt l
@@ -406,6 +470,7 @@ module Raw_impl
   let rec rank t k =
     match t with
     | Empty -> None
+    | Leaf (k', _) -> if Key.compare k' k = 0 then Some 0 else None
     | Node (l, k', _, r, _) ->
       let c = Key.compare k' k in
       if c = 0

@@ -7,7 +7,13 @@ module Conv = Sexplib.Conv
    allow Error (and Or_error) to be used in various places.  Please avoid adding new
    dependencies. *)
 module List = Core_list
-module Sexp = Core_sexp
+
+module Sexp = struct
+  include Sexplib.Sexp
+  include (struct
+    type t = Sexplib.Sexp.t = Atom of string | List of t list with bin_io
+  end : Interfaces.Binable with type t := t)
+end
 
 let concat ?(sep="") l = String.concat sep l
 
@@ -27,16 +33,20 @@ module Message = struct
 
 
   let rec to_strings_hum t ac =
+    (* We use [Sexp.to_string_mach], despite the fact that we are implementing
+       [to_strings_hum], because we want the error to fit on a single line, and once
+       we've had to resort to sexps, the message is going to start not looking so
+       pretty anyway. *)
     match t with
     | Could_not_construct sexp ->
-      "could not construct error: " :: Sexp.to_string_hum sexp :: ac
+      "could not construct error: " :: Sexp.to_string_mach sexp :: ac
     | String string -> string :: ac
-    | Sexp sexp -> Sexp.to_string_hum sexp :: ac
+    | Sexp sexp -> Sexp.to_string_mach sexp :: ac
     | Tag_string (tag, string) -> tag :: ": " :: string :: ac
-    | Tag_sexp (tag, sexp) -> tag :: ": " :: Sexp.to_string_hum sexp :: ac
+    | Tag_sexp (tag, sexp) -> tag :: ": " :: Sexp.to_string_mach sexp :: ac
     | Tag_t (tag, t) -> tag :: ": " :: to_strings_hum t ac
     | Tag_arg (tag, sexp, t) ->
-      tag :: ": " :: Sexp.to_string_hum sexp :: ": " :: to_strings_hum t ac
+      tag :: ": " :: Sexp.to_string_mach sexp :: ": " :: to_strings_hum t ac
     | Of_list (trunc_after, ts) ->
       let ts =
         match trunc_after with
@@ -80,7 +90,6 @@ type t = Message.t Lazy.t
 
 type error_ = t
 
-
 (* We use [protect] to guard against exceptions raised by user-supplied functons, so
    that failure to produce an error message doesn't interfere with other error messages. *)
 let protect f = try f () with exn -> Message.Could_not_construct (Exn.sexp_of_t exn)
@@ -114,9 +123,9 @@ let string_arg tag string_of_x x =
   lazy (protect (fun () -> Tag_string (tag, string_of_x x)))
 ;;
 
-let create tag x sexp_of_x = lazy (protect (fun () -> Tag_sexp (tag, sexp_of_x x)))
+let create_sexp x sexp_of_x = lazy (protect (fun () -> Sexp (sexp_of_x x)))
 
-let arg tag sexp_of_x x = create tag x sexp_of_x
+let create tag x sexp_of_x = lazy (protect (fun () -> Tag_sexp (tag, sexp_of_x x)))
 
 let tag t tag = lazy (Tag_t (tag, to_message t))
 
@@ -128,12 +137,16 @@ let of_list ?trunc_after ts = lazy (Of_list (?trunc_after, List.map ts ~f:to_mes
 
 exception Error of t with sexp
 
+let to_exn t = Error t
+
 let of_exn = function
   | Error t -> t
   | exn -> lazy (Sexp (Exn.sexp_of_t exn))
 ;;
 
 let raise t = raise (Error t)
+
+let fail message a sexp_of_a = raise (create message a sexp_of_a)
 
 TEST_MODULE "error" = struct
   TEST = to_string_hum (tag (of_string "b") "a") = "a: b"
@@ -147,7 +160,7 @@ TEST_MODULE "error" = struct
   TEST = round (of_string "hello")
   TEST = round (of_thunk (fun () -> "hello"))
   TEST = round (string_arg "tag" string_of_int 13)
-  TEST = round (arg "tag" <:sexp_of< int >> 13)
+  TEST = round (create "tag" 13 <:sexp_of< int >>)
   TEST = round (tag (of_string "hello") "tag")
   TEST = round (tag_arg (of_string "hello") "tag" <:sexp_of< int >> 13)
   TEST = round (of_list [ of_string "hello"; of_string "goodbye" ])

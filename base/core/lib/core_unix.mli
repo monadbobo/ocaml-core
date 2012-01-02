@@ -336,16 +336,16 @@ val with_file_read : string -> f:(File_descr.t -> 'a) -> 'a
 val read : ?restart:bool -> ?pos:int -> ?len:int -> File_descr.t -> buf:string -> int
 
 (** [write fd buff ofs len] writes [len] characters to descriptor
-   [fd], taking them from string [buff], starting at position [ofs]
-   in string [buff]. Return the number of characters actually
-   written.
+    [fd], taking them from string [buff], starting at position [ofs]
+    in string [buff]. Return the number of characters actually
+    written.
 
-   When an error is reported some characters might have already been
-   written.  Use [single_write] instead to ensure that this is not the
-   case.
+    When an error is reported some characters might have already been
+    written.  Use [single_write] instead to ensure that this is not the
+    case.
 
-   WARNING: write is an interruptible call and has no way to handle
-   EINTR properly. You should most probably be using single write.
+    WARNING: write is an interruptible call and has no way to handle
+    EINTR properly. You should most probably be using single write.
 *)
 val write : ?pos:int -> ?len:int -> File_descr.t -> buf:string -> int
 
@@ -557,7 +557,7 @@ val umask : int -> int
 val access :
   string
   -> [ `Read | `Write | `Exec | `Exists ] list
-  -> unit Or_error.t
+  -> (unit, exn) Result.t
 
 val access_exn :
   string
@@ -605,6 +605,11 @@ val clear_close_on_exec : File_descr.t -> unit
     (perm & ~umask & 0777)
 *)
 val mkdir : string -> perm:file_perm -> unit
+
+(** Create a directory recursively.  The permissions of the created directory are
+    those granted by mkdir ~perm
+*)
+val mkdir_p : string -> perm:file_perm -> unit
 
 (** Remove an empty directory. *)
 val rmdir : string -> unit
@@ -938,7 +943,7 @@ module Passwd : sig
       dir : string;
       shell : string;
     }
-with sexp
+  with sexp
 
   val getbyname : string -> t option
   val getbyname_exn : string -> t
@@ -946,11 +951,16 @@ with sexp
   val getbyuid : int -> t option
   val getbyuid_exn : int -> t
 
-  val setpwent : unit -> unit
-  val endpwent : unit -> unit
+  (** [getpwents] is a thread-safe wrapper over the low-level passwd
+      database functions. *)
+  val getpwents : unit -> t list
 
-  val getpwent : unit -> t option
-  val getpwent_exn : unit -> t
+  module Low_level : sig
+    val setpwent : unit -> unit
+    val getpwent : unit -> t option
+    val getpwent_exn : unit -> t
+    val endpwent : unit -> unit
+  end
 end
 
 (** Structure of entries in the [groups] database. *)
@@ -972,42 +982,40 @@ end
 (** Return the login name of the user executing the process. *)
 val getlogin : unit -> string
 
+module Protocol_family : sig
+  type t = [ `Unix | `Inet | `Inet6 ] with bin_io, sexp
+end
+
 (** {6 Internet addresses} *)
 
+module Inet_addr : sig
+  type t = Unix.inet_addr with bin_io, sexp
 
-(** The abstract type of Internet addresses. *)
-type inet_addr = Unix.inet_addr with sexp, bin_io
+  (** Conversion from the printable representation of an Internet address to its internal
+      representation.  The argument string consists of 4 numbers separated by periods
+      ([XXX.YYY.ZZZ.TTT]) for IPv4 addresses, and up to 8 numbers separated by colons for
+      IPv6 addresses.  Raise [Failure] when given a string that does not match these
+      formats. *)
+  val of_string : string -> t
 
-(** Conversion from the printable representation of an Internet
-    address to its internal representation.  The argument string
-    consists of 4 numbers separated by periods ([XXX.YYY.ZZZ.TTT])
-    for IPv4 addresses, and up to 8 numbers separated by colons
-    for IPv6 addresses.  Raise [Failure] when given a string that
-    does not match these formats. *)
-val inet_addr_of_string : string -> inet_addr
+  (** Call [of_string] and if that fails, use [Host.getbyname]. *)
+  val of_string_or_getbyname : string -> t
 
-(** Return the printable representation of the given Internet address.
-    See {!Unix.inet_addr_of_string} for a description of the
-    printable representation. *)
-val string_of_inet_addr : inet_addr -> string
+  (** Return the printable representation of the given Internet address.  See [of_string]
+      for a description of the printable representation. *)
+  val to_string : t -> string
 
-(** A special IPv4 address, for use only with [bind], representing
-   all the Internet addresses that the host machine possesses. *)
-val inet_addr_any : inet_addr
+  (** A special address, for use only with [bind], representing all the Internet addresses
+      that the host machine possesses. *)
+  val bind_any       : t
+  val bind_any_inet6 : t
 
-(** A special IPv4 address representing the host machine ([127.0.0.1]). *)
-val inet_addr_loopback : inet_addr
-
-(** A special IPv6 address, for use only with [bind], representing
-   all the Internet addresses that the host machine possesses. *)
-val inet6_addr_any : inet_addr
-
-(** A special IPv6 address representing the host machine ([::1]). *)
-val inet6_addr_loopback : inet_addr
-
+  (** Special addresses representing the host machine. *)
+  val localhost       : t (* [127.0.0.1] *)
+  val localhost_inet6 : t (* ([::1]) *)
+end
 
 (** {6 Sockets} *)
-
 
 (** The type of socket domains. *)
 type socket_domain = Unix.socket_domain =
@@ -1032,7 +1040,7 @@ with sexp, bin_io
    [port] is the port number. *)
 type sockaddr = Unix.sockaddr =
   | ADDR_UNIX of string
-  | ADDR_INET of inet_addr * int
+  | ADDR_INET of Inet_addr.t * int
 with sexp, bin_io
 
 (** Return the socket domain adequate for the given socket address. *)
@@ -1221,18 +1229,21 @@ module Host : sig
   type t =
     { name : string;
       aliases : string array;
-      addrtype : socket_domain;
-      addrs : inet_addr array;
+      family : Protocol_family.t;
+      addresses : Inet_addr.t array;
     }
   with sexp_of
 
-  (** Find an entry in [hosts] with the given name. *)
+  (** Find an entry in [hosts] with the given name.
+
+      NOTE: This function is not thread safe with certain versions of winbind using "wins"
+      name resolution. *)
   val getbyname : string -> t option
   val getbyname_exn : string -> t
 
   (** Find an entry in [hosts] with the given address. *)
-  val getbyaddr : inet_addr -> t option
-  val getbyaddr_exn : inet_addr -> t
+  val getbyaddr : Inet_addr.t -> t option
+  val getbyaddr_exn : Inet_addr.t -> t
 end
 
 module Protocol : sig
@@ -1340,9 +1351,6 @@ val getnameinfo : sockaddr -> getnameinfo_option list -> name_info
 
 (** {2 Getting terminal size} *)
 
-(** [get_terminal_size ()] @return [(rows, cols)], the number of rows and
-    columns of the terminal. *)
-val get_terminal_size : unit -> int * int
 
 (** {6 Terminal interface} *)
 
@@ -1440,12 +1448,12 @@ module Terminal_io : sig
      [TCIOFLUSH] flushes both. *)
   val tcflush : File_descr.t -> mode:flush_queue -> unit
 
-  type flow_action =
-      Unix.flow_action =
-      TCOOFF
-    | TCOON
-    | TCIOFF
-    | TCION
+  type flow_action
+  = Unix.flow_action =
+  | TCOOFF
+  | TCOON
+  | TCIOFF
+  | TCION
   with sexp
 
   (** Suspend or restart reception or transmission of data on
@@ -1462,12 +1470,6 @@ end
 
 
 (** {6 Jane Street extensions} *)
-
-(** Get inet_addr of a hostname or IP.
-    NOTE: This function is not thread safe with certain versions of
-    winbind using "wins" name resolution.
-*)
-val get_inet_addr : string -> inet_addr
 
 (** Get a sockaddr from a hostname or IP, and a port *)
 val get_sockaddr : string -> int -> sockaddr
@@ -1677,29 +1679,27 @@ end
 
 (** {2 Resource usage} -- For details, "man getrusage" *)
 module Resource_usage : sig
-  type who = SELF | CHILDREN
+  type t = {
+    utime : float;
+    stime : float;
+    maxrss : int64;
+    ixrss : int64;
+    idrss : int64;
+    isrss : int64;
+    minflt : int64;
+    majflt : int64;
+    nswap : int64;
+    inblock : int64;
+    oublock : int64;
+    msgsnd : int64;
+    msgrcv : int64;
+    nsignals : int64;
+    nvcsw : int64;
+    nivcsw : int64;
+  }
   with sexp
 
-  type t with sexp
-
-  val get : who -> t
-
-  val utime : t -> float      (* user time used *)
-  val stime : t -> float      (* system time used *)
-  val maxrss : t -> int64     (* maximum resident set size *)
-  val ixrss : t -> int64      (* integral shared memory size *)
-  val idrss : t -> int64      (* integral unshared data size *)
-  val isrss : t -> int64      (* integral unshared stack size *)
-  val minflt : t -> int64     (* page reclaims *)
-  val majflt : t -> int64     (* page faults *)
-  val nswap : t -> int64      (* swaps *)
-  val inblock : t -> int64    (* block input operations *)
-  val oublock : t -> int64    (* block output operations *)
-  val msgsnd : t -> int64     (* messages sent *)
-  val msgrcv : t -> int64     (* messages received *)
-  val nsignals : t -> int64   (* signals received *)
-  val nvcsw : t -> int64      (* voluntary context switches *)
-  val nivcsw : t -> int64     (* involuntary context switches *)
+  val get : [`Self | `Children] -> t
 
   (** [add ru1 ru2] adds two rusage structures (e.g. your resource usage
       and your children's). *)

@@ -5,6 +5,7 @@ type t = char
 
 include Comparable.S with type t := t
 include Sexpable.S with type t := t
+include Binable.S with type t := t
 include Hashable.S with type t := t
 
 (** Return the ASCII code of the argument. *)

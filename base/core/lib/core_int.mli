@@ -11,7 +11,7 @@ val to_nativeint : t -> nativeint
 
 module Infix : sig
   (** mod and div operators that have the right behavior on negative numbers,
-      that is, [x % y] always returns a positive int between 0 and y-1.
+      that is, [x % y] always returns a nonnegative int between 0 and y-1.
       Invariant: [if r = x % y && q = x /% y then q * y + r = x] *)
   val (%) : t -> t -> t
   val (/%) : t -> t -> t

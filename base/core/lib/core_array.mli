@@ -138,6 +138,9 @@ val is_sorted : 'a t -> cmp:('a -> 'a -> int) -> bool
 (* same as [List.concat_map] *)
 val concat_map : 'a t -> f:('a -> 'b array) -> 'b array
 
+val partition : 'a t -> f:('a -> bool) -> 'a t * 'a t
+
+val partitioni : 'a t -> f:(int -> 'a -> bool) -> 'a t * 'a t
 
 (** Array lengths [l] satisfy [0 <= l < max_length]. *)
 val max_length : int
@@ -203,6 +206,9 @@ val rev_inplace : 'a t -> unit
 (** [of_list_rev l] converts from list then reverses in place *)
 val of_list_rev : 'a list -> 'a t
 
+(** [of_list_rev_map l] converts from list via [f] then reverses in place *)
+val of_list_rev_map : 'a list -> f:('a -> 'b) -> 'b t
+
 (** [replace t i ~f] = [t.(i) <- f (t.(i))]. *)
 val replace : 'a t -> int -> f:('a -> 'a) -> unit
 
@@ -214,12 +220,12 @@ val replace_all : 'a t -> f:('a -> 'a) -> unit
 *)
 val find_exn : 'a t -> f:('a -> bool) -> 'a
 
-(** [findi f ar] returns the first index [i] of [ar] for which [f ar.(i)] is true *)
-val findi : 'a t -> f:('a -> bool) -> int option
+(** [findi t f] returns the first index [i] of [t] for which [f i t.(i)] is true *)
+val findi : 'a t -> f:(int -> 'a -> bool) -> (int * 'a) option
 
-(** [findi_exn f ar] returns the first index [i] of [ar] for which [f ar.(i)] is
+(** [findi_exn t f] returns the first index [i] of [t] for which [f i t.(i)] is
     true.  It raises [Not_found] if there is no such element. *)
-val findi_exn : 'a t -> f:('a -> bool) -> int
+val findi_exn : 'a t -> f:(int -> 'a -> bool) -> int * 'a
 
 (** [reduce f [a1; ...; an]] is [f (... (f (f a1 a2) a3) ...) an]. *)
 val reduce : 'a t -> f:('a -> 'a -> 'a) -> 'a option
@@ -245,15 +251,6 @@ val last : 'a t -> 'a
 
 (** [empty ()] creates an empty array *)
 val empty : unit -> 'a t
-
-(** [sum] sum an array of floats. *)
-val sum : float t -> float
-
-(** [sum_sq] sum the squares of an array of floats  *)
-val sum_sq : float t -> float
-
-(** [sum_product_exn] compute the sum of element-wise product of two arrays of floats *)
-val sum_product_exn : float t -> float t -> float
 
 val equal : 'a t -> 'a t -> equal:('a -> 'a -> bool) -> bool
 
