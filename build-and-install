@@ -74,8 +74,11 @@ for dir in $libraries; do
       async/scheduler)    optflags="$linuxflag" ;;
       async) # horrible hack (avoids rebuilding async_{core,scheduler,extra})
           dest=$(mktemp -d)
-          cp -t "$dest" -a lib oasis.sh
-          cd $dest
+          mkdir -p "$dest/base/async"
+          cp -t "$dest/"     -a ../../build-common.sh
+          cp -t "$dest/base/async" -a lib oasis.sh
+          cd $dest/base/async
+          trap "rm -r '$dest'" EXIT
           ;;
   esac
   ./oasis.sh $optflags "${configopts[@]-}"
