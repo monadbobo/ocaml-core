@@ -12,7 +12,7 @@ let invalid_argf = Core_printf.invalid_argf
 module T = struct
   type t = string with sexp, bin_io
 
-  let compare (x : string) y = Pervasives.compare x y
+  let compare = String.compare
   (* = on two strings avoids calling compare_val, which is what happens
      with String.compare *)
   let equal (x : string) y = x = y

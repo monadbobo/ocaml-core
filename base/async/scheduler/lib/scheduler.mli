@@ -72,13 +72,13 @@ val schedule' : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
 val schedule : ((unit -> unit) -> unit) with_options
 
 (** [block_on_async f] runs [f ()] in the async world and blocks until it becomes
-    determined.  This function is safe to call from async or non-async code and
-    does not require explicit scheduler management. *)
+    determined.  This function is can be called from any thread not running within
+    async, and does not require explicit scheduler management. *)
 val block_on_async :     (unit -> 'a Deferred.t) -> ('a, exn) Result.t
 val block_on_async_exn : (unit -> 'a Deferred.t) -> 'a
 
 (** [run_in_async_wait f] is like [block_on_async f], except that it will raise
-    an exception if it is called from the main thread or from within async.
+    an exception if it is called from the main thread as well as from within async.
     Upon returning from [run_in_async_wait], it is guaranteed that the caller
     does not have the async lock.  For experts only; casual users should stick
     with block_on_async. **)

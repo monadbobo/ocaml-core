@@ -103,6 +103,7 @@ val sendmsg_nonblocking_no_sigpipe :
 
 (** {2 Clock functions} *)
 
+IFDEF POSIX_TIMERS THEN
 module Clock : sig
   type t
 
@@ -124,6 +125,7 @@ module Clock : sig
       thread. *)
   val get_thread_clock : unit -> t
 end
+ENDIF
 
 (** {2 Parent death notifications} *)
 

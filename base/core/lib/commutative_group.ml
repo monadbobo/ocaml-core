@@ -7,7 +7,6 @@
    4: commutativity: a+b = b+a
 *)
 
-
 module type S = sig
   type t with sexp  (* an element of the group *)
 

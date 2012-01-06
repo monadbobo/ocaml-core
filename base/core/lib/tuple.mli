@@ -66,10 +66,7 @@ module type Hashable_sexpable = sig
 end
 
 module Hashable (S1 : Hashable_sexpable) (S2 : Hashable_sexpable)
-  : Hashable.S with type t := Make (S1) (S2).t
+  : Hashable_sexpable with type t := Make (S1) (S2).t
 
 module Sexpable (S1 : Sexpable.S) (S2 : Sexpable.S)
   : Sexpable.S with type t := Make (S1) (S2).t
-
-module Hashable_sexpable (S1 : Hashable_sexpable) (S2 : Hashable_sexpable)
-  : Hashable_sexpable with type t := Make (S1) (S2).t

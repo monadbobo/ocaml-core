@@ -152,7 +152,7 @@ let sendmsg_nonblocking_no_sigpipe sock ?count iovecs =
   in
   unsafe_sendmsg_nonblocking_no_sigpipe sock iovecs count
 
-
+IFDEF POSIX_TIMERS THEN
 module Clock = struct
   type t
 
@@ -175,6 +175,7 @@ module Clock = struct
   external get_thread_clock :
     unit -> t = "unix_clock_thread_cputime_id_stub"
 end
+ENDIF
 
 external pr_set_pdeathsig : Signal.t -> unit = "linux_pr_set_pdeathsig_stub"
 external pr_get_pdeathsig : unit -> Signal.t = "linux_pr_get_pdeathsig_stub"

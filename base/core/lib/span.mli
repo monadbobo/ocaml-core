@@ -88,8 +88,8 @@ val to_hr  : t -> float
 val to_day : t -> float
 
 (** {6 Basic operations on spans} *)
-val add   : t -> t -> t
-val sub   : t -> t -> t
+val (+)   : t -> t -> t
+val (-)   : t -> t -> t
 val abs   : t -> t (** absolute value *)
 val scale : t -> float -> t
 val (/)   : t -> float -> t

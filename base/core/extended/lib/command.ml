@@ -31,7 +31,11 @@ module Columns = struct
           ~f:(fun acc x -> max acc x)
           ~init:(String.length x)
       in
-      let max_width = Option.value (Console.width ()) ~default:80 in
+      let max_width =
+        match Console.width () with
+        | `Not_a_tty | `Not_available -> 80
+        | `Cols cols -> cols
+      in
       List.concat
         (List.map list
            ~f:(fun (cmd,desc) ->

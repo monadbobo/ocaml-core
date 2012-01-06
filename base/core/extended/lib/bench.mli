@@ -1,5 +1,7 @@
 open Core.Std
 
+(* Note: this module is only compiled if the system supports Posix Timers *)
+
 module Test : sig
   type t
   val create : ?name:string -> ?size:int -> (unit -> unit) -> t

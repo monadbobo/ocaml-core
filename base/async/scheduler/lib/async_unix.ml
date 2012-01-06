@@ -51,7 +51,15 @@ let child_of_init ?(poll_delay = sec 1.) () =
 
 let nice i = Unix.nice i
 
-let cores () = syscall_exn (fun () -> Linux_ext.cores ())
+INCLUDE "config.mlh"
+IFDEF LINUX_EXT THEN
+let cores () = syscall_exn (fun () -> Some (Linux_ext.cores ()))
+ELSE
+let cores () = return None
+ENDIF
+
+let cores_exn () =
+  cores () >>| Option.value_exn_message "cores: only supported on Linux"
 
 (* basic input/output *)
 
@@ -548,7 +556,6 @@ module Socket = struct
     }
 
     let bool = make Unix.getsockopt Unix.setsockopt
-    let bool_tcp = make Linux_ext.gettcpopt_bool Linux_ext.settcpopt_bool
     let int = make Unix.getsockopt_int Unix.setsockopt_int
     let optint = make Unix.getsockopt_optint Unix.setsockopt_optint
     let float = make Unix.getsockopt_float Unix.setsockopt_float
@@ -562,7 +569,6 @@ module Socket = struct
     let acceptconn = bool "acceptconn" U.SO_ACCEPTCONN
 
     let nodelay = bool "nodelay" U.TCP_NODELAY
-    let cork = bool_tcp "cork" Linux_ext.TCP_CORK
 
     let sndbuf = int "sndbuf" U.SO_SNDBUF
     let rcvbuf = int "rcvbuf" U.SO_RCVBUF

@@ -306,11 +306,10 @@ with sexp
 (** The type of file access rights. *)
 type file_perm = int with sexp
 
-
-(** Open the named file with the given flags. Third argument is
-   the permissions to give to the file if it is created. Return
-   a file descriptor on the named file. *)
-val openfile : string -> mode:open_flag list -> perm:file_perm -> File_descr.t
+(** Open the named file with the given flags. Third argument is the permissions to give to
+    the file if it is created. Return a file descriptor on the named file. Default
+    permissions 0o644. *)
+val openfile : ?perm:file_perm -> mode:open_flag list -> string -> File_descr.t
 
 (** Close a file descriptor. *)
 val close : ?restart:bool -> File_descr.t -> unit
@@ -678,6 +677,9 @@ val create_process : prog : string -> args : string list -> Process_info.t
 
 (** [create_process_env ~prog ~args ~env] as create process, but takes an
  * additional parameter that extends, or replaces the current environment.
+ * No effort is made to ensure that the keys passed in as env are unique, so
+ * if an environment variable is set twice the second version will override
+ * the first.
  *)
 val create_process_env :
   ?working_dir : string

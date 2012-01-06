@@ -814,7 +814,7 @@ let sexp_of_file_perm fp = Sexp.Atom (Printf.sprintf "0o%03o" fp)
 
 let is_rw_open_flag = function O_RDONLY | O_WRONLY | O_RDWR -> true | _ -> false
 
-let openfile filename ~mode ~perm =
+let openfile ?(perm = 0o644) ~mode filename =
   let mode_sexp () = sexp_of_list sexp_of_open_flag mode in
   if not (Core_list.exists mode ~f:is_rw_open_flag) then
     failwithf "Unix.openfile: no read or write flag specified in mode: %s"
@@ -1152,15 +1152,15 @@ type env = [
   | `Extend of (string * string) list
 ] with sexp
 
-let create_process_env ?working_dir ~prog ~args ~(env:env) () =
+let create_process_env ?working_dir ~prog ~args ~env () =
   let module Map = Core_map in
   let env_map =
     let current, env =
       match env with
       | `Replace env -> [], env
       | `Extend env ->
-          List.map (Array.to_list (Unix.environment ()))
-            ~f:(fun s -> String.lsplit2_exn s ~on:'='), env
+        List.map (Array.to_list (Unix.environment ()))
+          ~f:(fun s -> String.lsplit2_exn s ~on:'='), env
     in
     List.fold_left (current @ env) ~init:Map.empty
       ~f:(fun map (key, data) -> Map.add map ~key ~data)

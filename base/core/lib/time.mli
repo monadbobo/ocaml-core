@@ -139,9 +139,6 @@ val to_string_abs :
 
 val of_string_abs : string -> t
 
-val of_date_time_strings     : string -> string -> t
-val of_date_time_strings_utc : string -> string -> t
-
 val pp : Format.formatter -> t -> unit
 
 (** {6 Miscellaneous} *)
@@ -163,13 +160,7 @@ val pause_forever : unit -> never_returns
     (in local time) which is the latest occurrence before now or the earliest occurrence
     after now, according to side.  NOTE: This function is a little bit wrong near daylight
     savings time *)
-val ofday_occurrence : Ofday.t -> [ `right_after | `right_before ] -> t -> t
-
-(** [ofday_occurrence ofday side now] returns a Time.t that is the occurrence of ofday
-    (in UTC) which is the latest occurrence before now or the earliest occurrence after
-    now, according to side.  NOTE: This function is a little bit wrong near daylight
-    savings time *)
-val ofday_occurrence_utc : Ofday.t -> [ `right_after | `right_before ] -> t -> t
+val ofday_occurrence : t -> Zone.t -> Ofday.t -> [ `right_after | `right_before ] -> t
 
 (** [format t fmt] formats the given time according to fmt, which follows the formatting
     rules given in 'man strftime'.  The time is output in the local timezone. *)

@@ -11,7 +11,6 @@
 
 #include <time.h>
 
-#ifdef CLOCK_REALTIME
 clockid_t caml_clockid_t_of_caml (value clock_type) {
   switch (Int_val(clock_type)) {
     case 0: return CLOCK_REALTIME;
@@ -34,17 +33,6 @@ value caml_clock_gettime (value clock_type) {
   clock_gettime (caml_clockid_t_of_caml (clock_type), &tp);
   return (Val_int (((__int64_t)tp.tv_sec * 1000 * 1000 * 1000) + (__int64_t)tp.tv_nsec));
 }
-#else
-
-value caml_clock_getres (value __attribute__((unused)) clock_type) {
-  unix_error(ENOSYS,"clock_getres" , Nothing);
-}
-
-value caml_clock_gettime (value __attribute__((unused)) clock_type) {
-  unix_error(ENOSYS,"clock_getres" , Nothing);
-}
-
-#endif
 
 /*
 value caml_clock_nanosleep (value clock_type, value nanoseconds_v) {
@@ -58,7 +46,7 @@ value caml_clock_nanosleep (value clock_type, value nanoseconds_v) {
   tp.tv_sec = 0;
   tp.tv_nsec = Int_val(nanoseconds_v);
   tp.tv_nsec = tp.tv_nsec + Int_val(nanoseconds_v);
-  
+
   while (1 == 1) {
     if (clock_nanosleep (clockid, 0, &tp, &remaining) == 0) {
       if (remaining.tv_sec == 0 && remaining.tv_nsec == 0) {

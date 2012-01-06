@@ -118,7 +118,6 @@ module Quickcheck = Quickcheck
 module Random = Core_random
 module Result = Result
 module Robustly_comparable = Robustly_comparable
-module Round_robin = Round_robin
 module Set_once = Set_once
 module Sexpable = Sexpable
 module Sexp_maybe = Core_sexp.Sexp_maybe

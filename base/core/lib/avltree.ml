@@ -312,10 +312,8 @@ let add_if_not_exists =
   in
   fun t ~compare ~added ~key ~data ->
     let x = add_if_not_exists t added compare key data in
-    if !added then balance x else begin
-      assert (x = t);
+    if !added then balance x else
       t
-    end
 
 let rec find t ~compare k =
   (* A little manual unrolling of the recursion.

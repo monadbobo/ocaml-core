@@ -39,7 +39,8 @@ cat > "$SRC" <<EOF
 #include <sys/socket.h>
 # $LINENO "$(basename "${BASH_SOURCE[0]}")"
 int main () {
-  $(cpp_test LINUX_EXT "defined(LINUX_EXT)")
+  $(cpp_test LINUX_EXT    "defined(LINUX_EXT)")
+  $(cpp_test POSIX_TIMERS "defined(POSIX_TIMERS)")
   $(if [[ ${WORD_SIZE} = 64 ]]; then
        echo 'printf ("DEFINE ARCH_SIXTYFOUR\n");';
     fi)
@@ -51,6 +52,7 @@ int main () {
 
   $(cpp_test FDATASYNC \
      "defined(_POSIX_SYNCHRONIZED_IO) && _POSIX_SYNCHRONIZED_IO > 0")
+
   return 0;
 }
 EOF

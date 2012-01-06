@@ -130,6 +130,8 @@ let first_some x y =
   | Some _, _ -> x
   | _ -> y
 
+let some_if cond x = if cond then Some x else None
+
 let filter ~f = function
   | Some v as o when f v -> o
   | _ -> None

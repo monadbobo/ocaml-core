@@ -44,7 +44,7 @@ val is_color_tty : unit -> bool
 
 (** The width in characters of the current output. Returns [None] if stdout is
     not connected to a tty.*)
-val width : unit -> int option
+val width : unit -> [ `Cols of int | `Not_a_tty | `Not_available ]
 
 (** print a list in a columnize way (like the output of ls) *)
 val print_list : out_channel -> (string * Ansi.attr list) list -> unit

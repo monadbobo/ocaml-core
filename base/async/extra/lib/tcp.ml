@@ -101,22 +101,11 @@ let handle_client ?max_buffer_age s addr f =
 
 exception Tcp_server_negative_max_connections of int with sexp
 
-let serve ?max_connections ?max_pending_connections ?max_buffer_age ~port
+let serve ?(max_connections=10_000) ?max_pending_connections ?max_buffer_age ~port
     ~on_handler_error handler =
-  begin
-    match max_connections with
-    | None -> ()
-    | Some max_connections ->
-      if max_connections <= 0
-      then raise (Tcp_server_negative_max_connections max_connections)
-  end;
   Deferred.create (fun ready ->
-    let num_connections = ref 0 in
-    let at_max_connections () =
-      match max_connections with
-      | None -> false
-      | Some max_connections -> !num_connections >= max_connections
-    in
+    if max_connections <= 0 then
+      raise (Tcp_server_negative_max_connections max_connections);
     let s = create_socket () in
     close_sock_on_error s (fun () ->
       Socket.setopt s Socket.Opt.reuseaddr true;
@@ -124,34 +113,31 @@ let serve ?max_connections ?max_pending_connections ?max_buffer_age ~port
       >>| Socket.listen ?max_pending_connections)
     >>> fun s ->
     Ivar.fill ready ();
-    let rec loop () =
-      Socket.accept s
-      >>> fun (client_s, addr) ->
-      if at_max_connections ()
-      then begin
-        let r, w = reader_writer_of_sock ?max_buffer_age client_s in
-        close_connection r w
-        >>> fun () ->
-        loop ()
-      end
-      else begin
-        num_connections := !num_connections + 1;
-        begin
-          handle_client ?max_buffer_age client_s addr handler
-          >>> fun res ->
-          num_connections := !num_connections - 1;
-          match res with
-          | Ok () -> ()
-          | Error e ->
-            match on_handler_error with
-            | `Ignore -> ()
-            | `Raise  -> raise e
-            | `Call f -> f addr e
+    let num_connections   = ref 0 in
+    let accept_is_pending = ref false in
+    let rec accept_loop () =
+      if !num_connections < max_connections && not !accept_is_pending then begin
+        accept_is_pending := true;
+        Socket.accept s
+        >>> fun (client_s, addr) ->
+        accept_is_pending := false;
+        incr num_connections;
+        accept_loop ();
+        handle_client ?max_buffer_age client_s addr handler
+        >>> fun res ->
+        begin match res with
+        | Ok () -> ()
+        | Error e ->
+          match on_handler_error with
+          | `Ignore -> ()
+          | `Raise  -> raise e
+          | `Call f -> f addr e
         end;
-        loop ()
+        decr num_connections;
+        accept_loop ()
       end
     in
-    loop ())
+    accept_loop ())
 ;;
 
 let connect_sock ~host ~port = connect_sock ~host ~port ()

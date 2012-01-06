@@ -14,8 +14,8 @@ end
 
 module T : sig
   include Constrained_float.S
-  val add     : t -> t -> t
-  val sub     : t -> t -> t
+  val (+)     : t -> t -> t
+  val (-)     : t -> t -> t
   val zero    : t
   val epsilon : t
   val abs     : t -> t
@@ -35,8 +35,8 @@ module T : sig
 end = struct
   include (Float : sig
     include Constrained_float.S
-    val add     : t -> t -> t
-    val sub     : t -> t -> t
+    val (+)     : t -> t -> t
+    val (-)     : t -> t -> t
     val zero    : t
     val epsilon : t
     val abs     : t -> t
@@ -174,17 +174,17 @@ let create
     ?(ms = 0)
     ?(us = 0)
     () =
-  let (+.) = T.add in
+  let (+) = T.(+) in
   let t =
     of_day    (Float.of_int day)
-    +. of_hr  (Float.of_int hr)
-    +. of_min (Float.of_int min)
-    +. of_sec (Float.of_int sec)
-    +. of_ms  (Float.of_int ms)
-    +. of_us  (Float.of_int us)
+    + of_hr  (Float.of_int hr)
+    + of_min (Float.of_int min)
+    + of_sec (Float.of_int sec)
+    + of_ms  (Float.of_int ms)
+    + of_us  (Float.of_int us)
   in
   match sign with
-  | Float.Sign.Neg -> T.sub T.zero t
+  | Float.Sign.Neg -> T.(-) T.zero t
   | Float.Sign.Pos | Float.Sign.Zero -> t
 
 include T
@@ -202,9 +202,9 @@ let of_string (s:string) =
         | s  -> Float.of_string s
       in
       let len = String.length s in
-      match s.[len - 1] with
+      match s.[Int.(-) len 1] with
       | 's' ->
-        if Int.(>=) len 2 && Char.(=) s.[len - 2] 'm' then of_ms (float 2)
+        if Int.(>=) len 2 && Char.(=) s.[Int.(-) len 2] 'm' then of_ms (float 2)
         else T.of_float (float 1)
       | 'm' -> of_min (float 1)
       | 'h' -> of_hr (float 1)

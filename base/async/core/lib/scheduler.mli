@@ -15,7 +15,9 @@ val jobs_left : unit -> bool
 val next_upcoming_event : unit -> Time.t option
 val uncaught_exception : unit -> exn option
 val num_pending_jobs : unit -> int
+val num_jobs_run : unit -> int
 val cycle_times : unit -> Time.Span.t Stream.t
+val cycle_num_jobs : unit -> int Stream.t
 val cycle_count : unit -> int
 val set_max_num_jobs_per_priority_per_cycle : int -> unit
 

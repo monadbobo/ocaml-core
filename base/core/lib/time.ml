@@ -36,6 +36,7 @@ let current_string_and_sexp_format () =
   match !string_and_sexp_format with
   | `Old | `Force_old -> `Old
   | _ as format -> format
+;;
 
 let modify_string_and_sexp_format =
   let string_and_sexp_format_mutex = Mutex.create () in
@@ -48,6 +49,7 @@ let modify_string_and_sexp_format =
     | e ->
       Mutex.unlock string_and_sexp_format_mutex;
       raise e)
+;;
 
 let write_new_string_and_sexp_formats__read_both () =
   modify_string_and_sexp_format (function
@@ -55,6 +57,7 @@ let write_new_string_and_sexp_formats__read_both () =
       failwith "write_new_string_and_sexp_formats__read_both called after \
         forbid_new_string_and_sexp_formats"
     | _ -> `Write_new_read_both)
+;;
 
 let write_new_string_and_sexp_formats__read_only_new () =
   modify_string_and_sexp_format (function
@@ -62,6 +65,7 @@ let write_new_string_and_sexp_formats__read_only_new () =
       failwith "write_new_string_and_sexp_formats__read_only_new called after \
         forbid_new_string_and_sexp_formats"
     | _ -> `Write_new_read_only_new)
+;;
 
 let forbid_new_string_and_sexp_formats () =
   modify_string_and_sexp_format (function
@@ -70,7 +74,7 @@ let forbid_new_string_and_sexp_formats () =
       failwith "use_new_string_and_sexp_formats called before \
         forbid_new_string_and_sexp_formats"
   )
-
+;;
 
 let to_epoch t = T.to_float t
 
@@ -111,6 +115,7 @@ let of_epoch_internal zone time (* shifted epoch for the time zone for conversio
     }
   in
   (cache, (date, ofday))
+;;
 
 (* A thin caching layer over the actual of_epoch (of_epoch_internal just above) used only
    to gain some speed when we translate the same time/date over and over again *)
@@ -126,12 +131,14 @@ let of_epoch =
       cache := new_cache;
       r
     end)
+;;
 
 let to_date_ofday time zone =
   try
     of_epoch zone (to_epoch time)
   with
   | Unix.Unix_error(_, "gmtime", _) -> raise (Invalid_argument "Time.to_date_ofday")
+;;
 
 let of_date_ofday zone date ofday =
   let module P = Span.Parts in
@@ -145,6 +152,7 @@ let of_date_ofday zone date ofday =
     Zone.shift_epoch_time zone `Local epoch
   in
   T.of_float time
+;;
 
 let to_local_date_ofday t          = to_date_ofday t (Zone.machine_zone ())
 let of_local_date_ofday date ofday = of_date_ofday (Zone.machine_zone ()) date ofday
@@ -161,6 +169,7 @@ let utc_offset ?(zone=Zone.machine_zone ()) t =
   let epoch     = to_epoch t in
   let utc_epoch = Zone.shift_epoch_time zone `UTC epoch in
   Span.of_sec (utc_epoch -. epoch)
+;;
 
 let to_string_abs ?(zone=Zone.machine_zone ()) time =
   let date, ofday  = to_date_ofday time zone in
@@ -175,19 +184,23 @@ let to_string_abs ?(zone=Zone.machine_zone ()) time =
         (if Span.(<) utc_offset Span.zero then "-" else "+");
         Ofday.to_string_trimmed (Ofday.of_span_since_start_of_day (Span.abs utc_offset))
       ]))
+;;
 
 let to_string_trimmed t =
   let date, sec = to_local_date_ofday t in
   (Date.to_string date) ^ " " ^ (Ofday.to_string_trimmed sec)
+;;
 
 let to_sec_string t =
   let date, sec = to_local_date_ofday t in
   (Date.to_string date) ^ " " ^ (Ofday.to_sec_string sec)
+;;
 
 let to_filename_string t =
   let date, ofday = to_local_date_ofday t in
   (Date.to_string date) ^ "_" ^
     (String.tr ~target:':' ~replacement:'-' (Ofday.to_string ofday))
+;;
 
 let to_string_fix_proto utc t =
   let date, sec =
@@ -196,6 +209,7 @@ let to_string_fix_proto utc t =
     | `Local -> to_local_date_ofday t
   in
   (Date.to_string_iso8601_basic date) ^ "-" ^ (Ofday.to_millisec_string sec)
+;;
 
 let of_string_fix_proto utc str =
   try
@@ -215,6 +229,7 @@ let of_string_fix_proto utc str =
       (Ofday.of_string_iso8601_extended str ~pos:(expect_dash + 1))
   with exn ->
     invalid_argf "Time.of_string_fix_proto %s: %s" str (Exn.to_string exn) ()
+;;
 
 let of_filename_string s =
   try
@@ -228,12 +243,7 @@ let of_filename_string s =
   with
   | exn ->
       invalid_argf "Time.of_filename_string (%s): %s" s (Exn.to_string exn) ()
-
-let of_date_time_strings date_string time_string =
-  of_local_date_ofday (Date.of_string date_string) (Ofday.of_string time_string)
-
-let of_date_time_strings_utc date_string time_string =
-  of_date_ofday Zone.utc (Date.of_string date_string) (Ofday.of_string time_string)
+;;
 
 let format t s = Unix.strftime (to_tm t) s
 
@@ -256,6 +266,7 @@ let rec pause span =
   match pause_for span with
   | `Remaining span -> pause span
   | `Ok -> ()
+;;
 
 (** Pause but allow events to interrupt. *)
 let interruptible_pause = pause_for
@@ -263,27 +274,22 @@ let interruptible_pause = pause_for
 let rec pause_forever () =
   pause (Span.of_day 1.0);
   pause_forever ()
+;;
 
-let ofday_occurrence_gen ~utc = ();
-  fun ofday before_or_after time ->
-    let first_guess =
-      if utc then
-        of_date_ofday Zone.utc (fst (to_date_ofday time Zone.utc)) ofday
-      else
-        of_local_date_ofday (to_local_date time) ofday
-    in
-    match before_or_after with
-    | `right_before ->
-        if T.(<) first_guess time
-        then first_guess
-        else T.sub first_guess Span.day
-    | `right_after ->
-        if T.(>) first_guess time
-        then first_guess
-        else T.add first_guess Span.day
-
-let ofday_occurrence = ofday_occurrence_gen ~utc:false
-let ofday_occurrence_utc = ofday_occurrence_gen ~utc:true
+let ofday_occurrence t zone ofday before_or_after =
+  let first_guess =
+    of_date_ofday zone (fst (to_date_ofday t zone)) ofday
+  in
+  match before_or_after with
+  | `right_before ->
+      if T.(<) first_guess t
+      then first_guess
+      else T.sub first_guess Span.day
+  | `right_after ->
+      if T.(>) first_guess t
+      then first_guess
+      else T.add first_guess Span.day
+;;
 
 let epoch = T.of_float 0.0
 
@@ -295,12 +301,14 @@ include T
 let to_string_deprecated t =
   let date, sec = to_local_date_ofday t in
   String.concat [Date.to_string date; " "; Ofday.to_string sec]
+;;
 
 let to_string t =
   match !string_and_sexp_format with
   | `Write_new_read_both
   | `Write_new_read_only_new -> to_string_abs t
   | `Old | `Force_old -> to_string_deprecated t
+;;
 
 exception Time_of_string of string * Exn.t with sexp
 exception Time_string_not_absolute of string with sexp
@@ -351,6 +359,7 @@ let of_string_gen ~require_absolute s =
         of_float (to_float (of_date_ofday Zone.utc date ofday) -. utc_offset)
   with
   | e -> raise (Time_of_string (s,e))
+;;
 
 let of_string_abs s = of_string_gen ~require_absolute:true s
 let of_string s =
@@ -360,6 +369,7 @@ let of_string s =
     | `Old | `Force_old | `Write_new_read_both -> false
   in
   of_string_gen s ~require_absolute
+;;
 
 let t_of_sexp sexp = match sexp with
   | Sexp.List [Sexp.Atom date; Sexp.Atom ofday; (Sexp.Atom "UTC" | Sexp.Atom "utc")] ->
@@ -381,6 +391,7 @@ let t_of_sexp sexp = match sexp with
       | e -> of_sexp_error (sprintf "Time.t_of_sexp: %s" (Exn.to_string e)) sexp
       end
   | _ -> of_sexp_error "Time.t_of_sexp" sexp
+;;
 
 let sexp_of_t t =
   match String.lsplit2 (to_string t) ~on:' ' with
@@ -388,6 +399,7 @@ let sexp_of_t t =
       Sexp.List [Sexp.Atom date; Sexp.Atom ofday]
   | None ->
       raise (Bug "Time.sexp_of_t: unexpected None")
+;;
 
 let pp ppf t = Format.fprintf ppf "%s" (to_string t)
 let () = Pretty_printer.register "Core.Time.pp"
@@ -395,6 +407,7 @@ let () = Pretty_printer.register "Core.Time.pp"
 let to_localized_string time zone =
   let date,ofday = to_date_ofday time zone in
   String.concat [Date.to_string date; " "; Ofday.to_string ofday]
+;;
 
 let of_localized_string zone str =
   try
@@ -406,3 +419,5 @@ let of_localized_string zone str =
       of_date_ofday zone date ofday
   with e ->
     Exn.reraise e "Time.of_localstring"
+;;
+

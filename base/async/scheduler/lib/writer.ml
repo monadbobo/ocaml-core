@@ -275,7 +275,7 @@ let stop_permanently t =
   t.back <- 0;
 ;;
 
-let die t exn = stop_permanently t; raise exn
+let die t error = stop_permanently t; Error.raise error
 
 (* We used to use [after (sec 5.)] as the default value for [force_close] for all kinds of
    underlying fds. This was problematic, because it silently caused data in the writer's
@@ -452,16 +452,11 @@ let mk_iovecs t =
    should be the best. *)
 let thread_io_cutoff = 262_144
 
-exception Ready_to_got_bad_fd of t with sexp
-exception Syscall_returned_negative_result of t * int with sexp
-exception Write_got_EBADF of t with sexp
-exception Writer_fd_unexpectedly_closed of t with sexp
-exception Wrote_more_than_received of t with sexp
-exception Wrote_nonzero_amount_but_IO_queue_is_empty of t with sexp
-
 (* If whe writer was closed, we should be quiet.  But if it wasn't, then someone was
    monkeying around with the fd behind our back, and we should complain. *)
-let fd_closed t = if not t.is_closed then raise (Writer_fd_unexpectedly_closed t)
+let fd_closed t =
+  if not t.is_closed then fail "writer fd unexpectedly closed " t <:sexp_of< t >>
+;;
 
 let rec start_write t =
   assert (t.background_writer_state = `Running);
@@ -473,11 +468,12 @@ let rec start_write t =
       if n >= 0 then
         write_finished t n
       else
-        die t (Syscall_returned_negative_result (t, n))
+        die t (Error.create "write system call returned negative result" (t, n)
+                 <:sexp_of< t * int >>)
     | `Error (U.Unix_error ((U.EWOULDBLOCK | U.EAGAIN), _, _)) ->
       write_when_ready t
     | `Error (U.Unix_error (U.EBADF, _, _)) ->
-      die t (Write_got_EBADF t)
+      die t (Error.create "write got EBADF" t <:sexp_of< t >>)
     | `Error ((U.Unix_error ((U.EPIPE | U.ECONNRESET), _, _)) as exn) ->
       (* [t.got_epipe] is empty since once we reach this point, we stop the writer
          permanently, and so will never reach here again. *)
@@ -485,7 +481,7 @@ let rec start_write t =
       Ivar.fill t.got_epipe ();
       stop_permanently t;
       if t.raise_epipe then raise exn;
-    | `Error exn -> die t exn
+    | `Error exn -> die t (Error.of_exn exn)
   in
   let should_write_in_thread =
     not (Fd.supports_nonblock t.fd)
@@ -513,7 +509,7 @@ and write_when_ready t =
   assert (t.background_writer_state = `Running);
   Fd.ready_to t.fd `Write
   >>> function
-    | `Bad_fd -> die t (Ready_to_got_bad_fd t)
+    | `Bad_fd -> die t (Error.create "writer ready_to got Bad_fd" t <:sexp_of< t >>)
     | `Closed -> fd_closed t
     | `Ready -> start_write t
 
@@ -523,7 +519,7 @@ and write_finished t bytes_written =
   Io_stats.update io_stats ~kind:(Fd.kind t.fd) ~bytes:int63_bytes_written;
   t.bytes_written <- Int63.(int63_bytes_written + t.bytes_written);
   if Int63.(t.bytes_written > t.bytes_received) then
-    die t (Wrote_more_than_received t);
+    die t (Error.create "writer wrote more bytes than it received" t <:sexp_of< t >>);
   fill_flushes t;
   t.scheduled_bytes <- t.scheduled_bytes - bytes_written;
   (* Remove processed iovecs from t.scheduled. *)
@@ -532,7 +528,8 @@ and write_finished t bytes_written =
     match Queue.dequeue t.scheduled with
     | None ->
       if bytes_written > 0 then
-        die t (Wrote_nonzero_amount_but_IO_queue_is_empty t)
+        die t (Error.create "writer wrote nonzero amount but IO_queue is empty" t
+                 <:sexp_of< t >>)
     | Some ({ IOVec. buf; pos; len }, kind) ->
       if bytes_written >= len then begin
         (* Current I/O-vector completely written.  Internally generated buffers get
@@ -706,8 +703,6 @@ include (struct
         pos_len : int;
       }
     with sexp
-
-    exception E of t with sexp
   end
 
   let write_bin_prot t writer v =
@@ -721,14 +716,8 @@ include (struct
       let pos            = writer.Bin_prot.Type_class.write buf ~pos:pos_len v in
       if pos - start_pos <> tot_len then begin
         let module W = Write_bin_prot_bug in
-        raise (W.E { W.
-                     pos;
-                     start_pos;
-                     tot_len;
-                     len;
-                     len_len;
-                     pos_len;
-                   })
+        fail "write_bin_prot" { W. pos; start_pos; tot_len; len; len_len; pos_len }
+        <:sexp_of< Write_bin_prot_bug.t >>
       end;
       maybe_start_writer t;
     end
@@ -736,6 +725,8 @@ end : sig
   val write_bin_prot : t -> 'a Bin_prot.Type_class.writer -> 'a -> unit
 end)
 
+INCLUDE "config.mlh"
+IFDEF LINUX_EXT THEN
 let write_marshal t ~flags a =
   schedule_unscheduled t `Keep;
   let iovec =
@@ -744,6 +735,7 @@ let write_marshal t ~flags a =
   add_iovec t `Destroy iovec ~count_bytes_as_received:true;
   maybe_start_writer t
 ;;
+ENDIF
 
 let send t s =
   write t (string_of_int (String.length s) ^ "\n");
@@ -783,7 +775,9 @@ let schedule_bigstring t ?pos ?len bstr =
   ensure_not_closed t; schedule_bigstring t ?pos ?len bstr
 let write ?pos ?len t s       = ensure_not_closed t; write ?pos ?len t s
 let writef t                  = ensure_not_closed t; writef t
+IFDEF LINUX_EXT THEN
 let write_marshal t ~flags a  = ensure_not_closed t; write_marshal t ~flags a
+ENDIF
 let write_sexp ?hum t s       = ensure_not_closed t; write_sexp ?hum t s
 let write_bigsubstring t s    = ensure_not_closed t; write_bigsubstring t s
 let write_substring t s       = ensure_not_closed t; write_substring t s
@@ -818,8 +812,6 @@ let apply_umask perm =
   ignore (Core_unix.umask umask);
   perm land (lnot umask)
 ;;
-
-exception Could_not_create_file of string * exn with sexp
 
 let save ?temp_prefix ?perm ?fsync:(do_fsync = false) file ~contents =
   Async_sys.file_exists file
@@ -857,7 +849,7 @@ let save ?temp_prefix ?perm ?fsync:(do_fsync = false) file ~contents =
     | Ok () -> ()
     | Error exn ->
       whenever (Unix.unlink temp_file);
-      raise (Could_not_create_file (file, exn))
+      fail "Writer.save could not create file" (file, exn) <:sexp_of< string * exn >>
 ;;
 
 let sexp_to_buffer ?(hum = true) ~buf sexp =

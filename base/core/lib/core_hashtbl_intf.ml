@@ -203,7 +203,6 @@ module Create_sig (T : T2) (Key : T1) = struct
     val of_alist_multi : ('a Key.t, ('a Key.t * 'b) list -> ('a, 'b list) t) with_options
 
 
-
     (* create_mapped get_key get_data [x1,...,xn] =
          of_alist [get_key x1, get_data x1; ...; get_key xn, get_data xn] *)
     val create_mapped :
@@ -286,8 +285,6 @@ module Global_sig (T : T2) = struct
     val of_alist_exn : ('a, ('a * 'b) list -> ('a, 'b) t) with_poly_options
 
     val of_alist_multi : ('a, ('a * 'b) list -> ('a, 'b list) t) with_poly_options
-
-
 
     (* create_mapped get_key get_data [x1,...,xn] =
          of_alist [get_key x1, get_data x1; ...; get_key xn, get_data xn] *)

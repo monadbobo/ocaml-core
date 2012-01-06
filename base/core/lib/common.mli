@@ -78,7 +78,6 @@ val (^/) : string -> string -> string
 
 val failwithf    : ('r, unit, string, unit -> _) format4 -> 'r
 val invalid_argf : ('r, unit, string, unit -> _) format4 -> 'r
-val ksprintf     : (string -> 'a) -> ('r, unit, string, 'a) format4 -> 'r
 
 (* The following [sexp_of_X] functions ignore their argument and return [Sexp.Atom "_"].
    They are useful when one has a polymorphic type ['a t] with a sexp converter [val

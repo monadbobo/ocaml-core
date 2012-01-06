@@ -1,4 +1,6 @@
-type t = 
+(* Note: this module is only compiled if the system supports Posix Timers *)
+
+type t =
   | Realtime
   | Monotonic
   | Process_cpu

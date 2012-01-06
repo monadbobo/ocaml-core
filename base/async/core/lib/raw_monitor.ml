@@ -196,7 +196,7 @@ let try_with ?(name="try_with") ~reraise f =
 
 let send_exn t ?backtrace exn =
   send_exn t exn
-    ~backtrace:(match backtrace with | None -> `None | Some (`Get | `This _ as x) -> x)
+    ~backtrace:(match backtrace with None -> `None | Some (`Get | `This _ as x) -> x)
 ;;
 
 let try_with_raise_rest ?name f = try_with ?name ~reraise:true f

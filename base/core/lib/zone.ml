@@ -72,6 +72,7 @@ end = struct
     let sb4 = int32_of_char long.[3] in
     let result = (Int32.bit_or (Int32.bit_or sb1 sb2) (Int32.bit_or sb3 sb4)) in
     Int32.to_float result
+  ;;
 
   let input_long_long_as_float ic =
     let int63_of_char chr = Core_int63.of_int_exn (int_of_char chr) in
@@ -87,6 +88,7 @@ end = struct
     let result = Core_int63.bit_or result (shift long_long.[6] 8) in
     let result = Core_int63.bit_or result (int63_of_char long_long.[7]) in
     Core_int63.to_float result
+  ;;
 
   let input_long_as_int ic =
     let f = input_long_as_float ic in
@@ -94,6 +96,7 @@ end = struct
       raise (Invalid_file_format "read int that cannot be represented as an \
         OCaml native int");
     int_of_float f
+  ;;
 
   let input_list ic ~len ~f =
     let rec loop c lst =
@@ -101,6 +104,7 @@ end = struct
       else List.rev lst
     in
     loop len []
+  ;;
 
   let input_array ic ~len ~f = Array.of_list (input_list ic ~len ~f)
 
@@ -116,6 +120,7 @@ end = struct
       }
     in
     (lt,abbrv_index)
+  ;;
 
   let input_abbreviations ic ~len =
     let raw_abbrvs = input_list ic ~len ~f:(input_char) in
@@ -136,6 +141,7 @@ end = struct
       raise
         (Invalid_file_format "missing \000 terminating character in input_abbreviations");
     indexed_abbrvs
+  ;;
 
   let input_tz_file_gen ~input_transition ~input_leap_second ic =
     let utc_local_count    = input_long_as_int ic in
@@ -238,6 +244,7 @@ end = struct
           leap_seconds            = leap_seconds;
         }
       )
+  ;;
 
   let input_leap_second_gen ~input_leap_second ic =
     let leap_time = input_leap_second ic in
@@ -246,6 +253,7 @@ end = struct
       time    = leap_time;
       seconds = seconds;
     }
+  ;;
 
   let read_header ic =
     let buf = String.create 4 in
@@ -262,12 +270,14 @@ end = struct
     (* space reserved for future use in the format *)
     really_input ic (String.create 15) 0 15;
     version
+  ;;
 
   let input_tz_file_v1 ic =
     let input_leap_second =
       input_leap_second_gen ~input_leap_second:input_long_as_float
     in
     input_tz_file_gen ~input_transition:input_long_as_float ~input_leap_second ic
+  ;;
 
   (*
     version 2 timezone files have the format:
@@ -290,6 +300,7 @@ end = struct
       input_leap_second_gen ~input_leap_second:input_long_long_as_float
     in
     input_tz_file_gen ~input_transition:input_long_long_as_float ~input_leap_second ic
+  ;;
 
   let input_tz_file ~zonename ~filename =
     try
@@ -306,27 +317,35 @@ end = struct
     with
     | Invalid_file_format reason ->
       raise (Invalid_file_format (sprintf "%s - %s" filename reason))
+  ;;
 end
 
-module Db : sig
+module Zone_cache : sig
   type z
 
-  val initialized_zones : z -> (string * t) list
-  val default : unit -> z
-  val fill : z -> unit
-  val find_or_load : z -> string -> t option
-  val to_alist : z -> (string * t) list
+  val initialized_zones : unit -> (string * t) list
+  val fill              : unit -> unit
+  val find_or_load      : string -> t option
+  val to_alist          : unit -> (string * t) list
 end = struct
   type z = {
-    mutable full: bool;
-    basedir: string;
-    table: t String.Table.t
+    mutable full : bool;
+    basedir      : string;
+    table        : t String.Table.t
   }
   type t = z
 
-  let fill t =
-    if not t.full then begin
-      t.full <- true;
+  let the_one_and_only =
+    {
+      full    = false;
+      basedir = "/usr/share/zoneinfo/";
+      table   = String.Table.create ();
+    }
+  ;;
+
+  let fill () =
+    if not the_one_and_only.full then begin
+      the_one_and_only.full <- true;
       let maxdepth = 10 in
       let traverse ~maxdepth dir =
         let rec dfs dir depth =
@@ -344,8 +363,8 @@ end = struct
         in
         dfs dir maxdepth
       in
-      let zonefiles = traverse ~maxdepth t.basedir in
-      let pos = (String.length t.basedir) + 1 in
+      let zonefiles = traverse ~maxdepth the_one_and_only.basedir in
+      let pos = (String.length the_one_and_only.basedir) + 1 in
       List.iter zonefiles ~f:(fun filename ->
         try
           let len = (String.length filename) - pos in
@@ -354,51 +373,47 @@ end = struct
             * and basically shouldn't be used, so we never load them *)
           if not (String.is_prefix ~prefix:"Etc/GMT" zonename) then
             Hashtbl.replace
-              t.table ~key:zonename ~data:(Zone_file.input_tz_file ~zonename ~filename);
+              the_one_and_only.table ~key:zonename ~data:(Zone_file.input_tz_file
+                ~zonename ~filename);
         with
         | _e -> ());
     end
+  ;;
 
-  let default () =
-    {
-      full = false;
-      basedir = "/usr/share/zoneinfo/";
-      table = String.Table.create ();
-    }
-
-  let to_alist t = Hashtbl.to_alist t.table
+  let to_alist () = Hashtbl.to_alist the_one_and_only.table
 
   let initialized_zones t =
     List.sort ~cmp:(fun a b -> ascending (fst a) (fst b)) (to_alist t)
+  ;;
 
-  let find t zone = Hashtbl.find t.table zone
+  let find zone = Hashtbl.find the_one_and_only.table zone
 
-  let find_exn t zone =
-    match find t zone with
-    | None -> raise (Unknown_zone zone)
+  let find_exn zone =
+    match find zone with
+    | None      -> raise (Unknown_zone zone)
     | Some data -> data
+  ;;
 
-  let find_or_load t zonename =
-    match find t zonename with
+  let find_or_load zonename =
+    match find zonename with
     | Some z -> Some z
-    | None ->
-        if t.full then None
+    | None   ->
+        if the_one_and_only.full then None
         else begin
           try
-            let filename = t.basedir ^ "/" ^ zonename in
-            let zone = Zone_file.input_tz_file ~zonename ~filename in
-            Hashtbl.replace t.table ~key:zonename ~data:zone;
+            let filename = the_one_and_only.basedir ^ "/" ^ zonename in
+            let zone     = Zone_file.input_tz_file ~zonename ~filename in
+            Hashtbl.replace the_one_and_only.table ~key:zonename ~data:zone;
             Some zone
           with
           | _ -> None
         end
+  ;;
 end
 
-let zone_cache = Db.default ()
+let init () = Zone_cache.fill ()
 
-let init () = Db.fill zone_cache
-
-let initialized_zones () = Db.initialized_zones zone_cache
+let initialized_zones () = Zone_cache.initialized_zones ()
 
 let of_utc_offset offset =
   assert (offset >= -24 && offset <= 24);
@@ -417,34 +432,40 @@ let of_utc_offset offset =
     };
     leap_seconds = []
   }
+;;
 
 let to_utc_offset t =
   let ltt = t.default_local_time_type in
   Int.of_float ltt.Regime.utc_off
+;;
 
 let map_office_to_zone office =
   match office with
+  | `chi -> "America/Chicago"
   | `hkg -> "Asia/Hong_Kong"
   | `ldn -> "Europe/London"
   | `nyc -> "America/New_York"
+;;
 
 let find zone =
   let zone =
     match zone with
+    | "chi"         -> map_office_to_zone `chi
     | "nyc"         -> map_office_to_zone `nyc
     | "hkg"         -> map_office_to_zone `hkg
     | "lon" | "ldn" -> map_office_to_zone `ldn
     (* legacy/deprecated *)
     | "tyo"         -> "Asia/Tokyo"
-    | "chi"         -> "America/Chicago"
     | _             -> zone
   in
-  Db.find_or_load zone_cache zone
+  Zone_cache.find_or_load zone
+;;
 
 let find_exn zone =
   match find zone with
   | None -> raise (Unknown_zone zone)
   | Some z -> z
+;;
 
 let find_office office = find_exn (map_office_to_zone office)
 
@@ -479,8 +500,9 @@ let t_of_sexp sexp =
           (sprintf "Time.Zone.t_of_sexp: %s" (Exn.to_string exc)) sexp
     end
   | _ -> of_sexp_error "Time.Zone.t_of_sexp: expected atom" sexp
+;;
 
-let sexp_of_t t             = Sexp.Atom t.name
+let sexp_of_t t = Sexp.Atom t.name
 
 module T = struct
   type t' = t with sexp
@@ -520,6 +542,7 @@ let machine_zone =
       in
       zone := Some t;
       t)
+;;
 
 (* [find_local_regime zone `UTC time] finds the local time regime in force
    in [zone] at [seconds], from 1970/01/01:00:00:00 UTC.
@@ -581,15 +604,18 @@ let find_local_regime zone transtype time =
       let last_pos = num_transitions - 1 in
       bin_search (last_pos / 2) 0 last_pos
   end
+;;
 
 let shift_epoch_time zone repr_type epoch =
   let r = find_local_regime zone repr_type epoch in
   match repr_type with
   | `Local -> epoch -. r.Regime.utc_off
   | `UTC -> epoch +. r.Regime.utc_off
+;;
 
 let abbreviation zone time =
   (find_local_regime zone `UTC time).Regime.abbrv
+;;
 
 let digest zone = zone.file_digest
 

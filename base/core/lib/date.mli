@@ -29,7 +29,7 @@ val of_tm : Core_unix.tm -> t
 val of_string_iso8601_basic : string -> pos:int -> t (* YYYYMMDD *)
 val to_string_iso8601_basic : t -> string            (* YYYYMMDD *)
 
-val to_string_old : t -> string              (* MM/DD/YYYY *)
+val to_string_american : t -> string              (* MM/DD/YYYY *)
 
 val pp : Format.formatter -> t -> unit
 
@@ -49,6 +49,10 @@ val is_weekday : t -> bool
 (* Monday through Friday are business days, unless they're a holiday *)
 val is_business_day : t -> is_holiday:(t -> bool) -> bool
 
+(* [add_days t n] adds n days to t and returns the resulting date.  This is done by adding
+   (or subtracting in the case of a negative n) one day at a time in a loop until n is 0. 
+   This is simple to reason about, but inefficient for large values of n.
+*)
 val add_days : t -> int -> t
 
 (** [add_months t n] returns date with max days for the month if the date would be
@@ -60,13 +64,15 @@ val add_months : t -> int -> t
 val diff : t -> t -> int
 
 (** [add_weekdays t 0] returns the next weekday if [t] is a weekend and [t]
-    otherwise *)
+    otherwise.  Identical to calling add_days where the remaining count of days to
+    add/subtract isn't changed as the loop moves over weekend days *)
 val add_weekdays : t -> int -> t
 
 (** [add_business_days t ~is_holiday n] returns a business day even when
     n=0. [add_business_days ~is_holiday:(fun _ -> false) ...] is the same as
     [add_weekdays]. Use [Pnl_db.Calendar_events.is_holiday] as a conveninent
-    holiday function. *)
+    holiday function. 
+*)
 val add_business_days : t -> is_holiday:(t -> bool) -> int -> t
 
 (* the following returns a closed interval (endpoints included) *)

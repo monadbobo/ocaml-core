@@ -3,10 +3,10 @@ open Time_internal.Helpers
 module Time = Time_internal.T
 
 (* Create a local private date type to ensure that all dates are created via
-    Date.create.
+   Date.create.
 *)
 module T : sig
-  type t = { y: int; m: Month.t; d: int; }
+  type t = private { y: int; m: Month.t; d: int; }
 
   include Binable with type t := t
   val create : y:int -> m:Month.t -> d:int -> t
@@ -22,6 +22,7 @@ end = struct
       invalid_argf "Date.create ~y:%d ~m:%s ~d:%d error: %s"
         year (Month.to_string month) day msg ()
     in
+    if year < 0 || year > 9999 then invalid "year outside of [0..9999]";
     if day <= 0 then invalid "day <= 0";
     begin match Month.get month with
     | `Apr | `Jun | `Sep | `Nov ->
@@ -49,6 +50,7 @@ let to_string_iso8601_extended t =
   buf.[7] <- '-';
   blit_string_of_int_2_digits buf ~pos:8 t.d;
   buf
+;;
 
 let to_string = to_string_iso8601_extended
 
@@ -59,9 +61,10 @@ let to_string_iso8601_basic t =
   blit_string_of_int_2_digits buf ~pos:4 (Month.to_int t.m);
   blit_string_of_int_2_digits buf ~pos:6 t.d;
   buf
+;;
 
 (** MM/DD/YYYY *)
-let to_string_old t =
+let to_string_american t =
   let buf = String.create 10 in
   blit_string_of_int_2_digits buf ~pos:0 (Month.to_int t.m);
   buf.[2] <- '/';
@@ -69,6 +72,7 @@ let to_string_old t =
   buf.[5] <- '/';
   blit_string_of_int_4_digits buf ~pos:6 t.y;
   buf
+;;
 
 let parse_year4 str pos = parse_four_digits str pos
 
@@ -84,6 +88,7 @@ let of_string_iso8601_basic str ~pos =
     ~y:(parse_year4 str pos)
     ~m:(parse_month str (pos + 4))
     ~d:(parse_day str (pos + 6))
+;;
 
 let of_string s =
   let invalid () = failwith ("invalid date: " ^ s) in
@@ -137,10 +142,12 @@ let of_string s =
     (* assume YYYYMMDD *)
     month_num ~year:0 ~month:4 ~day:6
   end else invalid ()
+;;
 
 let of_string s =
   try of_string s with
   | exn -> invalid_argf "Date.of_string (%s): %s" s (Exn.to_string exn) ()
+;;
 
 module Sexpable = struct
 
@@ -154,6 +161,7 @@ module Sexpable = struct
   let t_of_sexp = function
     | Sexp.Atom s -> of_string s
     | Sexp.List _ as sexp -> Old_date.to_date (Old_date.t_of_sexp sexp)
+  ;;
 
   let t_of_sexp s =
     try
@@ -161,6 +169,7 @@ module Sexpable = struct
     with
     | (Sexplib.Conv.Of_sexp_error _) as exn -> raise exn
     | Invalid_argument a -> Sexplib.Conv.of_sexp_error a s
+  ;;
 
   let sexp_of_t t = Sexp.Atom (to_string t)
 end
@@ -178,6 +187,7 @@ include Comparable.Make_binable (struct
       let n = Month.compare t1.m t2.m in
       if n <> 0 then n
       else Int.compare t1.d t2.d
+  ;;
 end)
 
 include (Hashable.Make_binable (struct
@@ -200,6 +210,7 @@ let of_tm tm =
     ~y:(tm.Unix.tm_year + 1900)
     ~m:(Month.of_int_exn (tm.Unix.tm_mon + 1))
     ~d:tm.Unix.tm_mday
+;;
 
 (* This, and to_time_internal below, should only be used in add_days and diff in Date.
   * We need to do this here instead of using the normal Time.of_local_date_ofday because
@@ -219,6 +230,7 @@ let to_tm t =
       tm_yday = 0;
       tm_isdst = false;
   }
+;;
 
 let to_time_internal t =
   let tm_date = to_tm t in
@@ -229,12 +241,14 @@ let to_time_internal t =
         (to_string t) (Unix.error_message e) s1 s2 ()
   in
   Time.of_float time
+;;
 
 let of_time_internal time = of_tm (Unix.localtime (Float.round_down (Time.to_float time)))
 
 let add_days t n =
   let time = to_time_internal t in
   of_time_internal (Time.add time (Span.of_day (Float.of_int n)))
+;;
 
 let add_months t n =
   let total_months = (Month.to_int t.m) + n in
@@ -256,10 +270,12 @@ let add_months t n =
       try_create (d - 1)
   in
   try_create t.d
+;;
 
 let diff t1 t2 =
   Int.of_float (Float.round (Span.to_day
     (Time.diff (to_time_internal t1) (to_time_internal t2))))
+;;
 
 (* returns a Weekday.t *)
 let day_of_week t =
@@ -267,16 +283,18 @@ let day_of_week t =
   let sec, _ = Unix.mktime uday in
   let unix_wday = (Unix.localtime sec).Unix.tm_wday in
   Weekday.of_int_exn unix_wday
+;;
 
 let is_weekend t =
   Weekday.is_sun_or_sat (day_of_week t)
+;;
 
-let is_weekday t =
-  not (is_weekend t)
+let is_weekday t = not (is_weekend t)
 
 let is_business_day t ~is_holiday =
   is_weekday t
   && not (is_holiday t)
+;;
 
 let add_days_skipping t ~skip n =
   let step = if Int.(>=) n 0 then 1 else -1 in
@@ -292,6 +310,7 @@ let add_weekdays t n = add_days_skipping t ~skip:is_weekend n
 
 let add_business_days t ~is_holiday n =
   add_days_skipping t n ~skip:(fun d -> is_weekend d || is_holiday d)
+;;
 
 let dates_between ~min:t1 ~max:t2 =
   let rec loop t l =
@@ -299,6 +318,7 @@ let dates_between ~min:t1 ~max:t2 =
     else loop (add_days t (-1)) (t::l)
   in
   loop t2 []
+;;
 
 let weekdays_between ~min ~max =
   let all_dates = dates_between ~min ~max in
@@ -318,10 +338,12 @@ let weekdays_between ~min ~max =
           then None
           else Some date)
     )
+;;
 
 let business_dates_between ~min ~max ~is_holiday =
   weekdays_between ~min ~max
   |! List.filter ~f:(fun d -> not (is_holiday d))
+;;
 
 let rec previous_weekday t =
   let previous_day = add_days t (-1) in
@@ -329,7 +351,8 @@ let rec previous_weekday t =
     previous_day
   else
     previous_weekday previous_day
+;;
 
 module Export = struct
-  type _date = t = { y: int; m: Month.t; d: int; }
+  type _date = t = private { y: int; m: Month.t; d: int; }
 end

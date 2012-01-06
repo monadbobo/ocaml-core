@@ -139,3 +139,5 @@ val hlist : t list -> t
 
 (** {[ vlist [x1,..,xn] = vgrp [x1; break; x2; ...; break; xn) ]} *)
 val vlist : t list -> t
+
+val alist : t list -> t

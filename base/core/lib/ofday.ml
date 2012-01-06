@@ -64,7 +64,7 @@ end = struct
     if is_valid t then Some t else None
 
   let diff t1 t2 =
-    Span.sub (to_span_since_start_of_day t1) (to_span_since_start_of_day t2)
+    Span.(-) (to_span_since_start_of_day t1) (to_span_since_start_of_day t2)
 end
 
 let create ?hr ?min ?sec ?ms ?us () =
@@ -134,7 +134,7 @@ let of_string_iso8601_extended ?pos ?len str =
         else
           let minute = parse_two_digits str (pos + 3) in
           if minute >= 60 then failwith "minute > 60";
-          let span = Span.add span (Span.of_min (float minute)) in
+          let span = Span.(+) span (Span.of_min (float minute)) in
           if hour = 24 && minute <> 0 then
             failwith "24 hours and non-zero minute";
           if len = 5 then span
@@ -143,7 +143,7 @@ let of_string_iso8601_extended ?pos ?len str =
           else
             let second = parse_two_digits str (pos + 6) in
             if second >= 60 then failwith "second > 60";
-            let span = Span.add span (Span.of_sec (float second)) in
+            let span = Span.(+) span (Span.of_sec (float second)) in
             if hour = 24 && second <> 0 then
               failwith "24 hours and non-zero seconds";
             if len = 8 then span
@@ -160,7 +160,7 @@ let of_string_iso8601_extended ?pos ?len str =
                 if hour = 24 && subs <> 0 then
                   failwith "24 hours and non-zero subseconds"
                 else
-                  Span.add span
+                  Span.(+) span
                     (Span.of_sec (float subs /. (10. ** float (len - 9))))
               | _ -> failwith "missing subsecond separator"
         in
@@ -237,3 +237,5 @@ let t_of_sexp sexp =
 ;;
 
 let sexp_of_t span = Sexp.Atom (to_string span)
+
+let of_float f = T.of_span_since_start_of_day (Span.of_sec f)

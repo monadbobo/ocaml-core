@@ -96,7 +96,7 @@ let protect f = try f () with exn -> Message.Could_not_construct (Exn.sexp_of_t 
 
 let to_message t = protect (fun () -> Lazy.force t)
 
-let of_message message = lazy message
+let of_message message = Lazy.lazy_from_val message
 
 let sexp_of_t t = Message.sexp_of_t (to_message t)
 
@@ -115,7 +115,7 @@ end)
 
 let of_lazy l = lazy (protect (fun () -> String (Lazy.force l)))
 
-let of_string error = lazy (String error)
+let of_string error = Lazy.lazy_from_val (String error)
 
 let of_thunk f = lazy (protect (fun () -> String (f ())))
 

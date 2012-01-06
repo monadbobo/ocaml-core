@@ -1,6 +1,23 @@
 #!/bin/bash
 set -e -u -o pipefail
 
+enable_linux=false
+enable_linux_default="--disable-linux"
+case $(ocamlc -config | awk '$1 == "system:" {print $2}') in
+    linux|linux_elf)
+        enable_linux=true
+        enable_linux_default="--enable-linux"
+    ;;
+esac
+
+opts=( "$@" )
+for ((i=0; i<$#; i++)); do
+    case ${opts[$i]} in
+        --enable-linux)  enable_linux=true;  enable_linux_default= ;;
+        --disable-linux) enable_linux=false; enable_linux_default= ;;
+    esac
+done
+
 here="$(dirname "${BASH_SOURCE[0]}")"
 
 my_join () {
@@ -62,6 +79,12 @@ XStdFilesAUTHORS: false
 XStdFilesINSTALLFilename: INSTALL
 XStdFilesREADME: false
 
+Flag linux
+  Description: Enable linux specific extensions
+  Default$:    $enable_linux
+
+PreBuildCommand: mkdir -p _build; cp lib/*mlh _build/
+PreDistCleanCommand: \$rm lib/version_defaults.mlh lib/config.mlh
 
 Library async_scheduler
   Path:               lib
@@ -86,9 +109,16 @@ cat >$here/_tags <<EOF
 # OASIS_START
 # OASIS_STOP
 <lib/*.ml{,i}>: syntax_camlp4o
+"lib/async_unix.ml": pkg_camlp4.macro
+"lib/raw_scheduler.ml": pkg_camlp4.macro
+<lib/writer.ml{,i}>: pkg_camlp4.macro
+EOF
+
+cat >$here/lib/config.mlh <<EOF
+$(if [[ "$enable_linux" == "true" ]]; then echo "DEFINE LINUX_EXT"; fi)
 EOF
 
 cd $here
 oasis setup
-./configure "$@"
+./configure "$enable_linux_default" "$@"
 

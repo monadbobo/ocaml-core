@@ -179,7 +179,7 @@ val find : string -> t option
 
 (** [find_office office] a more type-safe interface for pulling timezones related to our
     offices *)
-val find_office : [ `hkg | `ldn | `nyc ] -> t
+val find_office : [ `chi | `hkg | `ldn | `nyc ] -> t
 val find_exn : string -> t
 
 (** [machine_zone ?refresh ()] returns the machines zone (t).  It does this by first 

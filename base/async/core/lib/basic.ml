@@ -195,10 +195,12 @@ module Scheduler = struct
       mutable main_execution_context : execution_context sexp_opaque;
       mutable max_num_jobs_per_priority_per_cycle : int;
       mutable uncaught_exception : exn option;
+      mutable num_jobs_run : int;
       mutable cycle_count : int;
       mutable cycle_start : Time.t;
       mutable jobs_left : bool;
       cycle_times : Time.Span.t Tail.t;
+      cycle_num_jobs : int Tail.t;
       events : Clock_event.t Events.t;
     }
 
@@ -215,9 +217,11 @@ module Scheduler = struct
       main_execution_context = bogus_execution_context;
       max_num_jobs_per_priority_per_cycle = 500;
       uncaught_exception = None;
+      num_jobs_run = 0;
       cycle_start = now;
       cycle_count = 0;
       cycle_times = Tail.create ();
+      cycle_num_jobs = Tail.create ();
       events = Events.create ~now;
       jobs_left = false;
     }
@@ -413,47 +417,42 @@ module Deferred = struct
        user-supplied deferred from the right-hand side of connect, and ivar is returned to
        the user prior to being used in the callback, and may be converted to an
        indirection in the case of right-nested binds. *)
-    let t = repr tdef in
     let i = Ivar.squash ivar in
+    let t = repr tdef in
     (* i and ivar are the same internally, but have different types *)
-    if not (phys_equal t i) then begin
-      let create_two_bag handler1 handler2 =
-        let bag = Bag.create () in
-        ignore (Bag.add bag handler1);
-        ignore (Bag.add bag handler2);
-        debug_bag_check bag;
-        i := Empty_many_handlers bag;
-        t := Indir ivar in
+    if not (phys_equal i t) then begin
       (* Strange order :-/ *)
-      begin match (!t, !i) with
-      | (Empty,   _) -> t := Indir ivar
-      | (Full v,  _) -> Ivar.fill ivar v
-      | (Indir _, _) -> assert false (* fulfilled by repr *)
-      | (tc, Empty) -> (* do a swap *) i := tc; t := Indir ivar
+      begin match !i, !t with
+      | _ , Empty -> t := Indir ivar
+      | _, Full v -> Ivar.fill ivar v
+      | _, Indir _ -> assert false (* fulfilled by repr *)
+      | Empty, tc -> (* do a swap *) i := tc; t := Indir ivar
       (* [connect] is only used in bind, whose ivar is only ever exported as a read-only
          deferred.  Thus, it is impossible for the client to fill the [ivar]. *)
-      | (_, Full _) -> assert false
-      | (_, Indir _) -> assert false (* fulfilled by Ivar.squash *)
+      | Full _, _ -> assert false
+      | Indir _, _ -> assert false (* fulfilled by Ivar.squash *)
       (* Tricky cases now. Assume invariant that bags are never shared. *)
-      | (Empty_one_handler (run1, ec1), Empty_one_handler (run2, ec2)) ->
-        let handler1 = { run = run1; execution_context = ec1} in
-        let handler2 = { run = run2; execution_context = ec2} in
-        create_two_bag handler1 handler2
-      | (Empty_one_handler (run, execution_context), Empty_many_handlers bag) ->
+      | Empty_one_handler (run1, ec1), Empty_one_handler (run2, ec2) ->
+        let bag = Bag.create () in
+        ignore (Bag.add bag { run = run1; execution_context = ec1});
+        ignore (Bag.add bag { run = run2; execution_context = ec2});
+        debug_bag_check bag;
+        i := Empty_many_handlers bag;
+        t := Indir ivar
+      | Empty_many_handlers bag, Empty_one_handler (run, execution_context) ->
+        ignore (Bag.add bag { run; execution_context });
+        debug_bag_check bag;
+        (* no need to rewrite [i], as it's a bag *)
+        t := Indir ivar
+      | Empty_one_handler (run, execution_context), Empty_many_handlers bag ->
         let handler = { run; execution_context } in
         ignore (Bag.add bag handler);
         debug_bag_check bag;
-        (* no need to rewrite i, as it's a bag *)
+        i := !t; (* do a swap *)
         t := Indir ivar
-      | (Empty_many_handlers bag as tc, Empty_one_handler (run, execution_context)) ->
-        let handler = { run; execution_context } in
-        ignore (Bag.add bag handler);
-        debug_bag_check bag;
-        i := tc; (* do a swap *)
-        t := Indir ivar
-      | (Empty_many_handlers bag1, Empty_many_handlers bag2) ->
-        Bag.transfer ~src:bag1 ~dst:bag2;
-        debug_bag_check bag2;
+      | Empty_many_handlers bag_i, Empty_many_handlers bag_t ->
+        Bag.transfer ~src:bag_t ~dst:bag_i;
+        debug_bag_check bag_i;
         t := Indir ivar
       end;
       (* Squash original tdef reference; otherwise, it may grow by two indirections rather

@@ -118,10 +118,12 @@ module Scheduler : sig
       mutable main_execution_context : Execution_context.t;
       mutable max_num_jobs_per_priority_per_cycle : int;
       mutable uncaught_exception : exn option;
+      mutable num_jobs_run : int;
       mutable cycle_count : int;
       mutable cycle_start : Time.t;
       mutable jobs_left : bool;
       cycle_times : Time.Span.t Tail.t;
+      cycle_num_jobs : int Tail.t;
       events : Clock_event.t Events.t;
     }
 

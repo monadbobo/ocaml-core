@@ -245,16 +245,22 @@ let schedule_from_thread t ~within run : unit =
     have_lock_do_cycle t)
 ;;
 
+INCLUDE "config.mlh"
 let create_thread t ?(default_thread_name_first16 = "helper-thread") squeue =
   t.num_live_threads <- t.num_live_threads + 1;
   let dead () = t.num_live_threads <- t.num_live_threads - 1 in
   let (_ : Thread.t) = Thread.create (fun () ->
-    let last_thread_name = ref "" in
-    let set_thread_name thread_name =
-      if String.(<>) thread_name !last_thread_name then begin
-        Linux_ext.pr_set_name_first16 thread_name;
-        last_thread_name := thread_name;
-      end;
+    let set_thread_name =
+IFDEF LINUX_EXT THEN
+      let last_thread_name = ref "" in
+      fun thread_name ->
+        if String.(<>) thread_name !last_thread_name then begin
+          Linux_ext.pr_set_name_first16 thread_name;
+          last_thread_name := thread_name;
+        end
+ELSE
+      ignore
+ENDIF
     in
     set_thread_name default_thread_name_first16;
     let rec loop () =
@@ -659,7 +665,7 @@ exception Called_block_on_async_from_async with sexp;;
 
 let block_on_async (type a) (f : unit -> a Deferred.t) =
   let t = the_one_and_only ~should_lock:false () in
-  if (am_in_async t)
+  if (not (is_main_thread ())) && (am_in_async t)
   then raise Called_block_on_async_from_async;
 
   (* Only create a scheduler thread if the scheduler isn't already running. *)
@@ -692,7 +698,7 @@ let block_on_async (type a) (f : unit -> a Deferred.t) =
     | `Available v -> v
     | `Blocked_wait_on_squeue q -> Squeue.pop q
   in
-  if is_main_thread () then Nano_mutex.lock_exn t.mutex;
+  if is_main_thread () && (not (am_in_async t)) then Nano_mutex.lock_exn t.mutex;
   res
 ;;
 

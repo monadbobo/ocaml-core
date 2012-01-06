@@ -1,4 +1,4 @@
-type t = 
+type t =
   | Realtime
   | Monotonic
   | Process_cpu

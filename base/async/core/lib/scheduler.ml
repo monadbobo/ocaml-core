@@ -47,9 +47,13 @@ let cycle_start () = t.cycle_start
 
 let cycle_times () = Tail.collect t.cycle_times
 
+let cycle_num_jobs () = Tail.collect t.cycle_num_jobs
+
 let cycle_count () = t.cycle_count
 
 let jobs_left () = t.jobs_left
+
+let num_jobs_run () = t.num_jobs_run
 
 let set_max_num_jobs_per_priority_per_cycle int =
   if int <= 0 then
@@ -71,7 +75,9 @@ let finish_cycle =
       | job::jobs ->
         if debug then Debug.print "running job %d" (Job.id job);
         begin
-          try Job.run job;
+          try
+            t.num_jobs_run <- t.num_jobs_run + 1;
+            Job.run job;
           with exn -> Monitor.send_exn (Monitor.current ()) exn ~backtrace:`Get;
         end;
         do_batch jobs
@@ -88,6 +94,7 @@ let finish_cycle =
     loop t
   in
   fun ~now ->
+    let num_jobs_run_before_cycle = t.num_jobs_run in
     begin match Events.advance_clock t.events ~to_:t.cycle_start with
     | `Not_in_the_future ->
       (* This could conceivably happen with NTP tweaking the clock.  There's no reason
@@ -104,5 +111,6 @@ let finish_cycle =
     (* This can potentially add more jobs if somebody is listening to cycle_times
        stream, so we have to check [Jobs.is_empty] before. *)
     Tail.extend t.cycle_times (Time.diff now t.cycle_start);
+    Tail.extend t.cycle_num_jobs (t.num_jobs_run - num_jobs_run_before_cycle);
 ;;
 

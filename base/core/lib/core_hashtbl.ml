@@ -277,8 +277,6 @@ let partitioni t ~f =
 
 let partition t ~f = partitioni t ~f:(fun ~key:_ ~data -> f data)
 
-let remove_all = remove
-
 let remove_one t key =
   match find t key with
   | None -> ()

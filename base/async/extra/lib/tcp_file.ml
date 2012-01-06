@@ -290,6 +290,9 @@ module Server = struct
     | `No      -> Deferred.return 0
     | `Unknown -> failwithf "unable to open file: %s" filename ()
     | `Yes ->
+      (* There is no strong case for using [exclusive:true] since locks are advisory, but
+         it expresses something in the code that we want to be true, and shouldn't hurt.
+      *)
       Reader.with_file ~exclusive:true filename
         ~f:(fun r -> Pipe.drain_and_count (Reader.lines r))
   ;;
@@ -326,7 +329,9 @@ module Server = struct
   let stop_serving = stop_serving_internal
 
   let close ?(stop_serving=true) t =
-    if not t.File.closed then begin
+    if t.File.closed then
+      Deferred.unit
+    else begin
       t.File.closed <- true;
       if stop_serving then stop_serving_internal t;
       Tail.close_if_open t.File.tail;
@@ -334,8 +339,6 @@ module Server = struct
       | `Writer writer -> File_writer.close writer
       | `This_is_a_static_file -> Deferred.unit
     end
-    else
-      Deferred.unit
 
   exception Attempt_to_flush_static_tcp_file of string with sexp
 

@@ -37,6 +37,7 @@
 #include <math.h>
 
 #include "ocaml_utils.h"
+#include "config.h"
 
 CAMLprim value unix_error_stub(value v_errcode, value v_cmdname, value cmd_arg)
 {
@@ -780,38 +781,6 @@ CAMLprim value unix_pselect_stub(
 }
 
 
-/* Clock functions */
-
-#if defined(_POSIX_MONOTONIC_CLOCK) && (_POSIX_MONOTONIC_CLOCK > -1)
-#define clockid_t_val(v_cl) ((clockid_t) Nativeint_val(v_cl))
-
-CAMLprim value unix_clock_gettime(value v_cl)
-{
-  struct timespec ts;
-  if (clock_gettime(clockid_t_val(v_cl), &ts))
-    uerror("clock_gettime", Nothing);
-  return caml_copy_double((double) ts.tv_sec + (double) ts.tv_nsec / 1e9);
-}
-
-CAMLprim value unix_clock_settime(value v_cl, value v_t)
-{
-  double t = Double_val(v_t);
-  struct timespec ts;
-  ts.tv_sec = t;
-  ts.tv_nsec = (t - ts.tv_sec) * 1e9;
-  if (clock_settime(clockid_t_val(v_cl), &ts))
-    uerror("clock_settime", Nothing);
-  return Val_unit;
-}
-
-CAMLprim value unix_clock_getres(value v_cl)
-{
-  struct timespec ts;
-  if (clock_getres(clockid_t_val(v_cl), &ts))
-    uerror("clock_getres", Nothing);
-  return caml_copy_double((double) ts.tv_sec + (double) ts.tv_nsec / 1e9);
-}
-
 /* Unfortunately, it is currently not possible to
    extract the POSIX thread id given the OCaml-thread id due to lack of
    support for this feature in the OCaml-runtime.  The below function
@@ -843,10 +812,40 @@ CAMLprim value unix_clock_thread_cputime_id_stub(value __unused v_unit)
   return caml_copy_nativeint(CLOCK_THREAD_CPUTIME_ID);
 }
 
-#else
-#warning "POSIX MON not present; clock functions undefined"
-#endif
+/* Clock functions */
 
+#ifdef JSC_POSIX_TIMERS
+#define clockid_t_val(v_cl) ((clockid_t) Nativeint_val(v_cl))
+
+CAMLprim value unix_clock_gettime(value v_cl)
+{
+  struct timespec ts;
+  if (clock_gettime(clockid_t_val(v_cl), &ts))
+    uerror("clock_gettime", Nothing);
+  return caml_copy_double((double) ts.tv_sec + (double) ts.tv_nsec / 1e9);
+}
+
+CAMLprim value unix_clock_settime(value v_cl, value v_t)
+{
+  double t = Double_val(v_t);
+  struct timespec ts;
+  ts.tv_sec = t;
+  ts.tv_nsec = (t - ts.tv_sec) * 1e9;
+  if (clock_settime(clockid_t_val(v_cl), &ts))
+    uerror("clock_settime", Nothing);
+  return Val_unit;
+}
+
+CAMLprim value unix_clock_getres(value v_cl)
+{
+  struct timespec ts;
+  if (clock_getres(clockid_t_val(v_cl), &ts))
+    uerror("clock_getres", Nothing);
+  return caml_copy_double((double) ts.tv_sec + (double) ts.tv_nsec / 1e9);
+}
+#else
+#warning "posix timers not present; clock functions undefined"
+#endif
 
 /* Resource limits */
 

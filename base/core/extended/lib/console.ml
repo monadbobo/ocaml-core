@@ -233,17 +233,22 @@ struct
 
 end
 
+INCLUDE "config.mlh"
+IFDEF LINUX_EXT THEN
 let width () =
   if Unix.isatty Unix.stdout then
-    Some (snd (Linux_ext.get_terminal_size ()))
+    `Cols (snd (Linux_ext.get_terminal_size ()))
   else
-    None
+    `Not_a_tty
+ELSE
+let width () = `Not_available
+ENDIF
 
 let print_list oc l =
-  match width () with
-  | None ->
+  match (width () :> [ `Cols of int | `Not_a_tty | `Not_available ]) with
+  | `Not_a_tty | `Not_available ->
       List.iter l ~f:(fun (s,_) -> print_endline s)
-  | Some cols ->
+  | `Cols cols ->
       let print_styled (s,style) =
         Ansi.output_string style oc s
       in

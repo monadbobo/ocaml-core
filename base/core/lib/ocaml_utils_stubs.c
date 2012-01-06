@@ -43,6 +43,8 @@ value* named_value_exn(const char* n)
   return v;
 }
 
+#ifndef raise_out_of_memory
+
 void raise_out_of_memory(void)
 {
   value* out_of_memory;
@@ -50,6 +52,8 @@ void raise_out_of_memory(void)
   assert(out_of_memory != NULL);  /* [named_value_exn] should ensure this. */
   caml_raise_constant(*out_of_memory);
 }
+
+#endif
 
 void* malloc_exn(size_t size)
 {

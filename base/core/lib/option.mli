@@ -64,6 +64,8 @@ val both : 'a t -> 'b t -> ('a * 'b) t
 
 val first_some : 'a t -> 'a t -> 'a t
 
+val some_if : bool -> 'a -> 'a t
+
 val filter : f:('a -> bool) -> 'a t -> 'a t
 
 (** [try_with f] returns [Some x] if [f] returns [x] and [None] if [f] raises an

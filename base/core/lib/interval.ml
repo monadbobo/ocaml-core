@@ -314,13 +314,21 @@ module Time = struct
   include Make(Time)
 
   let create_ending_after (open_ofday, close_ofday) ~now =
-    let close_time = Time.ofday_occurrence close_ofday `right_after now in
-    let open_time = Time.ofday_occurrence open_ofday `right_before close_time in
+    let close_time =
+      Time.ofday_occurrence now (Zone.machine_zone ()) close_ofday `right_after
+    in
+    let open_time =
+      Time.ofday_occurrence close_time (Zone.machine_zone ()) open_ofday `right_before
+    in
     create open_time close_time
 
   let create_ending_before (open_ofday, close_ofday) ~ubound =
-    let close_time = Time.ofday_occurrence close_ofday `right_before ubound in
-    let open_time = Time.ofday_occurrence open_ofday `right_before close_time in
+    let close_time =
+      Time.ofday_occurrence ubound (Zone.machine_zone ()) close_ofday `right_before
+    in
+    let open_time =
+      Time.ofday_occurrence close_time (Zone.machine_zone ()) open_ofday `right_before
+    in
     create open_time close_time
 
 end

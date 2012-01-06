@@ -11,8 +11,8 @@ val connect_sock :
 
 (** [connect ~host ~port] is a convenience wrapper around [connect_sock] that
     returns a reader and writer on the socket. *)
-val connect :
-     ?max_buffer_age:Time.Span.t
+val connect
+  :  ?max_buffer_age:Time.Span.t
   -> ?interrupt:unit Deferred.t
   -> ?reader_buffer_size:int
   -> host:string
