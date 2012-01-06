@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e -u -o pipefail
 
 ML_OUTFILE="${1:?Usage: discover.sh ML_OUTFILE C_OUTFILE}"

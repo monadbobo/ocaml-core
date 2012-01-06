@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e -u -o pipefail
 
 here="$(dirname "${BASH_SOURCE[0]}")"

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e -u
 [[ "$#" != 1 ]] && { echo "usage: $0  FILE_TO_PREPROCESS" >&2; exit 1; }
 [[ -f "$(hg root)/lib/pa_compare.cmo" ]] || {
