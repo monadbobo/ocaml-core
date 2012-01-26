@@ -35,7 +35,7 @@ XStdFilesREADME: false
 Library async_core
   Path:               lib
   FindlibName:        async_core
-  Pack:               true
+  #Pack:               true
   Modules:            ${MODULES}
   BuildDepends:       sexplib.syntax,
                       sexplib,

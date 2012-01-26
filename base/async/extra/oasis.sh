@@ -35,7 +35,7 @@ XStdFilesREADME: false
 Library async_extra
   Path:               lib
   FindlibName:        async_extra
-  Pack:               true
+  #Pack:               true
   Modules:            ${MODULES}
   BuildDepends:       sexplib.syntax,
                       sexplib,

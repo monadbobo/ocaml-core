@@ -43,7 +43,7 @@ PreDistCleanCommand: \$rm lib/version_defaults.mlh lib/config.mlh
 Library async_scheduler
   Path:               lib
   FindlibName:        async_scheduler
-  Pack:               true
+  #Pack:               true
   Modules:            ${MODULES}
   BuildDepends:       sexplib.syntax,
                       sexplib,
