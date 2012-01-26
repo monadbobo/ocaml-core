@@ -82,10 +82,18 @@ function check_linux_enabled {
     done
 }
 
+function getconf_or_zero {
+    local ret=$(getconf "$@" 2>/dev/null)
+    case "$ret" in
+	[0-9][0-9]*) echo "$ret" ;;
+	*) echo 0 ;;
+    esac
+}
+
 function check_posix_timers_enabled {
     enable_timers=false
     enable_timers_default="--disable-posix-timers"
-    if [[ $(getconf _POSIX_TIMERS 2>/dev/null) -ge 200112 ]]; then
+    if [[ $(getconf_or_zero _POSIX_TIMERS) -ge 200112 ]]; then
         enable_timers=true
         enable_timers_default="--enable-posix-timers"
     fi

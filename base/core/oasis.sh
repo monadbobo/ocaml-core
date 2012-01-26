@@ -79,7 +79,7 @@ Library core
   FindlibName:        core
   #Pack:               true
   Modules:${MODULES}
-  CCOpt:              $(getconf LFS64_CFLAGS)
+  CCOpt:              $(getconf LFS64_CFLAGS 2>/dev/null)
   CSources:           ${CSOURCES}
   CCLib:              ${CCLIB}
   BuildDepends:       variantslib,
