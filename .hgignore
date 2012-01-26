@@ -163,6 +163,7 @@ glob:base/compare/setup.log
 glob:base/compare/setup.ml
 glob:base/compare/syntax/pa_compare.mllib
 glob:base/compare/syntax/pa_fields_conv.mllib
+glob:base/compare/lib/comparelib_dummy.ml
 glob:base/core/INSTALL
 glob:base/core/Makefile
 glob:base/core/_build
@@ -283,6 +284,7 @@ glob:base/typehash/myocamlbuild.ml
 glob:base/typehash/setup.data
 glob:base/typehash/setup.ml
 glob:base/typehash/syntax/pa_typehash.mllib
+glob:base/typehash/lib/typehashlib_dummy.ml
 glob:base/variantslib/INSTALL
 glob:base/variantslib/Makefile
 glob:base/variantslib/_build
