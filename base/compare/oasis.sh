@@ -42,13 +42,13 @@ Library pa_compare
   XMETADescription:   Syntax extension for "with compare"
 EOF
 
+mkdir -p $HERE/lib
+
 echo >$HERE/lib/comparelib_dummy.ml
 
 make_tags $HERE/_tags <<EOF
 <syntax/pa_compare.ml>: syntax_camlp4o
 EOF
-
-mkdir -p $HERE/lib
 
 cd $HERE
 oasis setup
