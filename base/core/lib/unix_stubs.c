@@ -584,7 +584,7 @@ CAMLprim value unix_fdatasync(value v_fd)
 #warning "_POSIX_SYNCHRONIZED_IO undefined or <= 0; aliasing unix_fdatasync to unix_fsync"
 CAMLprim value unix_fdatasync(value v_fd)
 {
-  return unix_fsync(v_fd)
+  return unix_fsync(v_fd);
 }
 #endif
 
