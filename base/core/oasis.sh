@@ -15,8 +15,6 @@ function list_mods {
         case "$mod" in
             Linux_ext|Bigstring_marshal)
                 if [[ "$enable_linux" == "true" ]]; then echo "$mod"; fi;;
-	    Backtrace)
-		if [[ "$(uname -m)" == "x86_64" ]]; then echo "$mod"; fi;;
             *) echo "$mod";;
         esac
     done
@@ -28,7 +26,7 @@ function list_stubs {
             linux_ext_stubs|bigstring_marshal_stubs)
                 if [[ "$enable_linux" == "true" ]]; then echo "$stub"; fi;;
 	    backtrace_stubs)
-		if [[ "$(uname -m)" == "x86_64" ]]; then echo "$stub"; fi;;
+		if [[ "$(uname -p)" == "x86_64" ]]; then echo "$stub"; fi;;
             *) echo "$stub";;
         esac
     done
@@ -133,7 +131,7 @@ make_tags "$HERE/_tags" <<EOF
 $(tag_for_pack Core $HERE/lib/*.ml)
 
 <lib{,_test}/*.ml{,i}>: syntax_camlp4o
-<lib/{std,core_int63,bigstring,core_mutex,core_unix,bigstring_marshal,linux_ext}.ml{,i}>:pkg_camlp4.macro
+<lib/{std,core_int63,bigstring,core_mutex,core_unix,bigstring_marshal,linux_ext,backtrace}.ml{,i}>:pkg_camlp4.macro
 EOF
 
 cd $HERE

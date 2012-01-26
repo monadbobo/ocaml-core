@@ -44,6 +44,12 @@ int main () {
   $(if [[ ${WORD_SIZE} = 64 ]]; then
        echo 'printf ("DEFINE ARCH_SIXTYFOUR\n");';
     fi)
+  $(if [[ $(uname -p) = "x86_64" ]]; then 
+       echo 'printf ("DEFINE ARCH_x86_64\n");';
+    fi)
+  $(if [[ $(uname -p) = "i386" ]]; then 
+       echo 'printf ("DEFINE ARCH_i386\n");';
+    fi)
   $(cpp_test MSG_NOSIGNAL "defined MSG_NOSIGNAL" \
      "Bigstring.(unsafe_|really_)?send(to)?(_noblocking)?_no_sigpipe\
  will not be availlable")
@@ -63,4 +69,6 @@ rm "$SRC"
 "$PGM" > "$OUT"
 rm "$PGM"
 mv "$OUT" "$ML_OUTFILE"
-sed -e 's|^DEFINE *|#define JSC_|' "$ML_OUTFILE" > "$C_OUTFILE"
+cat "$ML_OUTFILE" \
+    | sed -e 's|^DEFINE *|#define JSC_|' \
+    | sed -e 's|\(#define JSC_[^ ]*\) *=|\1 |' > "$C_OUTFILE"
