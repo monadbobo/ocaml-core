@@ -27,7 +27,7 @@ end = struct
     let names_types = List.map (Ast.list_of_ctyp ty [])
       ~f:(fun t -> Gen.gensym ~prefix:"t" (), t) in
     let pattern =
-      let l = List.map names_types ~f:(fun (n, _) -> Gen.idp _loc n) in
+      let l = List.map names_types ~f:(fun (n, _) -> <:patt< $lid:n$ >>) in
       <:patt< ( $tup:Ast.paCom_of_list l$ ) >>
     in
     let e        = f (List.map names_types ~f:(fun (n,t) -> (<:expr< $lid:n$ >>, t))) in
