@@ -30,9 +30,7 @@ let sprintf = Printf.sprintf
 
 external sync : unit -> unit = "unix_sync"
 external fsync : Unix.file_descr -> unit = "unix_fsync"
-IFDEF FDATASYNC THEN
 external fdatasync : Unix.file_descr -> unit = "unix_fdatasync"
-ENDIF
 
 external dirfd : Unix.dir_handle -> File_descr.t = "unix_dirfd"
 

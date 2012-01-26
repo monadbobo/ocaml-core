@@ -1585,11 +1585,9 @@ external sync : unit -> unit = "unix_sync"
 external fsync : File_descr.t -> unit = "unix_fsync"
 (** Synchronize the kernel buffers of a given file descriptor with disk. *)
 
-IFDEF FDATASYNC THEN
 external fdatasync : File_descr.t -> unit = "unix_fdatasync"
 (** Synchronize the kernel buffers of a given file descriptor with disk,
     but do not necessarily write file attributes. *)
-ENDIF
 
 external readdir_ino :
   dir_handle -> string * nativeint = "unix_readdir_ino_stub"
