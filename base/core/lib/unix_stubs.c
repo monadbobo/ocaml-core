@@ -794,6 +794,11 @@ static inline pthread_t pthread_t_val(value __unused v_tid)
   return pthread_self();
 }
 
+/* Clock functions */
+
+#ifdef JSC_POSIX_TIMERS
+#define clockid_t_val(v_cl) ((clockid_t) Nativeint_val(v_cl))
+
 CAMLprim value unix_pthread_getcpuclockid(value v_tid)
 {
   clockid_t c;
@@ -811,11 +816,6 @@ CAMLprim value unix_clock_thread_cputime_id_stub(value __unused v_unit)
 {
   return caml_copy_nativeint(CLOCK_THREAD_CPUTIME_ID);
 }
-
-/* Clock functions */
-
-#ifdef JSC_POSIX_TIMERS
-#define clockid_t_val(v_cl) ((clockid_t) Nativeint_val(v_cl))
 
 CAMLprim value unix_clock_gettime(value v_cl)
 {
