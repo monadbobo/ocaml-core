@@ -117,10 +117,8 @@ external bin_write_float :
 #ifdef ARCH_SIXTYFOUR
 let bin_write_int32 buf ~pos n = bin_write_int buf ~pos (Int32.to_int n)
 #else
-let max_int_int32 = Int32.of_int max_int
-let min_int_int32 = Int32.of_int min_int
 let bin_write_int32 buf ~pos n =
-  if n > max_int_int32 || n < min_int_int32 then
+  if n >= 0x00008000l || n < -0x00008000l then
     let next = pos + 5 in
     check_next buf next;
     buf.{pos} <- Char.unsafe_chr code_int32;
@@ -134,10 +132,8 @@ let bin_write_int32 buf ~pos n =
 #endif
 
 #ifdef ARCH_SIXTYFOUR
-let max_int_int64 = Int64.of_int max_int
-let min_int_int64 = Int64.of_int min_int
 let bin_write_int64 buf ~pos n =
-  if n > max_int_int64 || n < min_int_int64 then
+  if n >= 0x80000000L || n < -0x80000000L then
     let next = pos + 9 in
     check_next buf next;
     buf.{pos} <- Char.unsafe_chr code_int64;
@@ -154,7 +150,7 @@ let bin_write_int64 buf ~pos n =
   else bin_write_int buf ~pos (Int64.to_int n)
 #else
 let bin_write_int64 buf ~pos n =
-  if Size.bin_size_int64 n = 9 then
+  if n >= 0x80000000L || n < -0x80000000L then
     let next = pos + 9 in
     check_next buf next;
     buf.{pos} <- Char.unsafe_chr code_int64;

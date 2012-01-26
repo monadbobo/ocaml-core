@@ -149,7 +149,7 @@ module Generate_bin_size = struct
     | <:ctyp< $tp1$ $tp2$ >> ->
         `Fun (bin_size_appl_fun full_type_name _loc tp1 tp2)
     | <:ctyp< ( $tup:tp$ ) >> -> bin_size_tuple full_type_name _loc tp
-    | <:ctyp< '$parm$ >> -> `Fun (Gen.ide _loc ("_size_of_" ^ parm))
+    | <:ctyp< '$parm$ >> -> `Fun <:expr< $lid:"_size_of_" ^ parm$ >>
     | <:ctyp< $id:id$ >> -> `Fun (bin_size_path_fun _loc id)
     | <:ctyp< $_$ -> $_$ >> ->
         failwith
@@ -211,7 +211,7 @@ module Generate_bin_size = struct
   and bin_size_tuple full_type_name _loc tp =
     let cnv_patts patts = <:patt< ( $tup:paCom_of_list patts$ ) >> in
     let get_tp tp = tp in
-    let mk_patt _loc v_name _ = Gen.idp _loc v_name in
+    let mk_patt _loc v_name _ = <:patt< $lid:v_name$ >> in
     bin_size_tup_rec full_type_name _loc cnv_patts get_tp mk_patt tp
 
   (* Conversion of records *)
@@ -272,7 +272,7 @@ module Generate_bin_size = struct
     let bindings =
       let mk_binding parm =
         <:binding<
-          $Gen.idp _loc ("_size_of_" ^ parm)$ = fun _v ->
+          $lid:"_size_of_" ^ parm$ = fun _v ->
             raise (Bin_prot.Common.Poly_rec_write $str:full_type_name$)
         >>
       in
@@ -312,7 +312,7 @@ module Generate_bin_size = struct
       | <:ctyp< $uid:_$ >> -> has_atoms := true; <:match_case< >>
       | <:ctyp< $uid:cnstr$ of $tp$ >> ->
           let get_tp tp = tp in
-          let mk_patt _loc v_name _ = Gen.idp _loc v_name in
+          let mk_patt _loc v_name _ = <:patt< $lid:v_name$ >> in
           let patts, size_args =
             bin_size_args full_type_name _loc get_tp mk_patt tp
           in
@@ -361,7 +361,8 @@ module Generate_bin_size = struct
       | `Match matchings -> <:expr< fun [ $matchings$ ] >>
     in
     let tparam_cnvs = List.map ((^) "_size_of_" *** Gen.get_tparam_id) tps in
-    let tparam_patts = List.map (Gen.idp _loc) tparam_cnvs in
+    let mk_pat id = <:patt< $lid:id$ >> in
+    let tparam_patts = List.map mk_pat tparam_cnvs in
     <:binding<
       $lid:"bin_size_" ^ type_name$ = $Gen.abstract _loc tparam_patts body$
     >>
@@ -404,7 +405,7 @@ module Generate_bin_write = struct
     | <:ctyp< $tp1$ $tp2$ >> ->
         `Fun (bin_write_appl_fun full_type_name _loc tp1 tp2)
     | <:ctyp< ( $tup:tp$ ) >> -> bin_write_tuple full_type_name _loc tp
-    | <:ctyp< '$parm$ >> -> `Fun (Gen.ide _loc ("_write_" ^ parm))
+    | <:ctyp< '$parm$ >> -> `Fun <:expr< $lid:"_write_" ^ parm$ >>
     | <:ctyp< $id:id$ >> -> `Fun (bin_write_path_fun _loc id)
     | <:ctyp< $_$ -> $_$ >> ->
         failwith
@@ -464,7 +465,7 @@ module Generate_bin_write = struct
   and bin_write_tuple full_type_name _loc tp =
     let cnv_patts patts = <:patt< ( $tup:paCom_of_list patts$ ) >> in
     let get_tp tp = tp in
-    let mk_patt _loc v_name _ = Gen.idp _loc v_name in
+    let mk_patt _loc v_name _ = <:patt< $lid:v_name$ >> in
     bin_write_tup_rec full_type_name _loc cnv_patts get_tp mk_patt tp
 
   (* Conversion of records *)
@@ -525,7 +526,7 @@ module Generate_bin_write = struct
     let bindings =
       let mk_binding parm =
         <:binding<
-          $Gen.idp _loc ("_write_" ^ parm)$ = fun _sptr _eptr _v ->
+          $lid:"_write_" ^ parm$ = fun _sptr _eptr _v ->
             raise (Bin_prot.Common.Poly_rec_write $str:full_type_name$)
         >>
       in
@@ -570,7 +571,7 @@ module Generate_bin_write = struct
           i + 1, <:match_case< $uid:cnstr$ -> $write_tag$ $`int:i$ >>
       | <:ctyp< $uid:cnstr$ of $tp$ >> ->
           let get_tp tp = tp in
-          let mk_patt _loc v_name _ = Gen.idp _loc v_name in
+          let mk_patt _loc v_name _ = <:patt< $lid:v_name$ >> in
           let patts, write_args =
             bin_write_args full_type_name _loc get_tp mk_patt tp
           in
@@ -616,7 +617,8 @@ module Generate_bin_write = struct
       | `Match matchings -> <:expr< fun sptr eptr -> fun [ $matchings$ ] >>
     in
     let tparam_cnvs = List.map ( (^) "_write_" *** Gen.get_tparam_id) tps in
-    let tparam_patts = List.map (Gen.idp _loc) tparam_cnvs in
+    let mk_pat id = <:patt< $lid:id$ >> in
+    let tparam_patts = List.map mk_pat tparam_cnvs in
     let int_call = "bin_write_" ^ type_name ^ "_" in
     let ext_fun =
       let ext_body =
@@ -626,7 +628,8 @@ module Generate_bin_write = struct
             <:expr< Bin_prot.Write_ml.$call$ buf ~pos v >>
         | _ ->
             let app_call =
-              let tparam_exprs = List.map (Gen.ide _loc) tparam_cnvs in
+              let mk_expr name = <:expr< $lid:name$ >> in
+              let tparam_exprs = List.map mk_expr tparam_cnvs in
               Gen.apply _loc <:expr< $lid:int_call$ >> tparam_exprs
             in
             <:expr<
@@ -817,7 +820,7 @@ module Generate_bin_read = struct
         in
         expr
     | <:ctyp< ( $tup:tp$ ) >> -> bin_read_tuple full_type_name _loc tp
-    | <:ctyp< '$parm$ >> -> `Closed (Gen.ide _loc ("_of__" ^ parm))
+    | <:ctyp< '$parm$ >> -> `Closed <:expr< $lid:"_of__" ^ parm$ >>
     | <:ctyp< $id:id$ >> -> `Closed (bin_read_path_fun _loc id)
     | <:ctyp< $_$ -> $_$ >> -> failwith "bin_read_arrow: cannot convert functions"
     | <:ctyp< [< $row_fields$ ] >> | <:ctyp< [> $row_fields$ ] >>
@@ -964,7 +967,7 @@ module Generate_bin_read = struct
     let bindings =
       let mk_binding parm =
         <:binding<
-          $Gen.idp _loc ("_of__" ^ parm)$ =
+          $lid:"_of__" ^ parm$ =
             fun _sptr_ptr _eptr ->
               raise (
                 Bin_prot.Unsafe_read_c.Error (
@@ -1077,7 +1080,7 @@ module Generate_bin_read = struct
       List.split (
         List.map (function tp ->
             let name = "_of__" ^ Gen.get_tparam_id tp in
-            Gen.idp _loc name, Gen.ide _loc name
+            <:patt< $lid:name$ >>, <:expr< $lid:name$ >>
           )
           tps)
     in
@@ -1096,7 +1099,7 @@ module Generate_bin_read = struct
 
     let variant_int_call =
       let maybe_poly_var_name = "bin_read_" ^ type_name ^ "__" in
-      let maybe_poly_var_expr = Gen.ide _loc maybe_poly_var_name in
+      let maybe_poly_var_expr = <:expr< $lid:maybe_poly_var_name$ >> in
       <:expr<
         let vint =
           Bin_prot.Unsafe_read_c.bin_read_variant_int sptr_ptr eptr
@@ -1154,7 +1157,7 @@ module Generate_bin_read = struct
         else if !is_variant_ref then variant_int_call
         else
           let abst_name = "bin_read_" ^ type_name ^ "_" in
-          let abst_expr = Gen.ide _loc abst_name in
+          let abst_expr = <:expr< $lid:abst_name$ >> in
           <:expr< $Gen.apply _loc abst_expr arg_exprs$ sptr_ptr eptr >>
       in
       let user_fun =
@@ -1385,7 +1388,8 @@ module Generate_tp_class = struct
     let tparam_cnvs =
       List.map (fun tp -> "bin_" ^  Gen.get_tparam_id tp) tps
     in
-    let tparam_patts = List.map (Gen.idp _loc) tparam_cnvs in
+    let mk_pat id = <:patt< $lid:id$ >> in
+    let tparam_patts = List.map mk_pat tparam_cnvs in
     let writer =
       let tparam_exprs =
         List.map (fun tp ->

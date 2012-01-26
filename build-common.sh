@@ -34,6 +34,14 @@ EOF
     cat >>"$1"
 }
 
+function make_myocamlbuild {
+    cat >"$1" <<EOF
+(* OASIS_START *)
+(* OASIS_STOP *)
+EOF
+    cat >>"$1"
+}
+
 function tag_for_pack {
     local libname=$(capitalize "$1")
     shift

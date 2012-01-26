@@ -1,4 +1,4 @@
-(** sizers, writers, and readers in records *)
+(** Sizers, writers, and readers in records *)
 
 open Common
 

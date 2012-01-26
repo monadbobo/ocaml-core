@@ -6,6 +6,7 @@
 #define CAML_INT64_NATIVE_H
 
 #define I64_literal(hi,lo) ((int64)(hi) << 32 | (lo))
+#define I64_split(x,hi,lo) (hi = (uint32)((x)>>32), lo = (uint32)(x))
 #define I64_compare(x,y) (((x) > (y)) - ((x) < (y)))
 #define I64_ult(x,y) ((uint64)(x) < (uint64)(y))
 #define I64_neg(x) (-(x))
@@ -14,6 +15,9 @@
 #define I64_mul(x,y) ((x) * (y))
 #define I64_is_zero(x) ((x) == 0)
 #define I64_is_negative(x) ((x) < 0)
+#define I64_is_min_int(x) ((x) == ((int64)1 << 63))
+#define I64_is_minus_one(x) ((x) == -1)
+
 #define I64_div(x,y) ((x) / (y))
 #define I64_mod(x,y) ((x) % (y))
 #define I64_udivmod(x,y,quo,rem) \

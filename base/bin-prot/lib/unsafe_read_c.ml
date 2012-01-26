@@ -74,7 +74,7 @@ let bin_read_list bin_read_el sptr_ptr eptr =
   List.rev rev_lst
 
 #ifndef ARCH_SIXTYFOUR
-let dummy_float_buf = Array1.create char c_layout 8
+let dummy_float_buf = create_buf 8
 let () = ignore (Write_ml.bin_write_float dummy_float_buf ~pos:0 3.1)
 let dummy_float_buf_eptr = get_eptr dummy_float_buf ~pos:0
 let max_array_length_2 = Sys.max_array_length / 2

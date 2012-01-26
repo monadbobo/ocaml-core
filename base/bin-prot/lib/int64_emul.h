@@ -12,6 +12,8 @@
 #define I64_literal(hi,lo) { lo, hi }
 #endif
 
+#define I64_split(x,hi,lo) (hi = (x).h, lo = (x).l)
+
 /* Unsigned comparison */
 static int I64_ucompare(uint64 x, uint64 y)
 {
@@ -81,8 +83,9 @@ static int64 I64_mul(int64 x, int64 y)
 }
 
 #define I64_is_zero(x) (((x).l | (x).h) == 0)
-
 #define I64_is_negative(x) ((int32) (x).h < 0)
+#define I64_is_min_int(x) ((x).l == 0 && (x).h == 0x80000000U)
+#define I64_is_minus_one(x) (((x).l & (x).h) == 0xFFFFFFFFU)
 
 /* Bitwise operations */
 static int64 I64_and(int64 x, int64 y)

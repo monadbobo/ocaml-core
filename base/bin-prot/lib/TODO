@@ -1,6 +1,4 @@
-support big endian platforms by forcing little endianness on them
-
-testing:
+Testing:
 
   bin_write_int_{8,16,32,64}bit
   bin_size_...

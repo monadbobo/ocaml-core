@@ -1,4 +1,4 @@
-(** writing values to the binary protocol using (mostly) OCaml. *)
+(** Writing values to the binary protocol using (mostly) OCaml. *)
 
 open Bigarray
 
@@ -41,28 +41,29 @@ val bin_write_bigstring : buf writer
 val bin_write_float_array : float array writer
 
 val bin_write_variant_tag : [> ] writer
-(** [bin_write_variant_tag] writes out the exact bit representation of
-    the variant tag of the given value (= 32 bits). *)
+(** [bin_write_variant_tag] writes out the exact little-endian bit
+    representation of the variant tag of the given value (= 32 bits). *)
 
 val bin_write_int_8bit : int writer
-(** [bin_write_int_8bit] writes out the exact bit representation of
-    the given [int] value using the lower 8 bits. *)
+(** [bin_write_int_8bit] writes out the exact little-endian bit representation
+    of the given [int] value using the lower 8 bits. *)
 
 val bin_write_int_16bit : int writer
-(** [bin_write_int_16bit] writes out the exact bit representation of
-    the given [int] value using the lower 16 bits. *)
+(** [bin_write_int_16bit] writes out the exact little-endian bit representation
+    of the given [int] value using the lower 16 bits. *)
 
 val bin_write_int_32bit : int writer
-(** [bin_write_int_32bit] writes out the exact bit representation of
-    the given [int] value using the lower 32 bits. *)
+(** [bin_write_int_32bit] writes out the exact little-endian bit representation
+    of the given [int] value using the lower 32 bits. *)
 
 val bin_write_int_64bit : int writer
-(** [bin_write_int_64bit] writes out the exact bit representation of
-    the given [int] value using all 64 bits. *)
+(** [bin_write_int_64bit] writes out the exact little-endian bit representation
+    of the given [int] value using all 64 bits.  On 32bit platforms negative
+    numbers will be sign-extended in the 64bit representation. *)
 
 val bin_write_int64_bits : int64 writer
-(** [bin_write_int64_bits] writes out the exact bit representation of
-    the given [int64] value. *)
+(** [bin_write_int64_bits] writes out the exact little-endian bit
+    representation of the given [int64] value. *)
 
 val bin_write_network16_int : int writer
 (** [bin_write_network16_int] writes out an integer in 16bit network

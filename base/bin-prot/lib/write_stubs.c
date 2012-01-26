@@ -49,7 +49,7 @@ static inline value write_neg_int8(char *sptr, char *eptr, char n)
 static inline void do_write_int16(char *sptr, short n)
 {
   *sptr++ = CODE_INT16;
-  *(short *) sptr = n;
+  le16enc(sptr, n);
 }
 
 static inline value write_int16(char *sptr, char *eptr, short n)
@@ -63,7 +63,7 @@ static inline value write_int16(char *sptr, char *eptr, short n)
 static inline void do_write_int32(char *sptr, int n)
 {
   *sptr++ = CODE_INT32;
-  *(int *) sptr = n;
+  le32enc(sptr, n);
 }
 
 static inline value write_int32(char *sptr, char *eptr, int n)
@@ -78,7 +78,7 @@ static inline value write_int32(char *sptr, char *eptr, int n)
 static inline void do_write_int64(char *sptr, long n)
 {
   *sptr++ = CODE_INT64;
-  *(long *) sptr = n;
+  le64enc(sptr, n);
 }
 
 static inline value write_int64(char *sptr, char *eptr, long n)
@@ -152,22 +152,16 @@ CAMLprim value write_int32_stub(char *sptr, char *eptr, value v_n)
 
 /* Writing 64bit integers */
 
-#ifdef ARCH_INT64_TYPE
-#include "int64_native.h"
-#else
-#include "int64_emul.h"
-#endif
-
 #ifndef ARCH_SIXTYFOUR
 static inline value write_int64_type(char *sptr, char *eptr, int64 n)
 {
   char *next = sptr + 9;
-  int *isptr;
+  int32 lower, upper;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
   *sptr++ = CODE_INT64;
-  isptr = (int *) sptr;
-  *isptr++ = I64_to_int32(n);
-  *isptr = I64_to_int32(I64_lsr(n, 32));
+  I64_split(n, upper, lower);
+  le32enc(sptr, lower);
+  le32enc(sptr + 4, upper);
   return (value) next;
 }
 
@@ -287,8 +281,9 @@ CAMLprim value write_string_stub(char *sptr, char *eptr, value v_str)
 CAMLprim inline value write_float_stub(char *sptr, char *eptr, value v_n)
 {
   char *next = sptr + sizeof(double);
+  double n = Double_val(v_n);
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
-  *(double *) sptr = Double_val(v_n);
+  memcpy(sptr, &n, sizeof(double));
   return (value) next;
 }
 
@@ -346,11 +341,14 @@ MK_ML_WRITER(float_array)
 
 /* Writing polymorphic variants */
 
-CAMLprim inline value write_variant_tag_stub(char *sptr, char *eptr, value v)
+CAMLprim inline value write_variant_tag_stub(
+  char *sptr, char *eptr, value v_tag)
 {
   char *next = sptr + 4;
+  int tag;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
-  *(int *) sptr = (int) (Is_block(v) ? Field(v, 0) : v);
+  tag = (int) (Is_block(v_tag) ? Field(v_tag, 0) : v_tag);
+  le32enc(sptr, tag);
   return (value) next;
 }
 
@@ -476,7 +474,7 @@ CAMLprim value write_int_16bit_stub(char *sptr, char *eptr, value v_n)
 {
   char *next = sptr + 2;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
-  *(short *) sptr = (short) Int_val(v_n);
+  le16enc(sptr, Int_val(v_n));
   return (value) next;
 }
 MK_ML_WRITER(int_16bit)
@@ -485,20 +483,24 @@ CAMLprim value write_int_32bit_stub(char *sptr, char *eptr, value v_n)
 {
   char *next = sptr + 4;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
-  *(int *) sptr = Int_val(v_n);
+  le32enc(sptr, Int_val(v_n));
   return (value) next;
 }
 MK_ML_WRITER(int_32bit)
 
 CAMLprim value write_int_64bit_stub(char *sptr, char *eptr, value v_n)
 {
-  long n = Long_val(v_n);
   char *next = sptr + 8;
-  long *lsptr = (long *) sptr;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
-  *lsptr = n;
-#ifndef ARCH_SIXTYFOUR
-  *++lsptr = (n < 0) ? 0xFFFFFFFFl : 0l;
+#ifdef ARCH_SIXTYFOUR
+  le64enc(sptr, Long_val(v_n));
+#else
+  {
+    long n = Long_val(v_n);
+    long tmp = (n < 0) ? 0xFFFFFFFFl : 0l;
+    le32enc(sptr, n);
+    memcpy(sptr + 4, &tmp, sizeof(long));
+  }
 #endif
   return (value) next;
 }
@@ -509,14 +511,14 @@ CAMLprim inline value write_int64_bits_stub(char *sptr, char *eptr, value v_n)
   char *next = sptr + 8;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
 #ifdef ARCH_SIXTYFOUR
-  *(long *) sptr = Int64_val(v_n);
+  le64enc(sptr, Int64_val(v_n));
 #else
   {
     int64 n = Int64_val(v_n);
-    unsigned int *uisptr = (unsigned int *) sptr;
-    *uisptr = I64_to_int32(n);
-    uisptr++;
-    *uisptr = I64_to_int32(I64_lsr(n, 32));
+    unsigned int lower, upper;
+    I64_split(n, upper, lower);
+    le32enc(sptr, lower);
+    le32enc(sptr + 4, upper);
   }
 #endif
   return (value) next;
@@ -528,7 +530,7 @@ CAMLprim inline value write_network16_int_stub(
 {
   char *next = sptr + 2;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
-  *((uint16_t *) sptr) = (uint16_t) htons(Int_val(v_n));
+  be16enc(sptr, Int_val(v_n));
   return (value) next;
 }
 MK_ML_WRITER(network16_int)
@@ -538,7 +540,7 @@ CAMLprim inline value write_network32_int_stub(
 {
   char *next = sptr + 4;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
-  *((uint32_t *) sptr) = (uint32_t) htonl(Int_val(v_n));
+  be32enc(sptr, Int_val(v_n));
   return (value) next;
 }
 MK_ML_WRITER(network32_int)
@@ -548,7 +550,7 @@ CAMLprim inline value write_network32_int32_stub(
 {
   char *next = sptr + 4;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
-  *((uint32_t *) sptr) = htonl(Int32_val(v_n));
+  be32enc(sptr, Int32_val(v_n));
   return (value) next;
 }
 MK_ML_WRITER(network32_int32)
@@ -557,24 +559,15 @@ CAMLprim inline value write_network64_int_stub(
   char *sptr, char *eptr, value v_n)
 {
   char *next = sptr + 8;
-  long n = Long_val(v_n);
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
 #ifdef ARCH_SIXTYFOUR
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-  *((uint64_t *) sptr) = bswap_64(n);
-#elif __BYTE_ORDER == __BIG_ENDIAN
-  *((uint64_t *) sptr) = n;
-#else
-#error "unsupported endianness"
-#endif
+  be64enc(sptr, Long_val(v_n));
 #else /* 32bit */
-  *((unsigned int *) sptr) = 0;
-  sptr += 4;
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-  *((unsigned int *) sptr) = bswap_32((unsigned int) n);
-#else
-  *((unsigned int *) sptr) = (unsigned int) n;
-#endif
+  {
+    unsigned int tmp = 0;
+    memcpy(sptr, &tmp, 4);
+    be32enc(sptr + 4, Long_val(v_n));
+  }
 #endif
   return (value) next;
 }
@@ -586,33 +579,15 @@ CAMLprim inline value write_network64_int64_stub(
   char *next = sptr + 8;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
 #ifdef ARCH_SIXTYFOUR
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-  *((uint64_t *) sptr) = bswap_64(Int64_val(v_n));
-#elif __BYTE_ORDER == __BIG_ENDIAN
-  *((uint64_t *) sptr) = Int64_val(v_n);
-#else
-#error "unsupported endianness"
-#endif
-#else
-#if __BYTE_ORDER == __LITTLE_ENDIAN
+  be64enc(sptr, Int64_val(v_n));
+#else /* 32bit */
   {
     int64 n = Int64_val(v_n);
-    uint32_t *uisptr = (uint32_t *) sptr;
-    *uisptr = bswap_32(I64_to_int32(I64_lsr(n, 32)));
-    uisptr++;
-    *uisptr = bswap_32(I64_to_int32(n));
+    uint32_t lower, upper;
+    I64_split(n, upper, lower);
+    be32enc(sptr, upper);
+    be32enc(sptr + 4, lower);
   }
-#elif __BYTE_ORDER == __BIG_ENDIAN
-  {
-    int64 n = Int64_val(v_n);
-    uint32_t *uisptr = (uint32_t *) sptr;
-    *uisptr = I64_to_int32(I64_lsr(n, 32));
-    uisptr++;
-    *uisptr = I64_to_int32(n);
-  }
-#else
-#error "unsupported endianness"
-#endif
 #endif
   return (value) next;
 }

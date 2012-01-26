@@ -1,4 +1,4 @@
-(** wrapping unsafe C-style writers to safe ML-style ones. *)
+(** Wrapping unsafe C-style writers to safe ML-style ones. *)
 
 open Common
 open Unsafe_common

@@ -61,10 +61,8 @@ let bin_size_int32 n =
 #endif
 
 #ifdef ARCH_SIXTYFOUR
-let max_int_int64 = Int64.of_int max_int
-let min_int_int64 = Int64.of_int min_int
 let bin_size_int64 n =
-  if n > max_int_int64 || n < min_int_int64 then 9
+  if n >= 0x80000000L || n < -0x80000000L then 9
   else bin_size_int (Int64.to_int n)
 #else
 let bin_size_int64 n =

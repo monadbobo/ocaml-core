@@ -1,3 +1,14 @@
+2011-11-10:  Improved portability to older glibc distributions.
+
+2011-09-15:  Fixes to improve package dependency resolution.
+
+2011-07-04:  Internal updates to sync with Jane Street.
+
+2011-06-29:  Fixed bigstring layout bug, which should only affect value
+             comparisons with OCaml 3.12.1 or later.
+
+             Made 64-bit detection more reliable on Mac OS X.
+
 2010-03-20:  Fixed linking of toplevels to require bigarrays.
 
              Improved compilation on Mac OS X.

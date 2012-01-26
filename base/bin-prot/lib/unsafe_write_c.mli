@@ -1,4 +1,4 @@
-(** writing values to the binary protocol using unsafe C. *)
+(** Writing values to the binary protocol using unsafe C. *)
 
 open Common
 open Unsafe_common

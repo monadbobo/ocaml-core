@@ -1,4 +1,4 @@
-(** reading values from the binary protocol using unsafe C. *)
+(** Reading values from the binary protocol using unsafe C. *)
 
 open Common
 open Unsafe_common

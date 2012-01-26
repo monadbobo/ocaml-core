@@ -166,8 +166,10 @@ MK_BASE(nat0)
     } \
   let bin_/**/NAME bin_el1 bin_el2 bin_el3 = \
     { \
-      writer = bin_writer_/**/NAME bin_el1.writer bin_el2.writer bin_el3.writer; \
-      reader = bin_reader_/**/NAME bin_el1.reader bin_el2.reader bin_el3.reader; \
+      writer = \
+        bin_writer_/**/NAME bin_el1.writer bin_el2.writer bin_el3.writer; \
+      reader = \
+        bin_reader_/**/NAME bin_el1.reader bin_el2.reader bin_el3.reader; \
     }
 
 MK_BASE1(ref)

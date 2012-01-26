@@ -1,4 +1,4 @@
-(** utility functions for user convenience *)
+(** Utility functions for user convenience *)
 
 open Bigarray
 open Common

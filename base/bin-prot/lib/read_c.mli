@@ -1,4 +1,4 @@
-(** wrapping unsafe C-style readers to safe ML-style ones. *)
+(** Wrapping unsafe C-style readers to safe ML-style ones. *)
 
 open Common
 open Unsafe_common

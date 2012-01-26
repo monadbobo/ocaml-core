@@ -8,17 +8,17 @@ cat >$HERE/_oasis <<EOF
 OASISFormat:  0.2
 OCamlVersion: >= 3.12
 Name:         bin_prot
-Version:      1.3.2
+Version:      2.0.7
 Synopsis:     binary protocol generator
 Authors:      Markus Mottl,
-              Jane street capital
-Copyrights:   (C) 2008-2011 Jane Street Capital LLC
+              Jane Street Holding LLC
+Copyrights:   (C) 2008-2011 Jane Street Holding LLC
 License:      LGPL-2.1 with OCaml linking exception
 LicenseFile:  LICENSE
 Plugins:      StdFiles (0.2),
               DevFiles (0.2),
               META (0.2)
-BuildTools:   ocamlbuild
+BuildTools:   ocamlbuild, camlp4o
 Description:  binary protocol generator
 XStdFilesAUTHORS: false
 XStdFilesINSTALLFilename: INSTALL
@@ -48,19 +48,20 @@ Library bin_prot
   CSources:           common_stubs.c,
                       common_stubs.h,
                       int64_native.h,
+                      int64_emul.h,
                       write_stubs.c,
                       read_stubs.c
   BuildDepends:       unix,bigarray
-
 
 Library pa_bin_prot
   Path:               syntax
   FindlibName:        syntax
   FindlibParent:      bin_prot
-  modules:            Pa_bin_prot
-  BuildDepends:       camlp4,camlp4.lib,camlp4.quotations,type-conv (>= 2.0.1)
+  Modules:            Pa_bin_prot
+  BuildDepends:       camlp4.quotations,camlp4.extend,type-conv (>= 3.0.4)
+  CompiledObject:     byte
   XMETAType:          syntax
-  XMETARequires:      type-conv
+  XMETARequires:      type-conv,bin_prot
   XMETADescription:   Syntax extension for binary protocol generator
 
 Flag tests
@@ -123,9 +124,66 @@ $(tag_for_pack Bin_prot $HERE/lib/*.ml)
 <syntax/pa_bin_prot.ml>: syntax_camlp4o
 EOF
 
+make_myocamlbuild $HERE/myocamlbuild.ml <<EOF
+(* We probably will want to set this up in the \`configure\` script at some
+   point.*)
+let is_darwin =
+  Ocamlbuild_pack.My_unix.run_and_open "uname -s" input_line = "Darwin"
+
+let cpp =
+  let base_cpp = "cpp -traditional -undef -w" in
+  match Sys.word_size with
+  | 64 -> S [A "-pp"; P (base_cpp ^ " -DARCH_SIXTYFOUR")]
+  | 32 -> S [A "-pp"; P base_cpp]
+  | _ -> assert false
+;;
+
+Ocamlbuild_plugin.dispatch
+  begin
+    function
+      | After_rules as e ->
+          dep ["ocaml"; "ocamldep"; "mlh"] ["lib/int_codes.mlh"];
+
+          flag ["ocamldep"; "ocaml"; "use_pa_bin_prot"]
+            (S [A "-ppopt"; P"syntax/pa_bin_prot.cma"]);
+
+          flag ["compile"; "ocaml"; "use_pa_bin_prot"]
+            (S [A "-ppopt"; P "syntax/pa_bin_prot.cma"]);
+
+          flag ["ocamldep"; "ocaml"; "cpp"] cpp;
+
+          flag ["compile"; "ocaml"; "cpp"] cpp;
+
+          let cflags =
+            let flags =
+              [
+                "-pipe";
+                "-g";
+                "-fPIC";
+                "-O2";
+                "-fomit-frame-pointer";
+                "-fsigned-char";
+                "-Wall";
+                "-pedantic";
+                "-Wextra";
+                "-Wunused";
+                "-Werror";
+                "-Wno-long-long";
+              ]
+            in
+            let flags = if is_darwin then "-DOS_DARWIN" :: flags else flags in
+            let f flag = [A "-ccopt"; A flag] in
+            List.concat (List.map f flags)
+          in
+          flag ["compile"; "c"] (S cflags);
+          dispatch_default e
+      | e -> dispatch_default e
+  end
+;;
+EOF
+
 cd $HERE
 oasis setup
 enable_pack_in_setup_ml bin_prot
 
 ./configure "$@"
-

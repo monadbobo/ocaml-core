@@ -1,4 +1,4 @@
-(** common definitions used by binary protocol converters *)
+(** Common definitions used by binary protocol converters *)
 
 open Bigarray
 

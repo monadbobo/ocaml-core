@@ -1,6 +1,6 @@
-(** functions common to unsafe binary protocol conversion. *)
+(** Functions common to unsafe binary protocol conversion. *)
 
-(** NOTE:these functions are not supposed to be called by the casual
+(** NOTE: these functions are not supposed to be called by the casual
     user.  They are required by automatically generated code, or if a
     developer really needs to get down and dirty for performance reasons.
 

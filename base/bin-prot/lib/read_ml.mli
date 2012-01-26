@@ -1,4 +1,4 @@
-(** reading values from the binary protocol using (mostly) OCaml. *)
+(** Reading values from the binary protocol using (mostly) OCaml. *)
 
 open Bigarray
 

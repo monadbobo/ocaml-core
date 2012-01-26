@@ -66,7 +66,7 @@ static inline void raise_Read_error(int loc, unsigned long pos)
     TYPE n; \
     if (unlikely(next > eptr)) \
       caml_raise_constant(*v_bin_prot_exc_Buffer_short); \
-    n = *(TYPE *) *sptr_ptr; \
+    n = le##SIZE##dec(sptr); \
     CHECK \
     *sptr_ptr = next; \
     return n; \
@@ -174,7 +174,6 @@ MK_SAFE_NAT0_READ(16, short, 2, {})
       *sptr_ptr = sptr - 1;
       raise_Error(READ_ERROR_NAT0_OVERFLOW);
     })
-  MK_GEN_SAFE_NAT0_READ(nocheck, 64, long, 8, {})
 #endif
 
 static inline unsigned long read_nat0(char **sptr_ptr, char *eptr)
@@ -229,12 +228,6 @@ CAMLprim value read_int32_stub(char **sptr_ptr, char *eptr)
 
 
 /* Reading 64bit integers */
-
-#ifdef ARCH_INT64_TYPE
-#include "int64_native.h"
-#else
-#include "int64_emul.h"
-#endif
 
 static inline int64 read_int64(char **sptr_ptr, char *eptr)
 {
@@ -375,9 +368,11 @@ CAMLprim inline value read_float_stub(char **sptr_ptr, char *eptr)
 {
   char *sptr = *sptr_ptr;
   char *next = sptr + sizeof(double);
+  double n;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
   *sptr_ptr = next;
-  return caml_copy_double(*(double *) sptr);
+  memcpy(&n, sptr, sizeof(double));
+  return caml_copy_double(n);
 }
 
 MK_ML_READER(float)
@@ -448,7 +443,7 @@ CAMLprim value read_variant_tag_stub(char **sptr_ptr, char *eptr)
   char *next = sptr + 4;
   int n;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
-  n = *(int *) sptr;
+  n = le32dec(sptr);
   if (likely(Is_long(n))) {
     *sptr_ptr = next;
     return (value) n;
@@ -467,7 +462,7 @@ CAMLprim value ml_read_variant_tag_stub(value v_buf, value v_pos_ref)
   if (unlikely(pos < 0)) caml_array_bound_error();
   if (unlikely(next_pos > (unsigned long) *buf->dim))
     caml_raise_constant(*v_bin_prot_exc_Buffer_short);
-  n = *(int *) sptr;
+  n = le32dec(sptr);
   if (likely(Is_long(n))) {
     Field(v_pos_ref, 0) = Val_long(next_pos);
     return (value) n;
@@ -493,7 +488,7 @@ CAMLprim inline value read_raw_string_stub(
 
 /* Reading bigarrays */
 
-#define MK_BA1_READER(NAME, TYPE, TFLAG) \
+#define MK_BA1_READER(NAME, TYPE, TFLAG, TLAYOUT) \
   CAMLprim inline value read_##NAME##_stub(char **sptr_ptr, char *eptr) \
   { \
     unsigned long len = read_nat0(sptr_ptr, eptr); \
@@ -507,7 +502,7 @@ CAMLprim inline value read_raw_string_stub(
     dim = len; \
     v_res = \
       caml_ba_alloc( \
-        CAML_BA_##TFLAG | CAML_BA_FORTRAN_LAYOUT, 1, NULL, &dim); \
+        CAML_BA_##TFLAG | CAML_BA_##TLAYOUT##_LAYOUT, 1, NULL, &dim); \
     *sptr_ptr = next; \
     if (unlikely(tot_size > 65536)) { \
       Begin_roots1(v_res); \
@@ -521,10 +516,10 @@ CAMLprim inline value read_raw_string_stub(
   \
   MK_ML_READER(NAME)
 
-MK_BA1_READER(bigstring, char, UINT8)
+MK_BA1_READER(bigstring, char, UINT8, C)
 
 #define MK_VEC_MAT_READERS(NAME, TYPE, TFLAG) \
-  MK_BA1_READER(NAME##_vec, TYPE, TFLAG) \
+  MK_BA1_READER(NAME##_vec, TYPE, TFLAG, FORTRAN) \
   \
   CAMLprim inline value read_##NAME##_mat_stub(char **sptr_ptr, char *eptr) \
   { \
@@ -583,16 +578,15 @@ CAMLprim inline value read_int_64bit_stub(char **sptr_ptr, char *eptr)
   long upper;
 #endif
   char *sptr = *sptr_ptr;
-  long *lsptr = (long *) sptr;
   char *next = sptr + 8;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
 #ifdef ARCH_SIXTYFOUR
-  n = *lsptr;
+  n = le64dec(sptr);
   if (unlikely(n < -0x4000000000000000L || n > 0x3FFFFFFFFFFFFFFFL))
     raise_Error(READ_ERROR_INT_OVERFLOW);
 #else
-  n = *lsptr;
-  upper = *++lsptr;
+  n = le32dec(sptr);
+  memcpy(&upper, sptr + 4, 4);
   if (upper == 0l) {
     if ((unsigned long) n > 0x3FFFFFFFl) raise_Error(READ_ERROR_INT_OVERFLOW);
   } else if (upper == -1) {
@@ -613,14 +607,9 @@ CAMLprim inline value read_int64_bits_stub(char **sptr_ptr, char *eptr)
   char *next = sptr + 8;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
 #ifdef ARCH_SIXTYFOUR
-  n = (*(long *) sptr);
+  n = le64dec(sptr);
 #else
-  {
-    unsigned int *uisptr = (unsigned int *) sptr;
-    unsigned int lower = *uisptr++;
-    unsigned int upper = *uisptr;
-    n = I64_or(I64_lsl(I64_of_int32(upper), 32), I64_of_int32(lower));
-  }
+  n = I64_literal(le32dec(sptr + 4), le32dec(sptr));
 #endif
   v_res = caml_copy_int64(n);
   *sptr_ptr = next;
@@ -634,7 +623,7 @@ CAMLprim inline value read_network16_int_stub(char **sptr_ptr, char *eptr)
   char *next = sptr + 2;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
   *sptr_ptr = next;
-  return (value) Val_int((uint16_t) ntohs(*((uint16_t *) sptr)));
+  return (value) Val_int(be16dec(sptr));
 }
 MK_ML_READER(network16_int)
 
@@ -644,15 +633,15 @@ CAMLprim inline value read_network32_int_stub(char **sptr_ptr, char *eptr)
   char *next = sptr + 4;
   int n;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
-  n = (int) ntohl(*(uint32_t *) sptr);
-#ifndef ARCH_SIXTYFOUR
+  n = (int) be32dec(sptr);
+#ifdef ARCH_SIXTYFOUR
+  *sptr_ptr = next;
+  return (value) Val_int((uint32_t) n);
+#else
   if (unlikely(n < -0x40000000l || n > 0x3FFFFFFFl))
     raise_Error(READ_ERROR_INT_OVERFLOW);
   *sptr_ptr = next;
-  return (value) Val_int((int) ntohl(*((uint32_t *) sptr)));
-#else
-  *sptr_ptr = next;
-  return (value) Val_int((uint32_t) ntohl(*((uint32_t *) sptr)));
+  return (value) Val_int(n);
 #endif
 }
 MK_ML_READER(network32_int)
@@ -663,7 +652,7 @@ CAMLprim inline value read_network32_int32_stub(char **sptr_ptr, char *eptr)
   char *next = sptr + 4;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
   *sptr_ptr = next;
-  return (value) caml_copy_int32((int) ntohl(*((uint32_t *) sptr)));
+  return (value) caml_copy_int32(be32dec(sptr));
 }
 MK_ML_READER(network32_int32)
 
@@ -674,28 +663,16 @@ CAMLprim inline value read_network64_int_stub(char **sptr_ptr, char *eptr)
   long n;
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
 #ifdef ARCH_SIXTYFOUR
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-  n = (long) bswap_64(*((uint64_t *) sptr));
-#elif __BYTE_ORDER == __BIG_ENDIAN
-  n = *((long *) sptr);
-#else
-#error "unsupported endianness"
-#endif
+  n = (long) be64dec(sptr);
   if (unlikely(n < -0x4000000000000000L || n > 0x3FFFFFFFFFFFFFFFL))
     raise_Error(READ_ERROR_INT_OVERFLOW);
 #else /* 32bit */
   /* Read the upper 32 bits first.  They must all be zero, otherwise we
      consider this an overflow.  On 32bit platforms the integer must
      fit completely into one word. */
-  n = *((long *) sptr);
+  memcpy(&n, sptr, 4);
   if (n != 0) raise_Error(READ_ERROR_INT_OVERFLOW);
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-  n = (long) bswap_32(*(((uint32_t *) sptr) + 1));
-#elif __BYTE_ORDER == __BIG_ENDIAN
-  n = *(((long *) sptr) + 1);
-#else
-#error "unsupported endianness"
-#endif
+  n = be32dec(sptr + 4);
   if (unlikely(n < -0x40000000l || n > 0x3FFFFFFFl))
     raise_Error(READ_ERROR_INT_OVERFLOW);
 #endif
@@ -712,31 +689,10 @@ CAMLprim inline value read_network64_int64_stub(char **sptr_ptr, char *eptr)
   if (unlikely(next > eptr)) caml_raise_constant(*v_bin_prot_exc_Buffer_short);
   *sptr_ptr = next;
 #ifdef ARCH_SIXTYFOUR
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-  n = (long) bswap_64(*((uint64_t *) sptr));
-#elif __BYTE_ORDER == __BIG_ENDIAN
-  n = *((long *) sptr);
-#else
-#error "unsupported endianness"
+  n = (long) be64dec(sptr);
+#else /* 32bit */
+  n = I64_literal(be32dec(sptr), be32dec(sptr + 4));
 #endif
   return (value) caml_copy_int64(n);
-#else /* 32bit */
-  {
-    uint32_t *uisptr = (uint32_t *) sptr;
-    uint32_t upper = *uisptr++;
-    uint32_t lower = *uisptr;
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-    n =
-      I64_or(
-        I64_lsl(I64_of_int32(bswap_32(upper)), 32),
-        I64_of_int32(bswap_32(lower)));
-#elif __BYTE_ORDER == __BIG_ENDIAN
-    n = I64_or(I64_lsl(I64_of_int32(upper), 32), I64_of_int32(lower));
-#else
-#error "unsupported endianness"
-#endif
-    return (value) caml_copy_int64(n);
-  }
-#endif
 }
 MK_ML_READER(network64_int64)

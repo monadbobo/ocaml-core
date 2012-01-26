@@ -1,4 +1,4 @@
-(** compute size of values in the binary protocol. *)
+(** Compute size of values in the binary protocol. *)
 
 open Common
 
