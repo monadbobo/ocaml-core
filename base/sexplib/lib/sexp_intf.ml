@@ -530,12 +530,16 @@ module type S = sig
   val to_buffer : buf : Buffer.t -> t -> unit
   (** [to_buffer ~buf sexp] same as {!to_buffer_mach}. *)
 
-  val to_buffer_gen : 
+  val to_buffer_gen :
        buf : 'buffer
     -> add_char : ('buffer -> char -> unit)
     -> add_string : ('buffer -> string -> unit)
     -> t
     -> unit
+  (** [to_buffer_gen ~buf ~add_char ~add_string sexp] outputs the S-expression
+      [sexp] converted to a string to buffer [buf] using the output functions
+      [add_char] and [add_string]. *)
+
 
   (** {6 Utilities for automated type conversions} *)
 

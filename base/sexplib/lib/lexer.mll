@@ -49,8 +49,7 @@ let backslash_escapes = ['\\' '"' '\'' 'n' 't' 'b' 'r']
 
 rule main buf = parse
   | newline { found_newline lexbuf 1; main buf lexbuf }
-  | space+ { main buf lexbuf }
-  | ';' [^ '\n' '\r']* { main buf lexbuf }
+  | space+ | ';' [^ '\n' '\r']* { main buf lexbuf }
   | '(' { LPAREN }
   | ')' { RPAREN }
   | '"'

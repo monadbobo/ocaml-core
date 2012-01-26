@@ -1,4 +1,4 @@
-(*  Utility Module for S-expression Conversions *)
+(* Utility Module for S-expression Conversions *)
 
 open Printf
 open Bigarray
@@ -43,7 +43,7 @@ let sexp_of_nat n = Atom (Nat.string_of_nat n)
 let sexp_of_num n = Atom (Num.string_of_num n)
 let sexp_of_ratio n = Atom (Ratio.string_of_ratio n)
 let sexp_of_ref sexp_of__a rf = sexp_of__a !rf
-let sexp_of_lazy sexp_of__a lv = sexp_of__a (Lazy.force lv)
+let sexp_of_lazy_t sexp_of__a lv = sexp_of__a (Lazy.force lv)
 
 let sexp_of_option sexp_of__a = function
   | Some x when !write_old_option_format -> List [sexp_of__a x]
@@ -365,7 +365,7 @@ let ratio_of_sexp sexp = match sexp with
   | List _ -> of_sexp_error "ratio_of_sexp: atom needed" sexp
 
 let ref_of_sexp a__of_sexp sexp = ref (a__of_sexp sexp)
-let lazy_of_sexp a__of_sexp sexp = lazy (a__of_sexp sexp)
+let lazy_t_of_sexp a__of_sexp sexp = Lazy.lazy_from_val (a__of_sexp sexp)
 
 let option_of_sexp a__of_sexp sexp =
   if !read_old_option_format then
@@ -506,10 +506,11 @@ let of_string__of__of_sexp of_sexp s =
   with e ->
     failwith (sprintf "of_string failed on %s with %s" s (exn_to_string e))
 
-let get_flc_error name (file, line, chr) =
-  (List [Atom name; Atom file; sexp_of_int line; sexp_of_int chr])
-
 (* Registering default exception printers *)
+
+let get_flc_error name (file, line, chr) =
+  List [Atom name; Atom file; sexp_of_int line; sexp_of_int chr]
+
 let () =
   List.iter
     (fun (exc, handler) -> Exn_converter.add_auto ~finalise:false exc handler)
@@ -640,8 +641,7 @@ let () =
         | Parse_error pe ->
             let ppos =
               match pe.parse_state with
-              | `Sexp { parse_pos = parse_pos }
-              | `Annot { parse_pos = parse_pos } -> parse_pos
+              | `Sexp { parse_pos } | `Annot { parse_pos } -> parse_pos
             in
             List [
               Atom "Sexplib.Sexp.Parse_error";

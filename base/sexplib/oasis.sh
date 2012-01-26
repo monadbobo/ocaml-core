@@ -8,7 +8,7 @@ cat >$HERE/_oasis <<EOF
 OASISFormat:  0.2
 OCamlVersion: >= 3.12
 Name:         sexplib
-Version:      5.2.2
+Version:      7.0.4
 Synopsis:     automated S-expression conversion
 Authors:      Markus Mottl,
               Martin Sandin
@@ -18,7 +18,7 @@ LicenseFile:  LICENSE
 Plugins:      StdFiles (0.2),
               DevFiles (0.2),
               META (0.2)
-BuildTools:   ocamlbuild, ocamllex, ocamlyacc
+BuildTools:   ocamlbuild
 XStdFilesAUTHORS: false
 XStdFilesINSTALLFilename: INSTALL
 XStdFilesREADME: false
@@ -33,32 +33,33 @@ Library sexplib
                       Pre_sexp,
                       Sexp_intf,
                       Sexp,
-                      Std,
                       Path,
                       Conv,
                       Conv_error,
-                      Exn_magic
+                      Exn_magic,
+                      Std
   BuildDepends:       unix,bigarray,num
 #  XMETAType:          library
   XMETARequires:      unix,bigarray,num
 
 Library pa_sexp_conv
   Path:               syntax
-  Modules:            Pa_sexp_conv
-  FindlibParent:      sexplib
   FindlibName:        syntax
-  BuildDepends:       camlp4.lib,
-                      camlp4.quotations,
-                      type-conv (>= 2.0.1)
+  FindlibParent:      sexplib
+  Modules:            Pa_sexp_conv
+  BuildDepends:       camlp4.quotations,camlp4.extend,type-conv (>= 3.0.4)
   CompiledObject:     byte
   XMETAType:          syntax
   XMETARequires:      camlp4,type-conv,sexplib
   XMETADescription:   Syntax extension for Sexplib
 
-#Library sexplib_top
-#  Path:               top
-#  FindlibParent:      sexplib
-#  FindlibName:        top
+Library sexplib_top
+  Path:               top
+  FindlibName:        top
+  FindlibParent:      sexplib
+  Modules:            Install_printers
+  XMETARequires:      sexplib
+  XMETADescription:   Toplevel printers for S-expressions
 
 # TODO: figure out how to build tests without installing sexplib
 Flag tests
@@ -102,8 +103,24 @@ make_tags $HERE/_tags <<EOF
 $(tag_for_pack Sexplib $HERE/lib/*.ml{,l,y})
 
 <lib/pre_sexp.ml>: pp(cpp -undef -traditional -Werror -I$HERE/syntax)
-<lib_test/*.ml{,i}>: syntax_camlp4o
+<lib_test/*.ml{,i}>: syntax_camlp4o, pkg_type-conv.syntax
+<lib_test/conv_test.byte>: use_sexplib, pkg_unix, pkg_num, pkg_bigarray
 <syntax/pa_sexp_conv.ml>: syntax_camlp4o
+EOF
+
+make_myocamlbuild $HERE/myocamlbuild.ml <<EOF
+Ocamlbuild_plugin.dispatch
+  begin
+    function
+      | After_rules as e ->
+          flag ["ocamldep"; "ocaml"; "use_pa_sexp_conv"]
+            (S [A "-ppopt"; P "syntax/pa_sexp_conv.cma"]);
+          flag ["compile"; "ocaml"; "use_pa_sexp_conv"]
+            (S [A "-ppopt"; P "syntax/pa_sexp_conv.cma"]);
+          dispatch_default e
+      | e -> dispatch_default e
+  end
+;;
 EOF
 
 cd $HERE
@@ -111,4 +128,3 @@ oasis setup
 enable_pack_in_setup_ml sexplib
 
 ./configure "$@"
-

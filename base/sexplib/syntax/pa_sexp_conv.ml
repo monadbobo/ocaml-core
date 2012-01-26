@@ -7,19 +7,21 @@ open Printf
 
 open Camlp4
 open PreCast
+
 module Gen = Pa_type_conv.Gen
 
 (* Utility functions *)
+
 let mk_rev_bindings loc fps =
   let coll (i, bindings, patts, vars) fp =
     let name = "v" ^ string_of_int i in
-    let var_expr = Gen.ide loc name in
+    let var_expr = <:expr@loc< $lid:name$ >> in
     let expr =
       match fp with
       | `Fun fun_expr -> <:expr@loc< $fun_expr$ $var_expr$ >>
       | `Match matchings -> <:expr@loc< match $var_expr$ with [ $matchings$ ] >>
     in
-    let patt = Gen.idp loc name in
+    let patt = <:patt@loc< $lid:name$ >> in
     let bindings = <:binding@loc< $patt$ = $expr$ and $bindings$ >> in
     i - 1, bindings, patt :: patts, var_expr :: vars
   in
@@ -38,9 +40,9 @@ let unroll_cnv_fp loc var = function
 let unroll_fun_matches loc fp1 fp2 =
   match fp1, fp2 with
   | `Fun fun_expr1, `Fun fun_expr2 ->
-    <:expr@loc< $fun_expr1$ $fun_expr2$ >>
+      <:expr@loc< $fun_expr1$ $fun_expr2$ >>
   | `Fun fun_expr, `Match matching ->
-    <:expr@loc< $fun_expr$ (fun [ $matching$ ]) >>
+      <:expr@loc< $fun_expr$ (fun [ $matching$ ]) >>
   | _ -> assert false  (* impossible *)
 
 let rec sig_of_tds cnv = function
@@ -57,20 +59,19 @@ module Sig_generate_sexp_of = struct
 
   let rec sig_of_td__loop acc = function
     | [] ->
-      let loc = Ast.loc_of_ctyp acc in
-      <:ctyp@loc< $acc$ -> Sexplib.Sexp.t >>
+        let loc = Ast.loc_of_ctyp acc in
+        <:ctyp@loc< $acc$ -> Sexplib.Sexp.t >>
     | tp :: tps ->
-      let tp = Gen.drop_variance_annotations tp in
-      let loc = Ast.loc_of_ctyp tp in
-      let sexp_of = sig_of_td__loop <:ctyp@loc< $acc$ $tp$ >> tps in
-      <:ctyp@loc< ( $tp$ -> Sexplib.Sexp.t ) -> $sexp_of$ >>
+        let tp = Gen.drop_variance_annotations tp in
+        let loc = Ast.loc_of_ctyp tp in
+        let sexp_of = sig_of_td__loop <:ctyp@loc< $acc$ $tp$ >> tps in
+        <:ctyp@loc< ( $tp$ -> Sexplib.Sexp.t ) -> $sexp_of$ >>
 
   let sig_of_td loc type_name tps _rhs _cl =
     let sexp_of = sig_of_td__loop <:ctyp@loc< $lid:type_name$ >> tps in
     <:sig_item@loc< value $lid: "sexp_of_" ^ type_name$ : $sexp_of$ >>
 
-  let mk_sig tds =
-    <:sig_item< $sig_of_tds sig_of_td tds$ >>
+  let mk_sig tds = <:sig_item< $sig_of_tds sig_of_td tds$ >>
 
   let () = Pa_type_conv.add_sig_generator "sexp_of" mk_sig
 
@@ -99,20 +100,20 @@ module Sig_generate_of_sexp = struct
     | <:ctyp< $id:_$ >>
     | <:ctyp< >> -> `Maybe
     | <:ctyp< $tp1$ == $tp2$ >> ->
-      begin match is_polymorphic_variant tp1 with
-      | (`Surely_not | `Definitely) as res -> res
-      | `Maybe -> is_polymorphic_variant tp2 end
+        begin match is_polymorphic_variant tp1 with
+        | (`Surely_not | `Definitely) as res -> res
+        | `Maybe -> is_polymorphic_variant tp2 end
     | tp -> Gen.unknown_type tp "Sig_generate_of_sexp.is_polymorphic_variant"
 
   let rec sig_of_td__loop acc = function
     | [] ->
-      let loc = Ast.loc_of_ctyp acc in
-      <:ctyp@loc< Sexplib.Sexp.t -> $acc$ >>
+        let loc = Ast.loc_of_ctyp acc in
+        <:ctyp@loc< Sexplib.Sexp.t -> $acc$ >>
     | tp :: tps ->
-      let tp = Gen.drop_variance_annotations tp in
-      let loc = Ast.loc_of_ctyp tp in
-      let of_sexp = sig_of_td__loop <:ctyp@loc< $acc$ $tp$ >> tps in
-      <:ctyp@loc< ( Sexplib.Sexp.t -> $tp$ ) -> $of_sexp$ >>
+        let tp = Gen.drop_variance_annotations tp in
+        let loc = Ast.loc_of_ctyp tp in
+        let of_sexp = sig_of_td__loop <:ctyp@loc< $acc$ $tp$ >> tps in
+        <:ctyp@loc< ( Sexplib.Sexp.t -> $tp$ ) -> $of_sexp$ >>
 
   let sig_of_td with_poly loc type_name tps rhs _cl =
     let of_sexp = sig_of_td__loop <:ctyp@loc< $lid:type_name$ >> tps in
@@ -121,9 +122,9 @@ module Sig_generate_of_sexp = struct
     in
     match with_poly, is_polymorphic_variant rhs with
     | true, `Surely_not ->
-      Gen.error rhs ~fn:"Sig_generate_of_sexp.sig_of_td"
-        ~msg:"sexp_poly annotation \
-          but type is surely not a polymorphic variant"
+        Gen.error rhs ~fn:"Sig_generate_of_sexp.sig_of_td"
+          ~msg:"sexp_poly annotation \
+            but type is surely not a polymorphic variant"
     | false, (`Surely_not | `Maybe) -> of_sexp_item
     | (true | false), `Definitely | true, `Maybe ->
         <:sig_item@loc<
@@ -162,7 +163,9 @@ end
 (* Generator for converters of OCaml-values to S-expressions *)
 module Generate_sexp_of = struct
   let mk_abst_call loc tn rev_path =
-    <:expr@loc< $id:Gen.ident_of_rev_path loc (("sexp_of_" ^ tn) :: rev_path)$ >>
+    <:expr@loc<
+      $id:Gen.ident_of_rev_path loc (("sexp_of_" ^ tn) :: rev_path)$
+    >>
 
   (* Conversion of type paths *)
   let sexp_of_path_fun loc id =
@@ -173,12 +176,14 @@ module Generate_sexp_of = struct
   (* Conversion of types *)
   let rec sexp_of_type = function
     | <:ctyp@loc< sexp_opaque $_$ >> ->
-      `Fun <:expr@loc< Sexplib.Conv.sexp_of_opaque >>
+        `Fun <:expr@loc< Sexplib.Conv.sexp_of_opaque >>
     | <:ctyp@loc< $tp1$ $tp2$ >> -> `Fun (sexp_of_appl_fun loc tp1 tp2)
     | <:ctyp< ( $tup:tp$ ) >> -> sexp_of_tuple tp
-    | <:ctyp@loc< '$parm$ >> -> `Fun (Gen.ide loc ("_of_" ^ parm))
+    | <:ctyp@loc< '$parm$ >> -> `Fun <:expr@loc< $lid:"_of_" ^ parm$ >>
     | <:ctyp@loc< $id:id$ >> -> `Fun (sexp_of_path_fun loc id)
-    | <:ctyp@loc< $_$ -> $_$ >> -> `Fun <:expr@loc< Sexplib.Conv.sexp_of_fun >>
+    | <:ctyp@loc< $_$ -> $_$ >> as arrow ->
+        `Fun <:expr@loc< fun (_f : $arrow$) ->
+          Sexplib.Conv.sexp_of_fun Pervasives.ignore >>
     | <:ctyp< [< $row_fields$ ] >> | <:ctyp< [> $row_fields$ ] >>
     | <:ctyp< [= $row_fields$ ] >> -> sexp_of_variant row_fields
     | <:ctyp< ! $parms$ . $poly_tp$ >> -> sexp_of_poly parms poly_tp
@@ -202,7 +207,9 @@ module Generate_sexp_of = struct
     let expr = <:expr@loc< let $bindings$ in $in_expr$ >> in
     `Match <:match_case@loc< ( $tup:Ast.paCom_of_list patts$ ) -> $expr$ >>
 
+
   (* Conversion of variant types *)
+
   and mk_cnv_expr tp =
     let loc = Ast.loc_of_ctyp tp in
     match sexp_of_type tp with
@@ -212,7 +219,7 @@ module Generate_sexp_of = struct
   and sexp_of_variant row_fields =
     let rec loop = function
       | <:ctyp@loc< $tp1$ | $tp2$ >> ->
-        <:match_case@loc< $loop tp1$ | $loop tp2$ >>
+          <:match_case@loc< $loop tp1$ | $loop tp2$ >>
       | <:ctyp@loc< `$cnstr$ >> ->
           <:match_case@loc< `$cnstr$ -> Sexplib.Sexp.Atom $str:cnstr$ >>
       | <:ctyp@loc< `$cnstr$ of sexp_list $tp$>> ->
@@ -263,9 +270,7 @@ module Generate_sexp_of = struct
     let loc = Ast.loc_of_ctyp tp in
     let bindings =
       let mk_binding parm =
-        <:binding@loc<
-          $Gen.idp loc ("_of_" ^ parm)$ = Sexplib.Conv.sexp_of_opaque
-        >>
+        <:binding@loc< $lid:"_of_" ^ parm$ = Sexplib.Conv.sexp_of_opaque >>
       in
       List.map ~f:mk_binding (Gen.ty_var_list_of_ctyp parms [])
     in
@@ -285,7 +290,7 @@ module Generate_sexp_of = struct
 
   let rec branch_sum = function
     | <:ctyp@loc< $tp1$ | $tp2$ >> ->
-       <:match_case@loc< $branch_sum tp1$ | $branch_sum tp2$ >>
+        <:match_case@loc< $branch_sum tp1$ | $branch_sum tp2$ >>
     | <:ctyp@loc< $uid:cnstr$ >> ->
         <:match_case@loc< $uid:cnstr$ -> Sexplib.Sexp.Atom $str:cnstr$ >>
     | <:ctyp@loc< $uid:cnstr$ of sexp_list $tp$>> ->
@@ -302,7 +307,7 @@ module Generate_sexp_of = struct
                    Sexplib.Conv.list_map $cnv_expr$ l]
         >>
     | <:ctyp@loc< $uid:cnstr$ of $tps$ >> ->
-        let fps = List.map ~f:(sexp_of_type) (Ast.list_of_ctyp tps []) in
+        let fps = List.map ~f:sexp_of_type (Ast.list_of_ctyp tps []) in
         let cnstr_expr = <:expr@loc< Sexplib.Sexp.Atom $str:cnstr$ >> in
         let bindings, patts, vars = mk_bindings loc fps in
         let patt =
@@ -318,6 +323,7 @@ module Generate_sexp_of = struct
     | tp -> Gen.unknown_type tp "branch_sum"
 
   let sexp_of_sum alts = `Match (branch_sum alts)
+
 
   (* Conversion of record types *)
 
@@ -416,7 +422,9 @@ module Generate_sexp_of = struct
     in
     let loc = Ast.loc_of_ctyp flds_ctyp in
     let init_expr = <:expr@loc< Sexplib.Sexp.List bnds >> in
-    let patt, expr = List.fold_left ~f:coll ~init:(<:patt@loc<>>, init_expr) flds in
+    let patt, expr =
+      List.fold_left ~f:coll ~init:(<:patt@loc<>>, init_expr) flds
+    in
     `Match
       <:match_case@loc<
         { $patt$ } ->
@@ -435,11 +443,11 @@ module Generate_sexp_of = struct
     let body =
       let rec loop tp =
         Gen.switch_tp_def tp
-          ~alias:(fun (_:Loc.t) tp -> sexp_of_type tp )
-          ~sum:(fun (_:Loc.t) tp -> sexp_of_sum tp)
-          ~record:(fun (_:Loc.t) tp -> sexp_of_record tp)
-          ~variants:(fun (_:Loc.t) tp -> sexp_of_variant tp)
-          ~mani:(fun (_:Loc.t) _tp1 tp2 -> loop tp2)
+          ~alias:(fun (_ : Loc.t) tp -> sexp_of_type tp)
+          ~sum:(fun (_ : Loc.t) tp -> sexp_of_sum tp)
+          ~record:(fun (_ : Loc.t) tp -> sexp_of_record tp)
+          ~variants:(fun (_ : Loc.t) tp -> sexp_of_variant tp)
+          ~mani:(fun (_ : Loc.t) _tp1 tp2 -> loop tp2)
           ~nil:sexp_of_nil
       in
       match loop rhs with
@@ -449,11 +457,12 @@ module Generate_sexp_of = struct
           <:expr@loc< fun [ v -> $fun_expr$ v ] >>
       | `Match matchings -> <:expr@loc< fun [ $matchings$ ] >>
     in
+    let mk_pat id = <:patt@loc< $lid:id$ >> in
     let patts =
       List.map tps
-        ~f:(fun ty -> Gen.idp loc ("_of_" ^ (Gen.get_tparam_id ty)))
+        ~f:(fun ty -> <:patt@loc< $lid:"_of_" ^ Gen.get_tparam_id ty$>>)
     in
-    let bnd = Gen.idp loc ("sexp_of_" ^ type_name) in
+    let bnd = mk_pat ("sexp_of_" ^ type_name) in
     <:binding@loc< $bnd$ = $Gen.abstract loc patts body$ >>
 
   let rec sexp_of_tds = function
@@ -464,7 +473,7 @@ module Generate_sexp_of = struct
     | _ -> assert false  (* impossible *)
 
   let sexp_of tds =
-    let binding, recursive,loc =
+    let binding, recursive, loc =
       match tds with
       | Ast.TyDcl (loc, type_name, tps, rhs, _cl) ->
           sexp_of_td loc type_name tps rhs,
@@ -554,11 +563,14 @@ module Generate_of_sexp = struct
   (* Generate code for matching malformed S-expressions *)
   let mk_variant_other_matches loc rev_els call =
     let coll_structs acc (loc, cnstr) =
-      <:match_case@loc< $str:cnstr$ -> Sexplib.Conv_error.$lid:call$ _loc _sexp >>
-        :: acc
+      <:match_case@loc<
+        $str:cnstr$ -> Sexplib.Conv_error.$lid:call$ _tp_loc _sexp
+      >> :: acc
     in
     let exc_no_variant_match =
-      <:match_case@loc< _ -> Sexplib.Conv_error.no_variant_match _loc _sexp >>
+      <:match_case@loc<
+        _ -> Sexplib.Conv_error.no_variant_match _tp_loc _sexp
+      >>
     in
     List.fold_left ~f:coll_structs ~init:[exc_no_variant_match] rev_els
 
@@ -579,7 +591,7 @@ module Generate_of_sexp = struct
           atoms,
           (loc, cnstr) :: structs,
           ainhs,
-          `S (loc,cnstr, tps) :: sinhs
+          `S (loc, cnstr, tps) :: sinhs
         )
     | <:ctyp< [< $row_fields$ ] >> | <:ctyp< [> $row_fields$ ] >>
     | <:ctyp< [= $row_fields$ ] >> ->
@@ -605,11 +617,12 @@ module Generate_of_sexp = struct
   (* Conversion of types *)
   let rec type_of_sexp = function
     | <:ctyp@loc< sexp_opaque $_$ >> ->
-      `Fun <:expr@loc< Sexplib.Conv.opaque_of_sexp >>
+        `Fun <:expr@loc< Sexplib.Conv.opaque_of_sexp >>
     | <:ctyp@loc< sexp_option >> ->
         `Fun <:expr@loc< fun a_of_sexp v -> Some (a_of_sexp v) >>
     | <:ctyp@loc< sexp_list >> ->
-        `Fun <:expr@loc< fun a_of_sexp v -> Sexplib.Conv.list_of_sexp a_of_sexp v >>
+        `Fun <:expr@loc< fun a_of_sexp v ->
+          Sexplib.Conv.list_of_sexp a_of_sexp v >>
     | <:ctyp@loc< sexp_array >> ->
         `Fun <:expr@loc< fun a_of_sexp v ->
           Sexplib.Conv.array_of_sexp a_of_sexp v >>
@@ -618,9 +631,11 @@ module Generate_of_sexp = struct
         let fp2 = type_of_sexp tp2 in
         `Fun (unroll_fun_matches loc fp1 fp2)
     | <:ctyp< ( $tup:tp$ ) >> -> tuple_of_sexp tp
-    | <:ctyp@loc< '$parm$ >> -> `Fun (Gen.ide loc ("_of_" ^ parm))
+    | <:ctyp@loc< '$parm$ >> -> `Fun <:expr@loc< $lid:"_of_" ^ parm$ >>
     | <:ctyp@loc< $id:id$ >> -> `Fun (path_of_sexp_fun loc id)
-    | <:ctyp@loc< $_$ -> $_$ >> -> `Fun <:expr@loc< Sexplib.Conv.fun_of_sexp >>
+    | <:ctyp@loc< $_$ -> $_$ >> as arrow ->
+        `Fun <:expr@loc< fun sexp ->
+          (Sexplib.Conv.fun_of_sexp sexp : $arrow$) >>
     | <:ctyp< [< $row_fields$ ] >> | <:ctyp< [> $row_fields$ ] >>
     | <:ctyp< [= $row_fields$ ] >> ->
         variant_of_sexp ?full_type:None row_fields
@@ -638,7 +653,8 @@ module Generate_of_sexp = struct
           Sexplib.Sexp.List $Gen.mk_patt_lst loc patts$ ->
             let $bindings$ in
             ( $tup:Ast.exCom_of_list vars$ )
-        | sexp -> Sexplib.Conv_error.tuple_of_size_n_expected _loc $int:n$ sexp
+        | sexp ->
+            Sexplib.Conv_error.tuple_of_size_n_expected _tp_loc $int:n$ sexp
       >>
 
   (* Generate internal call *)
@@ -702,7 +718,7 @@ module Generate_of_sexp = struct
     | <:ctyp@loc< sexp_list $tp$ >> ->
       let cnv =
         match type_of_sexp tp with
-        | `Fun fun_expr -> <:expr< $fun_expr$ >>
+        | `Fun fun_expr -> <:expr@loc< $fun_expr$ >>
         | `Match matchings ->
             <:expr@loc< fun el -> match el with [ $matchings$ ] >>
       in
@@ -710,7 +726,7 @@ module Generate_of_sexp = struct
     | _ ->
         let fps = List.map ~f:type_of_sexp (Ast.list_of_ctyp tps []) in
         let bindings, patts, vars = mk_bindings loc fps in
-        let good_arg_match_expr =
+        let good_arg_match =
           let vars_expr =
             match vars with
             | [var_expr] -> var_expr
@@ -719,12 +735,13 @@ module Generate_of_sexp = struct
           cnstr vars_expr
         in
         let handle_exc =
-          if is_variant then "ptag_incorrect_n_args" else "stag_incorrect_n_args"
+          if is_variant then "ptag_incorrect_n_args"
+          else "stag_incorrect_n_args"
         in
         <:expr@loc<
           match sexp_args with
-            [ $Gen.mk_patt_lst loc patts$ -> let $bindings$ in $good_arg_match_expr$
-            | _ -> Sexplib.Conv_error.$lid:handle_exc$ _loc _tag _sexp ]
+            [ $Gen.mk_patt_lst loc patts$ -> let $bindings$ in $good_arg_match$
+            | _ -> Sexplib.Conv_error.$lid:handle_exc$ _tp_loc _tag _sexp ]
         >>
 
   (* Generate code for matching structured variants *)
@@ -734,7 +751,9 @@ module Generate_of_sexp = struct
       | `S (loc, cnstr, tps) ->
           has_structs_ref := true;
           let expr = mk_cnstr_args_match ~is_variant:true cnstr tps in
-          let new_match = <:match_case@loc< ($str:cnstr$ as _tag) -> $expr$ >> in
+          let new_match =
+            <:match_case@loc< ($str:cnstr$ as _tag) -> $expr$ >>
+          in
           new_match :: other_matches, false
       | `I inh ->
           handle_variant_inh full_type match_last other_matches inh
@@ -769,9 +788,9 @@ module Generate_of_sexp = struct
           [Sexplib.Sexp.Atom atom :: $maybe_sexp_args_patt$] as _sexp ->
             $match_struct$
       | Sexplib.Sexp.List [Sexplib.Sexp.List _ :: _] as sexp ->
-          Sexplib.Conv_error.nested_list_invalid_poly_var _loc sexp
+          Sexplib.Conv_error.nested_list_invalid_poly_var _tp_loc sexp
       | Sexplib.Sexp.List [] as sexp ->
-          Sexplib.Conv_error.empty_list_invalid_poly_var _loc sexp
+          Sexplib.Conv_error.empty_list_invalid_poly_var _tp_loc sexp
     >>
 
   (* Generate matching code for variants *)
@@ -817,8 +836,8 @@ module Generate_of_sexp = struct
           fun sexp ->
             try match sexp with [ $top_match$ ]
             with
-            [ Sexplib.Conv_error.No_variant_match (_loc, sexp) ->
-                Sexplib.Conv_error.no_matching_variant_found _loc sexp
+            [ Sexplib.Conv_error.No_variant_match (_tp_loc, sexp) ->
+                Sexplib.Conv_error.no_matching_variant_found _tp_loc sexp
             ]
         >>
     else `Match top_match
@@ -828,8 +847,8 @@ module Generate_of_sexp = struct
     let bindings =
       let mk_binding parm =
         <:binding@loc<
-          $Gen.idp loc ("_of_" ^ parm)$ =
-            fun sexp -> Sexplib.Conv_error.record_poly_field_value _loc sexp
+          $lid:"_of_" ^ parm$ =
+            fun sexp -> Sexplib.Conv_error.record_poly_field_value _tp_loc sexp
         >>
       in
       List.map ~f:mk_binding (Gen.ty_var_list_of_ctyp parms [])
@@ -878,13 +897,13 @@ module Generate_of_sexp = struct
         <:match_case@loc<
           Sexplib.Sexp.List
             [Sexplib.Sexp.Atom ($str:lccnstr$ | $str:cnstr$) :: _] as sexp ->
-              Sexplib.Conv_error.stag_no_args _loc sexp
+              Sexplib.Conv_error.stag_no_args _tp_loc sexp
         >>
     | <:ctyp@loc< $uid:cnstr$ of $_$ >> ->
         let lccnstr = String.uncapitalize cnstr in
         <:match_case@loc<
           Sexplib.Sexp.Atom ($str:lccnstr$ | $str:cnstr$) as sexp ->
-            Sexplib.Conv_error.stag_takes_args _loc sexp
+            Sexplib.Conv_error.stag_takes_args _tp_loc sexp
         >>
     | <:ctyp@loc< $tp1$ | $tp2$ >> ->
         <:match_case@loc<
@@ -901,10 +920,10 @@ module Generate_of_sexp = struct
           $mk_good_sum_matches alts$
         | $mk_bad_sum_matches alts$
         | Sexplib.Sexp.List [Sexplib.Sexp.List _ :: _] as sexp ->
-            Sexplib.Conv_error.nested_list_invalid_sum _loc sexp
+            Sexplib.Conv_error.nested_list_invalid_sum _tp_loc sexp
         | Sexplib.Sexp.List [] as sexp ->
-            Sexplib.Conv_error.empty_list_invalid_sum _loc sexp
-        | sexp -> Sexplib.Conv_error.unexpected_stag _loc sexp
+            Sexplib.Conv_error.empty_list_invalid_sum _tp_loc sexp
+        | sexp -> Sexplib.Conv_error.unexpected_stag _tp_loc sexp
       >>
 
 
@@ -978,13 +997,14 @@ module Generate_of_sexp = struct
               | <:ctyp@loc< sexp_array $_$ >>
               | <:ctyp@loc< mutable sexp_array $_$ >> ->
                   bi_lst, <:patt@loc< $lid:nm ^ "_value"$ >> :: good_patts
-              | tp ->
-                let loc = Ast.loc_of_ctyp tp in
-                has_nonopt_fields := true;
-                (
-                  <:expr@loc< (Pervasives.(=) $fld$ None, $str:nm$) >> :: bi_lst,
-                  <:patt@loc< Some $lid:nm ^ "_value"$ >> :: good_patts
-                )
+              | _ ->
+                  let loc = Ast.loc_of_ctyp tp in
+                  has_nonopt_fields := true;
+                  (
+                    <:expr@loc<
+                      (Pervasives.(=) $fld$ None, $str:nm$) >> :: bi_lst,
+                    <:patt@loc< Some $lid:nm ^ "_value"$ >> :: good_patts
+                  )
             in
             (
               <:expr@loc< $fld$ >> :: res_tpls,
@@ -1002,19 +1022,17 @@ module Generate_of_sexp = struct
         let rec loop acc = function
           | <:ctyp< $tp1$; $tp2$ >> -> loop (loop acc tp2) tp1
           | <:ctyp@loc< $lid:nm$ : $_$ >> ->
-            <:expr@loc< $lid:nm ^ "_value"$ >> :: acc
+              <:expr@loc< $lid:nm ^ "_value"$ >> :: acc
           | _ -> assert false  (* impossible *)
         in
         match loop [] flds with
         | [match_good_expr] -> match_good_expr
         | match_good_exprs ->
-          <:expr@loc<
-            $tup:Ast.exCom_of_list match_good_exprs$
-          >>
+            <:expr@loc< $tup:Ast.exCom_of_list match_good_exprs$ >>
       else
         let rec loop = function
           | <:ctyp@loc< $tp1$; $tp2$ >> ->
-          <:rec_binding@loc< $loop tp1$; $loop tp2$ >>
+              <:rec_binding@loc< $loop tp1$; $loop tp2$ >>
           | <:ctyp@loc< $lid:nm$ : sexp_list $_$ >> ->
               <:rec_binding@loc<
                 $lid:nm$ =
@@ -1045,7 +1063,7 @@ module Generate_of_sexp = struct
         match $expr$ with
         [ $patt$ -> $match_good_expr$
         | _ ->
-            Sexplib.Conv_error.record_undefined_elements _loc sexp
+            Sexplib.Conv_error.record_undefined_elements _tp_loc sexp
               $Gen.mk_expr_lst loc bi_lst$
         ]
       >>
@@ -1084,16 +1102,17 @@ module Generate_of_sexp = struct
               match field_name with
               [ $mc_no_args_fields$ ];
               iter tail }
-        | [sexp :: _] -> Sexplib.Conv_error.record_only_pairs_expected _loc sexp
+        | [sexp :: _] ->
+            Sexplib.Conv_error.record_only_pairs_expected _tp_loc sexp
         | [] -> () ]
       in
       do {
         iter field_sexps;
         if Pervasives.(<>) duplicates.val [] then
           Sexplib.Conv_error.record_duplicate_fields
-            _loc duplicates.val sexp
+            _tp_loc duplicates.val sexp
         else if Pervasives.(<>) extra.val [] then
-          Sexplib.Conv_error.record_extra_fields _loc extra.val sexp
+          Sexplib.Conv_error.record_extra_fields _tp_loc extra.val sexp
         else $mk_handle_record_match_result has_poly flds$
       }
     >>
@@ -1143,13 +1162,13 @@ module Generate_of_sexp = struct
       <:match_case@loc<
           Sexplib.Sexp.List field_sexps as sexp -> $handle_fields$
         | Sexplib.Sexp.Atom _ as sexp ->
-            Sexplib.Conv_error.record_list_instead_atom _loc sexp
+            Sexplib.Conv_error.record_list_instead_atom _tp_loc sexp
       >>
 
 
   (* Empty type *)
   let nil_of_sexp loc =
-    `Fun <:expr@loc< fun sexp -> Sexplib.Conv_error.empty_type _loc sexp >>
+    `Fun <:expr@loc< fun sexp -> Sexplib.Conv_error.empty_type _tp_loc sexp >>
 
 
   (* Generate code from type definitions *)
@@ -1179,11 +1198,11 @@ module Generate_of_sexp = struct
     let body =
       let rec loop tp =
         Gen.switch_tp_def tp
-          ~alias:(fun (_:Loc.t) tp -> handle_alias tp)
-          ~sum:(fun (_:Loc.t) tp -> sum_of_sexp tp)
-          ~record:(fun (_:Loc.t) tp -> record_of_sexp tp)
-          ~variants:(fun (_:Loc.t) tp -> handle_variant tp)
-          ~mani:(fun (_:Loc.t) _tp1 tp2 -> loop tp2)
+          ~alias:(fun (_ : Loc.t) tp -> handle_alias tp)
+          ~sum:(fun (_ : Loc.t) tp -> sum_of_sexp tp)
+          ~record:(fun (_ : Loc.t) tp -> record_of_sexp tp)
+          ~variants:(fun (_ : Loc.t) tp -> handle_variant tp)
+          ~mani:(fun (_ : Loc.t) _tp1 tp2 -> loop tp2)
           ~nil:nil_of_sexp
       in
       match loop rhs with
@@ -1198,13 +1217,15 @@ module Generate_of_sexp = struct
       List.split (
         List.map ~f:(function tp ->
             let name = "_of_" ^ Gen.get_tparam_id tp in
-            Gen.idp loc name, Gen.ide loc name
+            <:patt@loc< $lid:name$ >>, <:expr@loc< $lid:name$ >>
           )
           tps)
     in
     let with_poly_call = !is_alias_ref && is_poly_call body in
     let internal_fun_body =
-      let full_type_name = sprintf "%s.%s" (Pa_type_conv.get_conv_path ()) type_name in
+      let full_type_name =
+        sprintf "%s.%s" (Pa_type_conv.get_conv_path ()) type_name
+      in
       if with_poly_call then
         Gen.abstract loc arg_patts
           <:expr@loc<
@@ -1213,19 +1234,19 @@ module Generate_of_sexp = struct
           >>
       else
         <:expr@loc<
-          let _loc = $str:full_type_name$ in
+          let _tp_loc = $str:full_type_name$ in
           $Gen.abstract loc arg_patts body$
         >>
     in
     let pre_external_fun_body =
       let internal_call =
-        let internal_expr = Gen.ide loc internal_name in
+        let internal_expr = <:expr@loc< $lid:internal_name$ >> in
         <:expr@loc< $Gen.apply loc internal_expr arg_exprs$ sexp >>
       in
       let no_variant_match_mc =
         <:match_case@loc<
-          Sexplib.Conv_error.No_variant_match (_loc, sexp) ->
-            Sexplib.Conv_error.no_matching_variant_found _loc sexp
+          Sexplib.Conv_error.No_variant_match (_tp_loc, sexp) ->
+            Sexplib.Conv_error.no_matching_variant_found _tp_loc sexp
         >>
       in
       if with_poly_call then
@@ -1238,20 +1259,20 @@ module Generate_of_sexp = struct
     let internal_binding =
       <:binding@loc< $lid:internal_name$ = $internal_fun_body$ >>
     in
-    let external_fun_patt = Gen.idp loc (type_name ^ "_of_sexp") in
+    let external_fun_patt = <:patt@loc< $lid:type_name ^ "_of_sexp"$ >> in
     let external_fun_body =
-      Gen.abstract loc arg_patts <:expr@loc< fun sexp -> $pre_external_fun_body$ >>
+      Gen.abstract loc arg_patts
+        <:expr@loc< fun sexp -> $pre_external_fun_body$ >>
     in
     let external_binding =
       <:binding@loc< $external_fun_patt$ = $external_fun_body$ >>
     in
     internal_binding, external_binding
 
-  let rec tds_of_sexp __loc_to_delete acc = function
+  let rec tds_of_sexp acc = function
     | Ast.TyDcl (loc, type_name, tps, rhs, _cl) ->
         td_of_sexp loc type_name tps rhs :: acc
-    | Ast.TyAnd (loc, tp1, tp2) ->
-      tds_of_sexp loc (tds_of_sexp loc acc tp2) tp1
+    | Ast.TyAnd (_, tp1, tp2) -> tds_of_sexp (tds_of_sexp acc tp2) tp1
     | _ -> assert false  (* impossible *)
 
   (* Generate code from type definitions *)
@@ -1272,38 +1293,41 @@ module Generate_of_sexp = struct
             value $external_binding$
           >>
     | Ast.TyAnd (loc, _, _) as tds ->
-        let two_bindings = tds_of_sexp loc [] tds in
+        let two_bindings = tds_of_sexp [] tds in
         let bindings =
-          List.map ~f:(fun (b1, b2) -> <:binding@loc< $b1$ and $b2$ >>) two_bindings
+          List.map ~f:(fun (b1, b2) -> <:binding@loc< $b1$ and $b2$ >>)
+            two_bindings
         in
         <:str_item@loc< value rec $list:bindings$ >>
     | _ -> assert false  (* impossible *)
 
   (* Add code generator to the set of known generators *)
   let () = Pa_type_conv.add_generator "of_sexp" of_sexp
- end
+end
 
 module Quotations = struct
-
   let of_sexp_quote loc _loc_name_opt cnt_str =
     Pa_type_conv.set_conv_path_if_not_set loc;
     let ctyp = Gram.parse_string Syntax.ctyp_quot loc cnt_str in
     let fp = Generate_of_sexp.type_of_sexp ctyp in
-    let body = match fp with
+    let body =
+      match fp with
       | `Fun fun_expr -> <:expr@loc< $fun_expr$ sexp >>
       | `Match matchings -> <:expr@loc< match sexp with [$matchings$]  >>
     in
-    let full_type_name = sprintf "%s line %i: %s"
-      (Pa_type_conv.get_conv_path ())
-      (Loc.start_line loc)
-      cnt_str
+    let full_type_name =
+      sprintf "%s line %i: %s"
+        (Pa_type_conv.get_conv_path ()) (Loc.start_line loc) cnt_str
     in
     <:expr@loc<
       fun [ sexp ->
-        let _loc = $str:full_type_name$ in
+        let _tp_loc = $str:full_type_name$ in
         $body$ ]
       >>
 
+  let () =
+    Syntax.Quotation.add "of_sexp" Syntax.Quotation.DynAst.expr_tag
+      of_sexp_quote
 
  let sexp_of_quote loc _loc_name_opt cnt_str =
    Pa_type_conv.set_conv_path_if_not_set loc;
@@ -1313,11 +1337,6 @@ module Quotations = struct
   let () =
     Syntax.Quotation.add "sexp_of" Syntax.Quotation.DynAst.expr_tag
       sexp_of_quote
-
-  let () =
-    Syntax.Quotation.add "of_sexp" Syntax.Quotation.DynAst.expr_tag
-      of_sexp_quote
-
 end
 
 (* Add "of_sexp" and "sexp_of" as "sexp" to the set of generators *)

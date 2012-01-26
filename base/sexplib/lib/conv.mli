@@ -106,13 +106,13 @@ val sexp_of_ratio : Ratio.ratio -> Sexp.t
 (** [sexp_of_ratio n] converts the value [n] of type [Ratio.ratio] to an
     S-expression. *)
 
-val sexp_of_ref : ('a -> 'b) -> 'a ref -> 'b
+val sexp_of_ref : ('a -> Sexp.t) -> 'a ref -> Sexp.t
 (** [sexp_of_ref conv r] converts the value [r] of type ['a ref] to
     an S-expression.  Uses [conv] to convert values of type ['a] to an
     S-expression. *)
 
-val sexp_of_lazy : ('a -> 'b) -> 'a lazy_t -> 'b
-(** [sexp_of_ref conv l] converts the value [l] of type ['a lazy_t] to
+val sexp_of_lazy_t : ('a -> Sexp.t) -> 'a lazy_t -> Sexp.t
+(** [sexp_of_lazy_t conv l] converts the value [l] of type ['a lazy_t] to
     an S-expression.  Uses [conv] to convert values of type ['a] to an
     S-expression. *)
 
@@ -149,8 +149,6 @@ val sexp_of_hashtbl :
     to convert the hashtable keys of type ['a], and [conv_value] to
     convert hashtable values of type ['b] to S-expressions. *)
 
-val bigstring_of_sexp : Sexp.t -> bigstring
-
 val sexp_of_bigstring : bigstring -> Sexp.t
 (** [sexp_of_bigstring bstr] converts a bigstring (character bigarray
     in C-layout) to an S-expression. *)
@@ -182,7 +180,7 @@ val sexp_of_opaque : 'a -> Sexp.t
     S-expression.  This means the user need not provide converters,
     but the result cannot be interpreted. *)
 
-val sexp_of_fun : _ -> Sexp.t
+val sexp_of_fun : ('a -> 'b) -> Sexp.t
 (** [sexp_of_fun f] converts the value [f] of function type to a
     dummy S-expression.  Functions cannot be serialized as S-expressions,
     but at least a placeholder can be generated for pretty-printing. *)
@@ -266,8 +264,8 @@ val ref_of_sexp : (Sexp.t -> 'a) -> Sexp.t -> 'a ref
     of type ['a ref] using conversion function [conv], which converts
     an S-expression to a value of type ['a]. *)
 
-val lazy_of_sexp : (Sexp.t -> 'a) -> Sexp.t -> 'a lazy_t
-(** [lazy_of_sexp conv sexp] converts S-expression [sexp] to a value
+val lazy_t_of_sexp : (Sexp.t -> 'a) -> Sexp.t -> 'a lazy_t
+(** [lazy_t_of_sexp conv sexp] converts S-expression [sexp] to a value
     of type ['a lazy_t] using conversion function [conv], which converts
     an S-expression to a value of type ['a]. *)
 
@@ -306,6 +304,10 @@ val hashtbl_of_sexp :
     function [conv_key], which converts an S-expression to hashtable
     key of type ['a], and function [conv_value], which converts an
     S-expression to hashtable value of type ['b]. *)
+
+val bigstring_of_sexp : Sexp.t -> bigstring
+(** [bigstring_of_sexp sexp] converts S-expression [sexp] to a
+    bigstring (character bigarray in C-layout). *)
 
 val float32_vec_of_sexp : Sexp.t -> float32_vec
 (** [float32_vec_of_sexp sexp] converts S-expression [sexp] to a

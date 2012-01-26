@@ -1,3 +1,48 @@
+2011-09-18:  Improved documentation.
+
+2011-09-15:  Fixes to improve package dependency resolution.
+
+2011-07-05:  Fixed a parser position bug.  Parser positions passed by the user
+             were not updated correctly.
+
+             Internal code beautification.
+
+2011-07-04:  Internal updates to sync with Jane Street.
+
+2011-01-30:  Fixed a code generation bug with toplevel entries.
+
+             Thanks to Yong Lu <lyongu@gmail.com> for the report!
+
+2010-12-27:  Added support for MoreLabels.Hashtbl and improved reporting of
+             error locations with preprocessor.
+
+2010-12-26:  Worked around a compiler bug that is expected to be fixed in
+             OCaml 3.12.1.  This workaround temporarily removes the interface
+             for module Conv (conv.mli), thus exposing the internals.
+             This should not cause any problems for end users as long as
+             they do not depend on the exported internal representations.
+             The interface will become constrained again as soon as the
+             fixed compiler is out.
+
+2010-12-22:  Major release.
+
+             Merged with Jane Street version.  This has caused an API-change
+             that requires "open Sexplib.Conv" at the top of files that use the
+             syntax extension.
+
+             Renamed functions:
+
+               * sexp_of_lazy -> sexp_of_lazy_t
+               * lazy_of_sexp -> lazy_t_of_sexp
+
+            Some standard library modules are now re-exported with predefined
+            S-expression converters in module Conv.
+
+2010-09-25:  Fixed inferred types of generated functions when dealing with arrow
+             types.
+
+2010-08-26:  Fixed a lexer bug when parsing comments.
+
 2010-05-21:  Added support for sexp_bool record field annotations.
 
 2010-05-18:  Improved performance of converting S-expressions to strings.
