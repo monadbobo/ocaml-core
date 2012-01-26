@@ -1,3 +1,25 @@
+2011-09-15:  Fixes to improve package dependency resolution.
+
+2011-08-02:  Added missing module type case for "module type of".
+
+2011-07-04:  Merged with Jane Street version.  API changes:
+
+             Removed functions:
+
+               * Gen.ide
+               * Gen.idp
+
+             Removed location arguments from:
+
+               * type_is_recursive
+               * drop_variance_annotations
+
+2010-12-22:  Merged with Jane Street version.  No code changes.
+
+2010-09-25:  Added a missing type case to type_is_recursive.
+             Thanks to Michael Wawrzoniak <mhw@cs.princeton.edu> for this
+             patch!
+
 2010-07-07:  Major changes for compatibility with OCaml 3.12.
 
 2010-06-03:  Improved determination of type-conv paths.
