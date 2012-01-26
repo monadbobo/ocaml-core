@@ -115,12 +115,9 @@ make_tags $HERE/_tags <<EOF
 # remove this part when oasis supports Pack: true
 $(tag_for_pack Bin_prot $HERE/lib/*.ml)
 
-<lib/read_ml.ml{i,}>: pp(cpp -undef -traditional -Werror -I.)
-<lib/size.ml{i,}>: pp(cpp -undef -traditional -Werror -I.)
-<lib/type_class.ml{i,}>: pp(cpp -undef -traditional -Werror -I.)
-<lib/unsafe_read_c.ml{i,}>: pp(cpp -undef -traditional -Werror -I.)
-<lib/write_ml.ml{i,}>: pp(cpp -undef -traditional -Werror -I.)
-<lib_test/*.ml{,i}>: syntax_camlp4o
+<lib/{size,write_ml,read_ml,unsafe_read_c,type_class}.ml{i,}>: pp(cpp -undef -traditional -Werror -I.)
+<lib/{write,read}_ml.ml{,i}>:mlh
+<lib_test/*.ml{,i}>: syntax_camlp4o,pkg_type-conv.syntax
 <syntax/pa_bin_prot.ml>: syntax_camlp4o
 EOF
 
