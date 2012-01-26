@@ -24,7 +24,7 @@ BuildTools:   ocamlbuild
 
 Library comparelib
   Path:               lib
-  Modules:
+  Modules:            Comparelib_dummy
   FindlibName:        comparelib
   XMETAType:          library
 
@@ -41,6 +41,8 @@ Library pa_compare
   XMETARequires:      camlp4,type-conv,comparelib
   XMETADescription:   Syntax extension for "with compare"
 EOF
+
+echo >$HERE/lib/comparelib_dummy.ml
 
 make_tags $HERE/_tags <<EOF
 <syntax/pa_compare.ml>: syntax_camlp4o
