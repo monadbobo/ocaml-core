@@ -73,10 +73,10 @@ for dir in $libraries; do
       core|core/extended) optflags="$linuxflag $timerflag" ;;
       async/scheduler)    optflags="$linuxflag" ;;
       async) # horrible hack (avoids rebuilding async_{core,scheduler,extra})
-          dest=$(mktemp -d)
+          dest=$(mktemp -d -t ocaml-core-async.XXXXXX)
           mkdir -p "$dest/base/async"
-          cp -t "$dest/"     -a ../../build-common.sh
-          cp -t "$dest/base/async" -a lib oasis.sh
+          cp -rp ../../build-common.sh "$dest/"
+          cp -rp lib oasis.sh "$dest/base/async/"
           cd $dest/base/async
           trap "rm -r '$dest'" EXIT
           ;;
