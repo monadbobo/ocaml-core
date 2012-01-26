@@ -46,6 +46,64 @@ function tag_for_pack {
 }
 
 function enable_pack_in_setup_ml {
+    # if this is not the patched version of oasis, we need to patch it.
+    if ! grep -q lib_pack setup.ml; then
+	patch -p1 <<EOF
+--- a/setup.ml	2012-01-26 09:04:49.000000000 +0000
++++ b/setup.ml	2012-01-26 09:25:06.000000000 +0000
+@@ -992,6 +992,7 @@
+   type library = 
+       {
+         lib_modules:            string list;
++        lib_pack:               bool;
+         lib_internal_modules:   string list;
+         lib_findlib_parent:     findlib_name option;
+         lib_findlib_name:       findlib_name option;
+@@ -1285,6 +1286,7 @@
+         source_file_exists is_native ext_lib ext_dll =  
+     (* The headers that should be compiled along *)
+     let headers = 
++      if lib.lib_pack then [] else
+       List.fold_left
+         (fun hdrs modul ->
+            try 
+@@ -1323,11 +1325,18 @@
+   
+     (* Compute what libraries should be built *)
+     let acc_nopath =
++      (* Add the packed header file if required *)
++      let add_pack_header acc =
++        if lib.lib_pack then
++          [cs.cs_name^".cmi"] :: acc
++        else
++          acc
++      in
+       let byte acc =
+-        [cs.cs_name^".cma"] :: acc
++        add_pack_header ([cs.cs_name^".cma"] :: acc)
+       in
+       let native acc =
+-        [cs.cs_name^".cmxa"] :: [cs.cs_name^(ext_lib ())] :: acc
++        add_pack_header ([cs.cs_name^".cmxa"] :: [cs.cs_name^(ext_lib ())] :: acc)
+       in
+         match bs.bs_compiled_object with 
+           | Native ->
+@@ -4261,6 +4270,7 @@
+                 List.rev_append lib_extra acc
+               in
+               let acc = 
++                if lib.lib_pack then acc else
+                 (* Add uncompiled header from the source tree *)
+                 let path = 
+                   BaseFilePath.of_unix bs.bs_path
+
+EOF
+	awk -f - setup.ml > setup.ml.pack <<EOF
+{ if (match(\$0, /lib_internal_modules =/)) { print "lib_pack = false;"; }
+  print \$0; }
+EOF
+	mv setup.ml.pack setup.ml
+    fi
     awk -f - setup.ml > setup.ml.pack <<EOF
 BEGIN                      { next_pack=0; skipnext=0; }
 /cs_name/                  { next_pack=0; }
