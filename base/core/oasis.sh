@@ -15,6 +15,8 @@ function list_mods {
         case "$mod" in
             Linux_ext|Bigstring_marshal)
                 if [[ "$enable_linux" == "true" ]]; then echo "$mod"; fi;;
+	    Backtrace)
+		if [[ "$(uname -m)" == "x86_64" ]]; then echo "$mod"; fi;;
             *) echo "$mod";;
         esac
     done
@@ -25,6 +27,8 @@ function list_stubs {
         case "${stub%%.[ch]}" in
             linux_ext_stubs|bigstring_marshal_stubs)
                 if [[ "$enable_linux" == "true" ]]; then echo "$stub"; fi;;
+	    backtrace_stubs)
+		if [[ "$(uname -m)" == "x86_64" ]]; then echo "$stub"; fi;;
             *) echo "$stub";;
         esac
     done
