@@ -4,8 +4,8 @@ open Import
 module Host = Unix.Host
 module Socket = Unix.Socket
 
-let create_socket () =
-  let s = Socket.create Socket.Type.tcp in
+let create_socket sock_type =
+  let s = Socket.create sock_type in
   Unix.set_close_on_exec (Unix.Socket.fd s);
   s
 ;;
@@ -41,7 +41,7 @@ let connect_sock ?(interrupt=Clock.after (sec 10.)) ~host ~port () =
     Unix.Inet_addr.of_string_or_getbyname host
     >>> fun inet_addr ->
     let addr = Socket.Address.inet inet_addr ~port in
-    let s = create_socket () in
+    let s = create_socket Socket.Type.tcp in
     close_sock_on_error s (fun () ->
       Socket.connect_interruptible s addr ~interrupt)
     >>> function
@@ -101,15 +101,17 @@ let handle_client ?max_buffer_age s addr f =
 
 exception Tcp_server_negative_max_connections of int with sexp
 
-let serve ?(max_connections=10_000) ?max_pending_connections ?max_buffer_age ~port
+let serve_gen ?(max_connections=10_000) ?max_pending_connections ?max_buffer_age 
+    ~sock_type
+    ~sock_addr
     ~on_handler_error handler =
   Deferred.create (fun ready ->
     if max_connections <= 0 then
       raise (Tcp_server_negative_max_connections max_connections);
-    let s = create_socket () in
+    let s = create_socket sock_type in
     close_sock_on_error s (fun () ->
       Socket.setopt s Socket.Opt.reuseaddr true;
-      Socket.bind s (Socket.Address.inet_addr_any ~port)
+      Socket.bind s sock_addr
       >>| Socket.listen ?max_pending_connections)
     >>> fun s ->
     Ivar.fill ready ();
@@ -140,4 +142,21 @@ let serve ?(max_connections=10_000) ?max_pending_connections ?max_buffer_age ~po
     accept_loop ())
 ;;
 
+let serve ?max_connections ?max_pending_connections ?max_buffer_age ~port
+    ~on_handler_error handler = 
+  serve_gen ?max_connections ?max_pending_connections ?max_buffer_age
+    ~sock_type:Socket.Type.tcp
+    ~sock_addr:(Socket.Address.inet_addr_any ~port)
+    ~on_handler_error
+    handler
+
+let serve_unix ?max_connections ?max_pending_connections ?max_buffer_age ~file
+    ~on_handler_error handler = 
+  serve_gen ?max_connections ?max_pending_connections ?max_buffer_age
+    ~sock_type:Socket.Type.unix
+    ~sock_addr:(Socket.Address.unix file)
+    ~on_handler_error
+    handler
+
 let connect_sock ~host ~port = connect_sock ~host ~port ()
+;;

@@ -17,7 +17,6 @@ let after        = Clock    .after
 let at           = Clock    .at
 let catch        = Monitor  .catch
 let every        = Clock    .every
-let protect      = Monitor  .protect
 let schedule     = Scheduler.schedule
 let schedule'    = Scheduler.schedule'
 let try_with     = Monitor  .try_with

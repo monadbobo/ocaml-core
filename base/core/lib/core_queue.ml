@@ -44,6 +44,7 @@ let concat_map t ~f =
   iter t ~f:(fun a ->
     List.iter (f a) ~f:(fun b -> enqueue res b));
   res
+;;
 
 let filter_map t ~f =
   let res = create () in

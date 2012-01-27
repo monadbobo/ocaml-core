@@ -126,9 +126,9 @@ let both x y =
   | _ -> None
 
 let first_some x y =
-  match x,y with
-  | Some _, _ -> x
-  | _ -> y
+  match x with
+  | Some _ -> x
+  | None -> y
 
 let some_if cond x = if cond then Some x else None
 

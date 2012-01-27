@@ -21,7 +21,7 @@ let doit () =
               loop bytes_read)
       in
       loop 0));
-  upon (Clock.after (Time.Span.of_sec 2.)) (fun () ->
+  upon (Clock.after (sec 2.)) (fun () ->
     let s = Socket.create Socket.Type.tcp in
     upon (Socket.connect s (Socket.Address.inet
                                (Unix.Inet_addr.of_string "127.0.0.1") ~port))

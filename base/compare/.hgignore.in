@@ -1,0 +1,15 @@
+INSTALL
+Makefile
+myocamlbuild.ml
+configure
+setup.ml
+setup.log
+setup.data
+_oasis
+_build
+_tags
+lib/META
+lib/comparelib.mllib
+syntax/pa_fields_conv.mllib
+syntax/pa_compare.mllib
+lib/comparelib_dummy.ml

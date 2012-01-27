@@ -115,11 +115,12 @@ val remove : event -> unit
     @raise Invalid_argument if maximum random ratio not within \[0.0, 1.0\].
     @raise Failure if [event] was not already scheduled.
 *)
-val reschedule :
-  event ->
-  ?randomize : float ->
-  ?interval : Span.t ->
-  Span.t -> unit
+val reschedule
+  :  event
+  -> ?randomize : float
+  -> ?interval : Span.t
+  -> Span.t
+  -> unit
 
 (** [get_timer event] @return timer associated with [event]. *)
 val get_timer : event -> t

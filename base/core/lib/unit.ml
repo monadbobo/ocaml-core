@@ -11,7 +11,7 @@ end
 
 include T
 include Sexpable.To_stringable (T)
-include Comparable.Make (T)
+include Comparable.Make_binable (T)
 include Hashable.Make_binable (T)
 
 let pp ppf () = Format.fprintf ppf "()"

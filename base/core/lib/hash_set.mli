@@ -1,68 +1,38 @@
 (* A mutable set of elements *)
 
+open Hash_set_intf
+open T
 
 type 'a t
 
-val copy : 'a t -> 'a t                 (* preserves the equality function *)
-val add : 'a t -> 'a -> unit
-val strict_add : 'a t -> 'a -> (unit, exn) Result.t
-val strict_add_exn : 'a t -> 'a -> unit
-val remove : 'a t -> 'a -> unit
-val strict_remove : 'a t -> 'a -> (unit, exn) Result.t
-val strict_remove_exn : 'a t -> 'a -> unit
-val clear : 'a t -> unit
-val fold : 'a t -> init:'b -> f:('b -> 'a -> 'b) -> 'b
-val iter : 'a t -> f:('a -> unit) -> unit
-val length : 'a t -> int
-val mem : 'a t -> 'a -> bool
-val is_empty : 'a t -> bool
-val to_list : 'a t -> 'a list
-val equal : 'a t -> 'a t -> bool
-val filter : 'a t -> f:('a -> bool) -> 'a t
-val diff : 'a t -> 'a t -> 'a t
-val of_hashtbl_keys : ('a, _) Core_hashtbl.t -> 'a t
-val exists : 'a t -> f:('a -> bool) -> bool
-val for_all : 'a t -> f:('a -> bool) -> bool
-val filter_inplace : 'a t -> f:('a -> bool) -> unit
+include Creators
+  with type 'a t := 'a t
+  with type 'a elt = 'a
+  with type ('key, 'z) create_options := ('key, 'z) create_options_with_hashable_required
 
-type 'a hash_set = 'a t
+include Accessors with type 'a t := 'a t with type 'a elt := 'a elt
+
+module type Elt = Core_hashtbl.Key
+module type S         = S         with type 'a hash_set = 'a t
+module type S_binable = S_binable with type 'a hash_set = 'a t
 
 (* A hash set that uses polymorphic comparison *)
 module Poly : sig
-  type 'a t = 'a hash_set
-  include Sexpable.S1 with type 'a t := 'a t
-  val create : ?growth_allowed:bool
-    -> ?hashable:'a Core_hashtbl_intf.hashable
-    -> ?size:int
-    -> unit
-    -> 'a t
-  val of_list : 'a list -> 'a t
-end
 
-module Make (H : Core_hashtbl.Key) : sig
-  type elem = H.t
-  type t = elem hash_set
-  val create : ?growth_allowed:bool
-    -> ?hashable:H.t Core_hashtbl_intf.hashable
-    -> ?size:int
-    -> unit
-    -> t
-  val of_list : H.t list -> t
-  include Sexpable.S with type t := t
-end
+  type 'a t with sexp
 
-module Make_binable (H : sig
-  include Core_hashtbl.Key
+  include Creators
+    with type 'a t := 'a t
+    with type 'a elt = 'a
+    with type ('key, 'z) create_options := ('key, 'z) create_options_without_hashable
+
+  include Accessors with type 'a t := 'a t with type 'a elt := 'a elt
+
+end with type 'a t = 'a t
+
+module Make (Elt : Elt) : S with type elt = Elt.t
+
+module Make_binable (Elt : sig
+  include Elt
   include Binable.S with type t := t
-end) : sig
-  type elem = H.t
-  type t = elem hash_set
-  val create : ?growth_allowed:bool
-    -> ?hashable:H.t Core_hashtbl_intf.hashable
-    -> ?size:int
-    -> unit
-    -> t
-  val of_list : H.t list -> t
-  include Sexpable.S with type t := t
-  include Binable.S with type t := t
-end
+end) : S_binable with type elt = Elt.t

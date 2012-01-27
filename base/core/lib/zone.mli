@@ -1,7 +1,7 @@
 (*
   This library replicates and extends the functionality of the standard Unix time handling
   functions (currently exposed in the Unix module, and indirectly through the Time
-  module).  
+  module).
 
   Things you should know before delving into the mess of time...
 
@@ -128,7 +128,7 @@
   daylight savings time.
 
   In the case where time jumps forward one hour, there are possible representations of
-  times that never happened (2006-04-02T02:30:00 in the eastern U.S. never happened for
+  times that never happened 2006-04-02T02:30:00 in the eastern U.S. never happened for
   instance, because the clock jumped forward one hour directly from 2 to 3.  Unix time
   zone libraries asked to convert one of these times will generally produce the epoch time
   that represents the time 1/2 hour after 2 am, which when converted back to a string
@@ -182,11 +182,11 @@ val find : string -> t option
 val find_office : [ `chi | `hkg | `ldn | `nyc ] -> t
 val find_exn : string -> t
 
-(** [machine_zone ?refresh ()] returns the machines zone (t).  It does this by first 
-    looking for a value in the environment variable "TZ", and loading the named zone if 
+(** [machine_zone ?refresh ()] returns the machines zone (t).  It does this by first
+    looking for a value in the environment variable "TZ", and loading the named zone if
     it is set.  If "TZ" is not set it reads /etc/localtime directly.
 
-    The first call to machine_zone is cached, so there is no need to cache it locally. 
+    The first call to machine_zone is cached, so there is no need to cache it locally.
     The cache can be bypassed and refreshed by setting ~refresh to true. *)
 val machine_zone : ?refresh:bool -> unit -> t
 

@@ -32,7 +32,7 @@ module type S = sig
   (** The type of the accumulator *)
   type out_value
 
-  type 'key t = private (('key,out_value) Map.t)
+  type 'key t = private (('key,out_value) Map.Poly.t)
 
   (* Used internally to tie S1 and S2 together *)
   type 'a _in_value = in_value
@@ -59,8 +59,9 @@ module type S = sig
   val iter      : 'a t -> f:(key:'a -> data:out_value -> unit) -> unit
   val fold      :
     'a t
+    -> init:'b
     -> f:(key:'a -> data:out_value -> 'b -> 'b)
-    -> init:'b -> 'b
+    -> 'b
   val filter    : 'a t -> f:(key:'a -> data:out_value -> bool) -> 'a t
   val keys      : 'a t -> 'a list
   val data      : _ t -> out_value list
@@ -68,8 +69,8 @@ module type S = sig
   val of_list   : ('a * in_value) list -> 'a t
   val for_all   : _ t -> f:(out_value -> bool) -> bool
   val exists    : _ t -> f:(out_value -> bool) -> bool
-  val to_map    : 'a t -> ('a , out_value) Map.t
-  val of_map    : ('a , out_value) Map.t -> 'a t
+  val to_map    : 'a t -> ('a , out_value) Map.Poly.t
+  val of_map    : ('a , out_value) Map.Poly.t -> 'a t
 
 end
 
@@ -112,7 +113,7 @@ module type S2 = sig
 
   type 'a out_value
 
-  type ('key,'data) t = private ('key,'data out_value) Map.t
+  type ('key,'data) t = private ('key,'data out_value) Map.Poly.t
 
   type 'a _in_value = 'a
   type 'a _out_value = 'a out_value
@@ -130,8 +131,9 @@ module type S2 = sig
   val iter      : ('a,'b) t -> f:(key:'a -> data:'b out_value -> unit) -> unit
   val fold      :
     ('a,'b) t
+    -> init:'c
     -> f:(key:'a -> data:'b out_value -> 'c -> 'c)
-    -> init:'c -> 'c
+    -> 'c
   val filter    :
     ('a,'b) t
     -> f:(key:'a -> data:'b out_value -> bool)
@@ -142,8 +144,8 @@ module type S2 = sig
   val of_list   : ('a * 'b) list -> ('a,'b) t
   val for_all   : (_,'b) t -> f:('b out_value -> bool) -> bool
   val exists    : (_,'b) t -> f:('b out_value -> bool) -> bool
-  val to_map    : ('a,'b) t -> ('a,'b out_value) Map.t
-  val of_map    : ('a,'b out_value) Map.t -> ('a,'b) t
+  val to_map    : ('a,'b) t -> ('a,'b out_value) Map.Poly.t
+  val of_map    : ('a,'b out_value) Map.Poly.t -> ('a,'b) t
 end
 
 module Make2 (Fold : Foldable2) : S2

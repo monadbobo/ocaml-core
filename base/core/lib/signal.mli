@@ -7,31 +7,30 @@ include Stringable.S with type t := t
 
 val equal : t -> t -> bool
 
-(** [of_system_int] and [to_system_int] return and take respectively a signal
-    number corresponding to those in the system's
-    /usr/include/bits/signum.h (or equivalent).  It is not guaranteed
-    that these numbers are portable across any given pair of systems --
+(** [of_system_int] and [to_system_int] return and take respectively a signal number
+    corresponding to those in the system's /usr/include/bits/signum.h (or equivalent).  It
+    is not guaranteed that these numbers are portable across any given pair of systems --
     although some are defined as standard by POSIX. *)
 val of_system_int : int -> t
 val to_system_int : t -> int
 
-(** [of_caml_int] constructs a Signal.t given an O'Caml internal signal
-    number.  This is only for the use of the Core_unix module. *)
+(** [of_caml_int] constructs a Signal.t given an O'Caml internal signal number.  This is
+    only for the use of the Core_unix module. *)
 val of_caml_int : int -> t
 val to_caml_int : t -> int
 
 (** [to_string t] returns a human-readable name: "sigabrt", "sigalrm", ... *)
 val to_string : t -> string
 
-(** The default behaviour of the system if these signals trickle to the top
-    level of a program.  See include/linux/kernel.h in the Linux kernel
-    source tree (not the file /usr/include/linux/kernel.h). *)
+(** The default behaviour of the system if these signals trickle to the top level of a
+    program.  See include/linux/kernel.h in the Linux kernel source tree (not the file
+    /usr/include/linux/kernel.h). *)
 type sys_behavior = [
-| `Continue (** Continue the process if it is currently stopped*)
+| `Continue  (** Continue the process if it is currently stopped*)
 | `Dump_core (** Terminate the process and dump core *)
-| `Ignore (** Ignore the signal*)
-| `Stop  (** Stop the process *)
-| `Terminate  (** Terminate the process *)
+| `Ignore    (** Ignore the signal*)
+| `Stop      (** Stop the process *)
+| `Terminate (** Terminate the process *)
 ]
 with sexp
 

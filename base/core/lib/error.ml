@@ -1,18 +1,18 @@
+(* This module is trying to minimize dependencies on modules in Core, so as to allow Error
+   (and Or_error) to be used in various places.  Please avoid adding new dependencies. *)
+
 open Sexplib.Std
 open Bin_prot.Std
 
 module Conv = Sexplib.Conv
 
-(* Note that this module is trying to minimize dependencies on modules in Core, so as to
-   allow Error (and Or_error) to be used in various places.  Please avoid adding new
-   dependencies. *)
 module List = Core_list
 
 module Sexp = struct
   include Sexplib.Sexp
   include (struct
     type t = Sexplib.Sexp.t = Atom of string | List of t list with bin_io
-  end : Interfaces.Binable with type t := t)
+  end : Binable.S with type t := t)
 end
 
 let concat ?(sep="") l = String.concat sep l
@@ -24,7 +24,6 @@ module Message = struct
   | Could_not_construct of Sexp.t
   | String of string
   | Sexp of Sexp.t
-  | Tag_string of string * string
   | Tag_sexp of string * Sexp.t
   | Tag_t of string * t
   | Tag_arg of string * Sexp.t * t
@@ -42,7 +41,6 @@ module Message = struct
       "could not construct error: " :: Sexp.to_string_mach sexp :: ac
     | String string -> string :: ac
     | Sexp sexp -> Sexp.to_string_mach sexp :: ac
-    | Tag_string (tag, string) -> tag :: ": " :: string :: ac
     | Tag_sexp (tag, sexp) -> tag :: ": " :: Sexp.to_string_mach sexp :: ac
     | Tag_t (tag, t) -> tag :: ": " :: to_strings_hum t ac
     | Tag_arg (tag, sexp, t) ->
@@ -69,7 +67,6 @@ module Message = struct
     | Could_not_construct _ as t -> sexp_of_t t :: ac
     | String string -> Atom string :: ac
     | Sexp sexp -> sexp :: ac
-    | Tag_string (tag, string) -> List [ Atom tag; Atom string ] :: ac
     | Tag_sexp (tag, sexp) -> List [ Atom tag; sexp ] :: ac
     | Tag_t (tag, t) -> List (Atom tag :: to_sexps_hum t []) :: ac
     | Tag_arg (tag, sexp, t) -> List (Atom tag :: sexp :: to_sexps_hum t []) :: ac
@@ -119,17 +116,11 @@ let of_string error = Lazy.lazy_from_val (String error)
 
 let of_thunk f = lazy (protect (fun () -> String (f ())))
 
-let string_arg tag string_of_x x =
-  lazy (protect (fun () -> Tag_string (tag, string_of_x x)))
-;;
-
-let create_sexp x sexp_of_x = lazy (protect (fun () -> Sexp (sexp_of_x x)))
-
 let create tag x sexp_of_x = lazy (protect (fun () -> Tag_sexp (tag, sexp_of_x x)))
 
 let tag t tag = lazy (Tag_t (tag, to_message t))
 
-let tag_arg t tag sexp_of_x x =
+let tag_arg t tag x sexp_of_x =
   lazy (protect (fun () -> Tag_arg (tag, sexp_of_x x, to_message t)))
 ;;
 
@@ -146,7 +137,7 @@ let of_exn = function
 
 let raise t = raise (Error t)
 
-let fail message a sexp_of_a = raise (create message a sexp_of_a)
+let failwiths message a sexp_of_a = raise (create message a sexp_of_a)
 
 TEST_MODULE "error" = struct
   TEST = to_string_hum (tag (of_string "b") "a") = "a: b"
@@ -159,10 +150,9 @@ TEST_MODULE "error" = struct
 
   TEST = round (of_string "hello")
   TEST = round (of_thunk (fun () -> "hello"))
-  TEST = round (string_arg "tag" string_of_int 13)
   TEST = round (create "tag" 13 <:sexp_of< int >>)
   TEST = round (tag (of_string "hello") "tag")
-  TEST = round (tag_arg (of_string "hello") "tag" <:sexp_of< int >> 13)
+  TEST = round (tag_arg (of_string "hello") "tag" 13 <:sexp_of< int >>)
   TEST = round (of_list [ of_string "hello"; of_string "goodbye" ])
 end
 

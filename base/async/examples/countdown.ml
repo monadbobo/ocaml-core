@@ -8,7 +8,7 @@ let rec loop i =
     shutdown 0
   else begin
     printf "%d\n" i; 
-    upon (after (Time.Span.of_sec 1.)) (fun _ -> loop (i - 1))
+    upon (after (sec 1.)) (fun _ -> loop (i - 1))
   end
 
 let () = loop 10

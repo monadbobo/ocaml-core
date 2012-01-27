@@ -117,7 +117,7 @@ module Logger = struct
         Fcommand.(anon ("LOGFILE" %: string) ++ uses_async)
         (fun path ->
           Writer.with_file path ~f:(fun w ->
-            every (Time.Span.of_sec 1.) (fun () ->
+            every (sec 1.) (fun () ->
               Writer.write w (Int.to_string (Random.int 100));
               Writer.newline w);
             never () >>= fun () ->

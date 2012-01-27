@@ -1,25 +1,24 @@
 open Core_hashtbl_intf
+open T
 
 module Hashtbl = Core_hashtbl
 
-module Table_sig (Key : T0) = Monomorphic (Hashtbl) (Key)
-
 module type S = sig
   type t
-  module Hashable : T0 with type t = t
+  module Hashable : T with type t = t
   val hash : t -> int
-  val hashable : t hashable
-  module Table : Table_sig (Hashable).S
-  module Hash_set : Hash_set_intf.S with type elem = t
+  val hashable : t Hashtbl.Hashable.t
+  module Table : Hashtbl.S with type key = t
+  module Hash_set : Hash_set.S with type elt = t
   module Hash_queue : Hash_queue.S with type Key.t = t
   module Hash_heap : Hash_heap.S with type Key.t = t
 end
 
 module Make (T : Hashtbl.Key) : S with type t := T.t = struct
   include T
-  let hashable = { hash; compare }
   module Hashable = T
   module Table = Hashtbl.Make (T)
+  let hashable = Table.hashable
   module Hash_set = Hash_set.Make (T)
   module Hash_queue = Hash_queue.Make (T)
   module Hash_heap = Hash_heap.Make (T)
@@ -27,14 +26,14 @@ end
 
 module type S_binable = sig
   type t
-  module Hashable : T0 with type t = t
+  module Hashable : T with type t = t
   val hash : t -> int
-  val hashable : t hashable
+  val hashable : t Hashtbl.Hashable.t
   module Table : sig
-    include Core_hashtbl_intf.Monomorphic (Hashtbl) (Hashable).S
+    include Hashtbl.S with type key = t
     include Binable.S1 with type 'a t := 'a t
   end
-  module Hash_set : Hash_set_intf.S_binable with type elem = t
+  module Hash_set : Hash_set.S_binable with type elt = t
   module Hash_queue : Hash_queue.S with type Key.t = t
   module Hash_heap : Hash_heap.S with type Key.t = t
 end
@@ -50,5 +49,5 @@ end) : S_binable with type t := T.t = struct
   module Hash_heap = Hash_heap.Make (T)
 
   include T
-  let hashable = { hash; compare }
+  let hashable = Table.hashable
 end

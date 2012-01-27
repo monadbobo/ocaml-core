@@ -7,7 +7,7 @@ let () =
   let (_, out, _) = 
     In_process.full 
       (fun ~input:_ ~output ->
-         Stream.iter (Clock.at_intervals (Time.Span.of_sec 1.0)) ~f:(fun _ ->
+         Stream.iter (Clock.at_intervals (sec 1.0)) ~f:(fun _ ->
            Tail.extend output (Time.now ()));
          Deferred.never ())
   in

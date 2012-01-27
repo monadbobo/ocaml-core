@@ -31,10 +31,10 @@ sig
     ('a,'b) _t
     -> f:(key:'a -> data:'b _out_value -> unit)
     -> unit
-  val fold      :
-    ('a,'b) _t
-    -> f:(key:'a -> data:'b _out_value -> 'c -> 'c)
+  val fold
+    :  ('a,'b) _t
     -> init:'c
+    -> f:(key:'a -> data:'b _out_value -> 'c -> 'c)
     -> 'c
   val filter    :
     ('a,'b) _t
@@ -46,8 +46,8 @@ sig
   val of_list   : ('a * 'b _in_value) list -> ('a,'b) _t
   val for_all   : (_,'b) _t -> f:('b _out_value -> bool) -> bool
   val exists    : (_,'b) _t -> f:('b _out_value -> bool) -> bool
-  val to_map    : ('a,'b) _t -> ('a,'b _out_value) Map.t
-  val of_map    : ('a,'b _out_value) Map.t -> ('a,'b) _t
+  val to_map    : ('a,'b) _t -> ('a,'b _out_value) Map.Poly.t
+  val of_map    : ('a,'b _out_value) Map.Poly.t -> ('a,'b) _t
 end
 
 module type Foldable_gen = sig
@@ -57,23 +57,26 @@ module type Foldable_gen = sig
   val f : 'a t -> 'a data -> 'a t
 end
 
-
 (* implementation *)
 module Make_fun (Fold : Foldable_gen) : Fold_map_funs
   with type 'a _in_value = 'a Fold.data
   and  type 'a _out_value = 'a Fold.t
-  and  type ('a,'b) _t = ('a,'b Fold.t) Map.t
+  and  type ('a,'b) _t = ('a,'b Fold.t) Map.Poly.t
   =
 struct
-  include (Map : Map_intf.Gen(Map.T).S)
+  include (Map : Map_intf.Accessors with type ('a, 'b, 'c) t := ('a, 'b, 'c) Map.t with type 'a key = 'a)
+  include (Map.Poly : Map_intf.Creators
+                        with type ('a, 'b, 'c) t := ('a, 'b, 'c) Map.Poly.t_
+                        with type 'a key := 'a key
+                        with type ('a, 'b, 'c) create_options := ('a, 'b, 'c) Map_intf.create_options_without_comparator)
   type 'a _in_value = 'a Fold.data
   type 'a _out_value = 'a Fold.t
-  type ('a,'b) _t = ('a,'b Fold.t) Map.t
+  type ('a,'b) _t = ('a,'b Fold.t) Map.Poly.t
 
   let to_map = ident
   let of_map = ident
 
-  let singleton key in_value = Map.singleton key (Fold.f Fold.init in_value)
+  let singleton key in_value = Map.Poly.singleton key (Fold.f Fold.init in_value)
   let find t key =
     match Map.find t key with
     | None -> Fold.init
@@ -84,7 +87,7 @@ struct
 
   let set ~key ~data t = Map.add t ~key ~data
 
-  let of_list l = List.fold l ~init:empty ~f:(fun t (key,data) ->
+  let of_list l = List.fold l ~init:Map.Poly.empty ~f:(fun t (key,data) ->
     add t ~key ~data)
 end
 
@@ -100,7 +103,7 @@ end
 module type S = sig
   type in_value
   type out_value
-  type 'a t = private (('a,out_value) Map.t)
+  type 'a t = private (('a,out_value) Map.Poly.t)
 
   include (Fold_map_funs with type 'a _in_value  = in_value
                          and  type 'a _out_value = out_value
@@ -110,7 +113,7 @@ end
 module Make (Fold : Foldable) = struct
   type in_value = Fold.data
   type out_value = Fold.t               (* with sexp *)
-  type 'a t = ('a,Fold.t) Map.t (* with sexp *)
+  type 'a t = ('a,Fold.t) Map.Poly.t (* with sexp *)
 
   include (Make_fun(struct
                       type 'a t = Fold.t
@@ -134,8 +137,8 @@ end
 module Make_sexpable (Fold : Foldable_sexpable)
   = struct
     include Make (Fold)
-    let t_of_sexp key_of_sexp = Map.t_of_sexp key_of_sexp Fold.t_of_sexp
-    let sexp_of_t sexp_of_key = Map.sexp_of_t sexp_of_key Fold.sexp_of_t
+    let t_of_sexp key_of_sexp = Map.Poly.t_of_sexp key_of_sexp Fold.t_of_sexp
+    let sexp_of_t sexp_of_key = Map.Poly.sexp_of_t sexp_of_key Fold.sexp_of_t
   end
 
 module type Foldable2 = sig
@@ -146,7 +149,7 @@ end
 
 module type S2 = sig
   type 'a out_value
-  type ('a,'b) t = private (('a,'b out_value) Map.t)
+  type ('a,'b) t = private (('a,'b out_value) Map.Poly.t)
 
   include (Fold_map_funs with type ('a) _in_value  = 'a
                          and  type ('a) _out_value = 'a out_value
@@ -156,7 +159,7 @@ end
 module Make2 (Fold : Foldable2) = struct
   type 'a in_value = 'a
   type 'a out_value = 'a Fold.t
-  type ('a,'b) t = ('a,'b Fold.t) Map.t
+  type ('a,'b) t = ('a,'b Fold.t) Map.Poly.t
 
   include (Make_fun(struct include Fold type 'a data = 'a end))
 end
@@ -174,7 +177,7 @@ end
 module Make2_sexpable (Fold : Foldable2_sexpable) = struct
   type 'a in_value = 'a
   type 'a out_value = 'a Fold.t               (* with sexp *)
-  type ('a,'b) t = ('a,'b Fold.t) Map.t with sexp
+  type ('a,'b) t = ('a,'b Fold.t) Map.Poly.t with sexp
 
   include (Make_fun((struct include Fold type 'a data = 'a end)))
 end

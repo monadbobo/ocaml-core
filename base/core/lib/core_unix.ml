@@ -32,6 +32,13 @@ external sync : unit -> unit = "unix_sync"
 external fsync : Unix.file_descr -> unit = "unix_fsync"
 IFDEF FDATASYNC THEN
 external fdatasync : Unix.file_descr -> unit = "unix_fdatasync"
+
+let fdatasync = Ok fdatasync
+
+ELSE
+
+let fdatasync = Error.unimplemented "Unix.fdatasync"
+
 ENDIF
 
 external dirfd : Unix.dir_handle -> File_descr.t = "unix_dirfd"
@@ -744,7 +751,7 @@ let wait_gen
   match f waitpid_result with
   | Some a -> a
   | None ->
-    Error.fail "waitpid syscall returned invalid result for mode"
+    failwiths "waitpid syscall returned invalid result for mode"
       (pid, mode, waitpid_result)
       (<:sexp_of< int * mode * waitpid_result >>)
 ;;
@@ -830,7 +837,7 @@ let close ?restart = unary_fd ?restart Unix.close
 
 let with_close fd ~f = protect ~f:(fun () -> f fd) ~finally:(fun () -> close fd)
 
-let with_file file ~mode ~perm ~f = with_close (openfile file ~mode ~perm) ~f
+let with_file ?perm file ~mode ~f = with_close (openfile file ~mode ?perm) ~f
 
 let with_file_read file ~f = with_file file ~mode:[O_RDONLY] ~perm:0x000 ~f
 
@@ -1076,12 +1083,12 @@ let clear_nonblock = unary_fd Unix.clear_nonblock
 let set_close_on_exec = unary_fd Unix.set_close_on_exec
 let clear_close_on_exec = unary_fd Unix.clear_close_on_exec
 
-let mkdir dirname ~perm =
+let mkdir ?(perm=0o777) dirname =
   improve (fun () -> Unix.mkdir dirname ~perm)
     (fun () -> [dirname_r dirname; file_perm_r perm])
 ;;
 
-let mkdir_p dirname ~perm =
+let mkdir_p ?perm dirname =
   let init,dirs =
     match Core_filename.parts dirname with
     | [] -> assert false
@@ -1092,7 +1099,7 @@ let mkdir_p dirname ~perm =
     List.fold dirs ~init ~f:(fun acc dir ->
       let dir = Filename.concat acc dir in
       begin try
-        mkdir dir ~perm;
+        mkdir dir ?perm;
       with
       | Unix_error (EEXIST, _, _) -> ()
       | e -> raise e
@@ -1118,6 +1125,21 @@ let rewinddir = unary_dir_handle Unix.rewinddir (* Non-intr *)
 let closedir = (* Non-intr *)
   unary_dir_handle (fun dh ->
     try Unix.closedir dh with | Invalid_argument _ -> ())
+
+let fold_dir ~init:acc ~f directory =
+  let dir = opendir ~restart:true directory in
+  let rec aux acc =
+    let entry = try Some (readdir dir) with End_of_file -> None in
+    match entry with
+    | Some entry -> aux (f acc entry)
+    | None -> acc
+  in
+  let acc = aux acc in
+  Unix.closedir dir;
+  acc
+
+let ls_dir directory =
+  fold_dir ~init:[] ~f:(fun acc d -> d :: acc) directory
 
 let pipe = Unix.pipe
 
@@ -1162,7 +1184,7 @@ let create_process_env ?working_dir ~prog ~args ~env () =
         List.map (Array.to_list (Unix.environment ()))
           ~f:(fun s -> String.lsplit2_exn s ~on:'='), env
     in
-    List.fold_left (current @ env) ~init:Map.empty
+    List.fold_left (current @ env) ~init:String.Map.empty
       ~f:(fun map (key, data) -> Map.add map ~key ~data)
   in
   let env =

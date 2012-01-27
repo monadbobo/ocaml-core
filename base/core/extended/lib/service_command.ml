@@ -49,7 +49,7 @@ let command ~lock_file ~name main =
     match check_lock_file () with
     | `Not_running -> was_not_running ()
     | `Running_with_pid pid ->
-      let timeout_span = Time.Span.of_sec 10. in
+      let timeout_span = sec 10. in
       let deadline = Time.add (Time.now ()) timeout_span in
       match Signal.send stop_signal (`Pid pid) with
       | `No_such_process -> was_not_running ()
@@ -60,7 +60,7 @@ let command ~lock_file ~name main =
               (Time.Span.to_string timeout_span);
             `Did_not_die
           end else if still_alive pid then begin
-            Time.pause (Time.Span.of_sec 0.2);
+            Time.pause (sec 0.2);
             wait_loop ()
           end else
             `Died

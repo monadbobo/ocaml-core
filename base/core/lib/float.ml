@@ -5,9 +5,11 @@ module String = Core_string
 open Core_printf
 
 module T = struct
-  type t = float with sexp, bin_io
+  include Comparator.Make_binable (struct
+    type t = float with sexp, bin_io
+    let compare (x : t) y = compare x y
+  end)
 
-  let compare (x : t) y = compare x y
   let equal (x : t) y = x = y
   let hash (x : t) = Hashtbl.hash_param 1 1 x
 end
@@ -110,10 +112,20 @@ let iround_nearest x =
     Some (int_of_float (round x))
   else None (* float too big to round reliably to int *)
 
+TEST = iround_nearest 3.4 = Some 3
+TEST = iround_nearest 3.6 = Some 4
+TEST = iround_nearest (-3.4) = Some (-3)
+TEST = iround_nearest (-3.6) = Some (-4)
+
 let iround_nearest_exn x =
   match iround_nearest x with
   | None -> invalid_argf "Float.iround_nearest_exn: argument out of bounds (%f)" x ()
   | Some n -> n
+
+TEST = iround_nearest_exn 3.4 = 3
+TEST = iround_nearest_exn 3.6 = 4
+TEST = iround_nearest_exn (-3.4) = (-3)
+TEST = iround_nearest_exn (-3.6) = (-4)
 
 let is_inf x = (classify_float x = FP_infinite);;
 
@@ -156,9 +168,17 @@ end
 let modf = Parts.modf
 
 let round_down = floor
+TEST = round_down 3.6 = 3. && round_down (-3.6) = -4.
+
 let round_up = ceil
+TEST = round_up 3.6 = 4. && round_up (-3.6) = -3.
+
 let round_towards_zero t = if t >= 0. then round_down t else round_up t
+TEST = round_towards_zero 3.6 = 3. && round_towards_zero (-3.6) = -3.
+
 let round_nearest t = round t
+TEST = round_nearest 3.6 = 4. && round_nearest (-3.6) = -4.
+
 let mod_float = mod_float
 
 module Class = struct

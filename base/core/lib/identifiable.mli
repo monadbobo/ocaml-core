@@ -2,11 +2,11 @@
 
 module type S = sig
   type t
-  include Stringable.S       with type t := t
-  include Comparable.S       with type t := t
-  include Hashable.S_binable with type t := t
-  include Sexpable.S         with type t := t
-  include Binable.S          with type t := t
+  include Stringable.S         with type t := t
+  include Comparable.S_binable with type t := t
+  include Hashable.S_binable   with type t := t
+  include Sexpable.S           with type t := t
+  include Binable.S            with type t := t
   val pp : Format.formatter -> t -> unit (* pretty print for top-level *)
 end
 

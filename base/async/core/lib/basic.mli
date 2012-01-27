@@ -121,14 +121,13 @@ module Scheduler : sig
       mutable num_jobs_run : int;
       mutable cycle_count : int;
       mutable cycle_start : Time.t;
-      mutable jobs_left : bool;
       cycle_times : Time.Span.t Tail.t;
       cycle_num_jobs : int Tail.t;
       events : Clock_event.t Events.t;
     }
 
   val t : t
-  val add_job                    : Execution_context.t -> (unit -> unit) -> unit
+  val add_job                    : Execution_context.t -> ('a -> unit) -> 'a -> unit
   val current_execution_context  : unit -> Execution_context.t
   val set_execution_context      : Execution_context.t -> unit
   val invariant : unit -> unit

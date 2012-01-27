@@ -1,7 +1,5 @@
-(**
-   Warning! this library assumes we are in a POSIX compliant OS. It will not work properly under
-   windows.
-
+(** Warning! this library assumes we are in a POSIX compliant OS. It will not work
+    properly under windows.
 *)
 
 (**  The path of the root.*)
@@ -142,3 +140,5 @@ val temp_dir_name : string
     conventions.
  *)
 val quote : string -> string
+
+

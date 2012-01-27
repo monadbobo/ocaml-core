@@ -64,11 +64,11 @@ val mem : 'el t -> 'el -> bool
     [heap].  Requires constant time only. *)
 val heap_el_mem : 'el t -> 'el heap_el -> bool
 
-(** [find_heap_el heap el] @return the heap element associated with
+(** [find_heap_el_exn heap el] @return the heap element associated with
     element [el] in [heap].
 
     @raise Not_found if [el] could not be found. *)
-val find_heap_el : 'el t -> 'el -> 'el heap_el
+val find_heap_el_exn : 'el t -> 'el -> 'el heap_el
 
 (** {6 Non-destructive heap accessors} *)
 

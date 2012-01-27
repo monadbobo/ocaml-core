@@ -106,7 +106,7 @@ end = struct
   let v1 = [ 1 ]
 
   let negotiate_version t1 t2 =
-    Set.max_elt (Set.inter (Set.of_list t1) (Set.of_list t2))
+    Set.max_elt (Set.inter (Int.Set.of_list t1) (Int.Set.of_list t2))
 end
 
 module Query = struct
@@ -288,7 +288,7 @@ end = struct
   let create ~implementations:i's ~on_unknown_rpc =
     let module I = Implementation in
     (* Make sure the tags are unique. *)
-    let _, dups = List.fold i's ~init:(Set.empty, Set.empty) ~f:(fun (s, dups) i ->
+    let _, dups = List.fold i's ~init:(Set.Poly.empty, Set.Poly.empty) ~f:(fun (s, dups) i ->
       let tag =
         { Implementation.Description.name = Rpc_tag.to_string i.I.tag;
           version = i.I.version;
@@ -532,6 +532,7 @@ module Connection : Connection_internal = struct
     Deferred.whenever (Writer.close t.writer >>= fun () -> Reader.close t.reader)
 
   let closed t = Ivar.read t.eof
+  let already_closed t = Ivar.is_full t.eof
 
   let create ?server ~connection_state ?max_message_size:max_len reader writer =
     let server = match server with None -> Server.null () | Some s -> s in
@@ -561,11 +562,13 @@ module Connection : Connection_internal = struct
           in
           let last_heartbeat = ref (Time.now ()) in
           let heartbeat () =
-            if Time.diff (Time.now ()) !last_heartbeat > sec 30. then begin
-              close t;
-              Error.raise Error.Connection_closed
-            end;
-            Writer.write_bin_prot t.writer Message.bin_writer_t Message.Heartbeat
+            if not (already_closed t) then begin
+              if Time.diff (Time.now ()) !last_heartbeat > sec 30. then begin
+                close t;
+                Error.raise Error.Connection_closed
+              end;
+              Writer.write_bin_prot t.writer Message.bin_writer_t Message.Heartbeat
+            end
           in
           let rec loop current_read =
             Deferred.enabled [
@@ -612,7 +615,7 @@ module Connection : Connection_internal = struct
                         })));
               Error.raise error);
           Scheduler.within ~monitor (fun () ->
-               Clock.every ~stop:(Ivar.read t.eof) (Span.of_sec 10.0) heartbeat;
+               Clock.every ~stop:(Ivar.read t.eof) (sec 10.) heartbeat;
                loop (read_message ()))
              end;
           Ok t
@@ -878,6 +881,7 @@ module Streaming_rpc = struct
             | Ok initial ->
               let pipe_r, pipe_w = Pipe.create () in
               Ivar.fill ivar (Ok (Ok (query_id, initial, pipe_r)));
+              Connection.closed conn >>> (fun () -> Pipe.close pipe_w);
               `Replace (read_updates pipe_w)
           end
         end

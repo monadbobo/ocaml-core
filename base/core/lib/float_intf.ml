@@ -34,7 +34,6 @@ module type S = sig
   val iround_towards_zero_exn : t -> int           (* closer to 0 *)
   (** iround_towards_zero returns None if iround_towards_zero_exn raises an exception *)
   val iround_towards_zero : t -> int option        (* closer to 0 *)
-  val round : t -> t
   (* iround_down[_exn] rounds towards neg_infinity *)
   val iround_down_exn : t -> int
   val iround_down : t -> int option
@@ -49,6 +48,7 @@ module type S = sig
       round to an int. *)
   val iround_nearest : t -> int option
 
+
   (* Caveat: If the absolute value of the input float is very large, then it could be that
      |round_down x - round_up x| > 1. *)
   (* round_down ..., [-2.,-1.) to -2., [-1.,0.) to -1., [0.,1.) to 0., [1.,2.) to 1.,...*)
@@ -58,6 +58,7 @@ module type S = sig
   (* round_towards_zero ..., (-2.,-1.] to -1., (-1.,1.) to 0., [1.,2.) to 1.,...*)
   val round_towards_zero : t -> t
   (* round_nearest ...,[-1.5,-0.5) to -1., [-0.5,0.5) to 0., [0.5,1.5) to 1.,...*)
+  val round : t -> t
   val round_nearest : t -> t (* same as function round *)
 
   val is_nan : t -> bool

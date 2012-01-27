@@ -1,6 +1,4 @@
 (** Interface to Linux-specific system calls *)
-INCLUDE "config.mlh"
-IFDEF LINUX_EXT THEN
 
 (** {2 sysinfo} *)
 
@@ -46,7 +44,12 @@ end
     @param default pos = 0
     @param default len = length of data (file) associated with descriptor [fd]
 *)
-val sendfile : ?pos : int -> ?len : int -> fd : Core_unix.File_descr.t -> Core_unix.File_descr.t -> int
+val sendfile
+  : (?pos : int
+     -> ?len : int
+     -> fd : Core_unix.File_descr.t
+     -> Core_unix.File_descr.t
+     -> int) Or_error.t
 
 (** {2 Non-portable TCP-functionality} *)
 
@@ -54,11 +57,12 @@ type tcp_bool_option = TCP_CORK with sexp, bin_io
 
 (** [gettcpopt_bool sock opt] @return the current value of the boolean
     TCP socket option [opt] for socket [sock]. *)
-val gettcpopt_bool : Core_unix.File_descr.t -> tcp_bool_option -> bool
+val gettcpopt_bool : (Core_unix.File_descr.t -> tcp_bool_option -> bool) Or_error.t
 
 (** [settcpopt_bool sock opt v] sets the current value of the boolean
     TCP socket option [opt] for socket [sock] to value [v]. *)
-val settcpopt_bool : Core_unix.File_descr.t -> tcp_bool_option -> bool -> unit
+val settcpopt_bool
+  : (Core_unix.File_descr.t -> tcp_bool_option -> bool -> unit) Or_error.t
 
 (** [send_nonblocking_no_sigpipe sock ?pos ?len buf] tries to do a
     nonblocking send on socket [sock] given buffer [buf], offset [pos]
@@ -72,8 +76,12 @@ val settcpopt_bool : Core_unix.File_descr.t -> tcp_bool_option -> bool -> unit
     @raise Invalid_argument if the designated buffer range is invalid.
     @raise Unix_error on Unix-errors.
 *)
-val send_nonblocking_no_sigpipe :
-  Core_unix.File_descr.t -> ?pos : int -> ?len : int -> string -> int option
+val send_nonblocking_no_sigpipe
+  : (Core_unix.File_descr.t
+     -> ?pos : int
+     -> ?len : int
+     -> string
+     -> int option) Or_error.t
 
 (** [send_no_sigpipe sock ?pos ?len buf] tries to do a
     blocking send on socket [sock] given buffer [buf], offset [pos]
@@ -86,8 +94,8 @@ val send_nonblocking_no_sigpipe :
     @raise Invalid_argument if the designated buffer range is invalid.
     @raise Unix_error on Unix-errors.
 *)
-val send_no_sigpipe :
-  Core_unix.File_descr.t -> ?pos : int -> ?len : int -> string -> int
+val send_no_sigpipe
+  : (Core_unix.File_descr.t -> ?pos : int -> ?len : int -> string -> int) Or_error.t
 
 (** [sendmsg_nonblocking_no_sigpipe sock ?count iovecs] tries to do
     a nonblocking send on socket [sock] using [count] I/O-vectors
@@ -98,8 +106,11 @@ val send_no_sigpipe :
     @raise Invalid_argument if the designated ranges are invalid.
     @raise Unix_error on Unix-errors.
 *)
-val sendmsg_nonblocking_no_sigpipe :
-  Core_unix.File_descr.t -> ?count : int -> string Core_unix.IOVec.t array -> int option
+val sendmsg_nonblocking_no_sigpipe
+  : (Core_unix.File_descr.t
+     -> ?count : int
+     -> string Core_unix.IOVec.t array
+     -> int option) Or_error.t
 
 (** {2 Clock functions} *)
 
@@ -110,20 +121,19 @@ module Clock : sig
   (* All these functions can raise Unix_error. *)
 
   (* returns the CPU-clock associated with the thread *)
-  val get : Thread.t -> t
+  val get : (Thread.t -> t) Or_error.t
 
-  val get_time : t -> Span.t
+  val get_time : (t -> Span.t) Or_error.t
 
-  val set_time : t -> Span.t -> unit
+  val set_time : (t -> Span.t -> unit) Or_error.t
 
-  val get_resolution : t -> Span.t
+  val get_resolution : (t -> Span.t) Or_error.t
 
   (** [get_process_clock] the clock measuring the CPU-time of a process. *)
-  val get_process_clock : unit -> t
+  val get_process_clock : (unit -> t) Or_error.t
 
-  (** [get_thread_clock] the clock measuring the CPU-time of the current
-      thread. *)
-  val get_thread_clock : unit -> t
+  (** [get_thread_clock] the clock measuring the CPU-time of the current thread. *)
+  val get_thread_clock : (unit -> t) Or_error.t
 end
 ENDIF
 
@@ -137,22 +147,22 @@ ENDIF
     died, the returned parent PID will be 1, i.e. the init process will
     have adopted the child.  You should then either send the signal to
     yourself using Unix.kill, or execute an appropriate handler. *)
-val pr_set_pdeathsig : Signal.t -> unit
+val pr_set_pdeathsig : (Signal.t -> unit) Or_error.t
 
 (** [pr_get_pdeathsig ()] get the signal that will be sent to the
     currently executing process when its parent dies. *)
-val pr_get_pdeathsig : unit -> Signal.t
+val pr_get_pdeathsig : (unit -> Signal.t) Or_error.t
 
 
 (** {2 Task name} *)
 
 (** [pr_set_name_first16 name] sets the name of the executing thread to [name].  Only
     the first 16 bytes in [name] will be used, the rest is ignored. *)
-val pr_set_name_first16 : string -> unit
+val pr_set_name_first16 : (string -> unit) Or_error.t
 
 (** [pr_get_name ()] gets the name of the executing thread.  The name is
     at most 16 bytes long. *)
-val pr_get_name : unit -> string
+val pr_get_name : (unit -> string) Or_error.t
 
 
 (** {2 Pathname resolution} *)
@@ -162,21 +172,21 @@ val pr_get_name : unit -> string
 
     @raise Unix_error on errors.
 *)
-val file_descr_realpath : Core_unix.File_descr.t -> string
+val file_descr_realpath : (Core_unix.File_descr.t -> string) Or_error.t
 
 (** [out_channel_realpath oc] @return the canonicalized absolute
     pathname of the file associated with output channel [oc].
 
     @raise Unix_error on errors.
 *)
-val out_channel_realpath : out_channel -> string
+val out_channel_realpath : (out_channel -> string) Or_error.t
 
 (** [in_channel_realpath ic] @return the canonicalized absolute
     pathname of the file associated with input channel [ic].
 
     @raise Unix_error on errors.
 *)
-val in_channel_realpath : in_channel -> string
+val in_channel_realpath : (in_channel -> string) Or_error.t
 
 (** {2 Affinity} *)
 
@@ -187,14 +197,13 @@ val in_channel_realpath : in_channel -> string
    other cores.  Second, you save time by not moving the process back
    and forth between CPUs, which sometimes invalidates their cache.
    See "man sched_setaffinity" for details. *)
-val sched_setaffinity : ?pid : Pid.t -> cpuset : int list -> unit -> unit
+val sched_setaffinity : (?pid : Pid.t -> cpuset : int list -> unit -> unit) Or_error.t
 
 
-val sched_setaffinity_this_thread : cpuset : int list -> unit
+val sched_setaffinity_this_thread : (cpuset : int list -> unit) Or_error.t
 
 (** [cores ()] @return the number of cores on the machine *)
-val cores : unit -> int
-ENDIF
+val cores : (unit -> int) Or_error.t
 
 (** [get_terminal_size ()] @return [(rows, cols)], the number of rows and
     columns of the terminal. *)
