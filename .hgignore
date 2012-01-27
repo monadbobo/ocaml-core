@@ -284,7 +284,6 @@ glob:base/typehash/myocamlbuild.ml
 glob:base/typehash/setup.data
 glob:base/typehash/setup.ml
 glob:base/typehash/syntax/pa_typehash.mllib
-glob:base/typehash/lib/typehashlib_dummy.ml
 glob:base/variantslib/INSTALL
 glob:base/variantslib/Makefile
 glob:base/variantslib/_build
