@@ -630,8 +630,43 @@ module Net = struct
       }
       with fields;;
 
-  end
+  let eval_mul_comp rx_tx =
+    match rx_tx with
+    | 0 -> false;
+    | 1 -> true;
+    | _ -> failwithf "Proc.Net.Dev error : value is %d, expected 0 or 1." rx_tx ()
 
+  let of_string str =
+    let s = String.strip in
+    let ios str  = Int.of_string str in
+    match String.split ~on:'\t' str with
+    | [ iface; rx_bytes; rx_packets; rx_errs; rx_drop; rx_fifo; rx_frame; rx_compressed;
+    rx_multicast; tx_bytes; tx_packets; tx_errs; tx_drop; tx_fifo; tx_colls; tx_carrier;
+    tx_compressed ] ->
+    Some {
+      iface = s iface;
+      rx_bytes = ios (s rx_bytes);
+      rx_packets = ios (s rx_packets);
+      rx_errs   = ios (s rx_errs);
+      rx_drop   = ios (s rx_drop);
+      rx_fifo   = ios (s rx_fifo);
+      rx_frame  = ios (s rx_frame);
+      rx_compressed = (eval_mul_comp (ios rx_compressed));
+      rx_multicast = (eval_mul_comp (ios rx_multicast));
+      tx_bytes  = ios (s tx_bytes);
+      tx_packets = ios (s tx_packets);
+      tx_errs   = ios (s tx_errs);
+      tx_drop   = ios (s tx_drop);
+      tx_fifo   = ios (s tx_fifo);
+      tx_colls  = ios (s tx_colls);
+      tx_carrier = ios (s tx_carrier);
+      tx_compressed = (eval_mul_comp (ios tx_compressed));
+    }
+    | _ -> failwithf "Net.Dev.of_string: unsupported format: %s" str ()
+
+    (* add interfaces () to get a list of all interfaces on box *)
+
+  end
   module Route = struct
 
   type t =

@@ -137,4 +137,6 @@ type decimal = Decimal.t with sexp, bin_io
 type passfail = Pass | Fail of string
 
 exception Unimplemented of string with sexp
+let unimplemented = Or_error.unimplemented
+
 exception Bug of string with sexp

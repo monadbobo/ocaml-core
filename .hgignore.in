@@ -19,6 +19,7 @@ config.status$
 mycaml$
 \.DS_Store$
 tmtags$
+\.rnc$
 
 ^\.git/.*$
 ^\.transdeps/.*$

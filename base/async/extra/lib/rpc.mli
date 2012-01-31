@@ -91,6 +91,7 @@ module type Connection = sig
 
   val close : t -> unit
   val closed : t -> unit Deferred.t
+  val already_closed : t -> bool
   val bytes_to_write : t -> int
 
 

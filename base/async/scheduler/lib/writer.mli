@@ -160,7 +160,7 @@ val flushed      : t ->   unit Deferred.t
 val flushed_time : t -> Time.t Deferred.t
 
 val fsync : t -> unit Deferred.t
-val fdatasync : (t -> unit Deferred.t) Or_error.t
+val fdatasync : t -> unit Deferred.t
 
 (** [send t s] writes a string to the channel that can be read back
     using Reader.recv *)
