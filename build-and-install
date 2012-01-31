@@ -81,7 +81,7 @@ for dir in $libraries; do
           trap "rm -r '$dest'" EXIT
           ;;
   esac
-  ./oasis.sh $optflags "${configopts[@]-}"
+  ./oasis.sh $optflags "${configopts[@]:+${configopts[@]}}"
   make build BUILDFLAGS="$makeflags"
   make install || true
   popd
