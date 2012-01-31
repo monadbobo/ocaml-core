@@ -300,11 +300,11 @@ let unsafe_send_nonblocking_no_sigpipe    = Ok unsafe_send_nonblocking_no_sigpip
 
 ELSE
 
-let really_send_no_sigpipe             = Error.unimplemented "Bigstring.really_send_no_sigpipe"
-let send_nonblocking_no_sigpipe        = Error.unimplemented "Bigstring.send_nonblocking_no_sigpipe"
-let sendto_nonblocking_no_sigpipe      = Error.unimplemented "Bigstring.sendto_nonblocking_no_sigpipe"
-let unsafe_really_send_no_sigpipe      = Error.unimplemented "Bigstring.unsafe_really_send_no_sigpipe"
-let unsafe_send_nonblocking_no_sigpipe = Error.unimplemented "Bigstring.unsafe_send_nonblocking_no_sigpipe"
+let really_send_no_sigpipe             = unimplemented "Bigstring.really_send_no_sigpipe"
+let send_nonblocking_no_sigpipe        = unimplemented "Bigstring.send_nonblocking_no_sigpipe"
+let sendto_nonblocking_no_sigpipe      = unimplemented "Bigstring.sendto_nonblocking_no_sigpipe"
+let unsafe_really_send_no_sigpipe      = unimplemented "Bigstring.unsafe_really_send_no_sigpipe"
+let unsafe_send_nonblocking_no_sigpipe = unimplemented "Bigstring.unsafe_send_nonblocking_no_sigpipe"
 
 ENDIF
 
@@ -376,11 +376,11 @@ let unsafe_sendmsg_nonblocking_no_sigpipe = Ok unsafe_sendmsg_nonblocking_no_sig
 ELSE
 
 let sendmsg_nonblocking_no_sigpipe =
-  Error.unimplemented "Bigstring.sendmsg_nonblocking_no_sigpipe"
+  unimplemented "Bigstring.sendmsg_nonblocking_no_sigpipe"
 ;;
 
 let unsafe_sendmsg_nonblocking_no_sigpipe =
-  Error.unimplemented "Bigstring.unsafe_sendmsg_nonblocking_no_sigpipe"
+  unimplemented "Bigstring.unsafe_sendmsg_nonblocking_no_sigpipe"
 ;;
 
 ENDIF

@@ -772,9 +772,8 @@ let schedule_bigstring t ?pos ?len bstr =
 let flushed_time t = ensure_not_closed t; flushed_time t
 let flushed t = ensure_not_closed t; flushed t
 let fsync t   = ensure_not_closed t; flushed t >>= fun _ -> Unix.fsync t.fd
-let fdatasync =
-  Or_error.map Unix.fdatasync ~f:(fun fdatasync t ->
-    ensure_not_closed t; flushed t >>= fun _ -> fdatasync t.fd)
+let fdatasync t =
+  ensure_not_closed t; flushed t >>= fun _ -> Unix.fdatasync t.fd
 ;;
 let write_bin_prot t sw_arg v = ensure_not_closed t; write_bin_prot t sw_arg v
 let send t s                  = ensure_not_closed t; send t s

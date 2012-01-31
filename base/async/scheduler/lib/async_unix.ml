@@ -112,9 +112,7 @@ let ftruncate fd ~len =
 
 let fsync fd = Fd.syscall_in_thread_exn fd Unix.fsync
 
-let fdatasync =
-  Or_error.map Unix.fdatasync ~f:(fun fdatasync fd ->
-    Fd.syscall_in_thread_exn fd fdatasync)
+let fdatasync fd = Fd.syscall_in_thread_exn fd Unix.fdatasync
 ;;
 
 let sync () = syscall_exn Unix.sync

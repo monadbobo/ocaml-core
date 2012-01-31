@@ -21,7 +21,7 @@ module Sysinfo : sig
       mem_unit : int;  (** Memory unit size in bytes *)
     } with sexp, bin_io
 
-  val sysinfo : unit -> t
+  val sysinfo : (unit -> t) Or_error.t
 end
 
 (** {2 Filesystem functions} *)
@@ -114,7 +114,6 @@ val sendmsg_nonblocking_no_sigpipe
 
 (** {2 Clock functions} *)
 
-IFDEF POSIX_TIMERS THEN
 module Clock : sig
   type t
 
@@ -135,7 +134,6 @@ module Clock : sig
   (** [get_thread_clock] the clock measuring the CPU-time of the current thread. *)
   val get_thread_clock : (unit -> t) Or_error.t
 end
-ENDIF
 
 (** {2 Parent death notifications} *)
 
@@ -207,12 +205,12 @@ val cores : (unit -> int) Or_error.t
 
 (** [get_terminal_size ()] @return [(rows, cols)], the number of rows and
     columns of the terminal. *)
-val get_terminal_size : unit -> int * int
+val get_terminal_size : (unit -> int * int) Or_error.t
 
 (* Get the thread ID of the current thread (see gettid(2)). *)
-val gettid : unit -> int
+val gettid : (unit -> int) Or_error.t
 
 (* [get_ipv4_address_for_interface "eth0"] returns the IP address
    assigned to eth0, or throws an exception if no IP address
    is configured. *)
-val get_ipv4_address_for_interface : string -> string ;;
+val get_ipv4_address_for_interface : (string -> string) Or_error.t ;;

@@ -23,6 +23,9 @@ val with_connection
 val connect_sock
   : host:string -> port:int -> ([ `Active ], Socket.inet) Socket.t Deferred.t
 
+val connect_sock_unix
+  : file:string -> ([ `Active ], Socket.unix) Socket.t Deferred.t
+
 (** [connect ~host ~port] is a convenience wrapper around [connect_sock] that returns a
     reader and writer on the socket.  The reader and writer share a file descriptor, and
     so closing one will affect the other.  In particular, closing the reader before
@@ -37,6 +40,14 @@ val connect
   -> ?reader_buffer_size:int
   -> host:string
   -> port:int
+  -> unit
+  -> (Reader.t * Writer.t) Deferred.t
+
+val connect_unix
+  :  ?max_buffer_age:Time.Span.t
+  -> ?interrupt:unit Deferred.t
+  -> ?reader_buffer_size:int
+  -> file:string
   -> unit
   -> (Reader.t * Writer.t) Deferred.t
 

@@ -10,7 +10,7 @@ module List = Core_list
 open No_polymorphic_compare
 
 let (= ) (x : int) y = Polymorphic_compare.(= ) x y
-let (<>) (x : int) y = Polymorphic_compare.(< ) x y
+let (<>) (x : int) y = Polymorphic_compare.(<>) x y
 let (< ) (x : int) y = Polymorphic_compare.(< ) x y
 let (> ) (x : int) y = Polymorphic_compare.(> ) x y
 let (>=) (x : int) y = Polymorphic_compare.(>=) x y
