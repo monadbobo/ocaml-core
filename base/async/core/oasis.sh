@@ -56,6 +56,7 @@ $(tag_for_pack Async_core $HERE/lib/*.ml)
 EOF
 
 cd $HERE
+rm -f setup.ml
 oasis setup
 enable_pack_in_setup_ml async_core
 

@@ -74,6 +74,7 @@ $(if [[ "$enable_linux" == "true" ]]; then echo "DEFINE LINUX_EXT"; fi)
 EOF
 
 cd $HERE
+rm -f setup.ml
 oasis setup
 enable_pack_in_setup_ml async_scheduler
 

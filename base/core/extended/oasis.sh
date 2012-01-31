@@ -158,6 +158,7 @@ $(if [[ "$enable_timers" == "true" ]]; then echo "DEFINE POSIX_TIMERS"; fi)
 EOF
 
 cd $HERE
+rm -f setup.ml
 oasis setup
 enable_pack_in_setup_ml core_extended
 

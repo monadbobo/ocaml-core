@@ -135,6 +135,7 @@ $(tag_for_pack Core $HERE/lib/*.ml)
 EOF
 
 cd $HERE
+rm -f setup.ml
 oasis setup
 enable_pack_in_setup_ml core
 

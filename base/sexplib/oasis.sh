@@ -107,6 +107,7 @@ $(tag_for_pack Sexplib $HERE/lib/*.ml{,l,y})
 EOF
 
 cd $HERE
+rm -f setup.ml
 oasis setup
 enable_pack_in_setup_ml sexplib
 
