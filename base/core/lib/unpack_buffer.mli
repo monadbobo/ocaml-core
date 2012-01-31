@@ -28,6 +28,8 @@ module Unpack_one : sig
        | `Invalid_data of Error.t
        ]
 
+  val map : ('a, 'partial_unpack) t -> f:('a -> 'b) -> ('b, 'partial_unpack) t
+
   (** [create_bin_prot reader] returns an unpacker that reads the "size-prefixed" bin-prot
       encoding, in which a value is encoded by first writing the length of the bin-prot
       data as a 64-bit int, and then writing the data itself.  This encoding makes it
@@ -42,8 +44,8 @@ type ('value, 'partial_unpack) t with sexp_of
 
 val invariant : (_, _) t -> unit
 
-val create :
-  ?partial_unpack:'partial_unpack
+val create
+  :  ?partial_unpack:'partial_unpack
   -> ('value, 'partial_unpack) Unpack_one.t
   -> ('value, 'partial_unpack) t
 

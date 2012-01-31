@@ -45,7 +45,7 @@ type t =
        * to process a toplevel unhandled exception *)
     select_interruptor : Interruptor.t;
 
-    signal_handlers : Raw_signal_handlers.t;
+    signal_handlers : Signal_handlers.t;
 
     (* Finalizers are very much like signals; they can come at any time and in any
        thread.  So, when an OCaml finalizer fires, we stick a closure to do the work
@@ -68,7 +68,7 @@ with fields, sexp_of
 let lock t =
   (* The following debug message is outside the lock, and so there can be races between
      multiple threads printing this message. *)
-  if debug then Debug.print "waiting on lock";
+  if debug then Debug.log_string "waiting on lock";
   Nano_mutex.lock_exn t.mutex;
 ;;
 
@@ -79,7 +79,7 @@ let try_lock t =
 ;;
 
 let unlock ?allow_from_any_thread t =
-  if debug then Debug.print "lock released";
+  if debug then Debug.log_string "lock released";
   Nano_mutex.unlock_exn t.mutex ?allow_from_any_thread;
 ;;
 
@@ -195,7 +195,7 @@ let create () =
   let finalizer_jobs = Thread_safe_queue.create () in
   let select_interruptor = Interruptor.create fd_by_descr in
   let signal_handlers =
-    Raw_signal_handlers.create
+    Signal_handlers.create
       ~thread_safe_notify_signal_delivered:(fun () ->
         Interruptor.thread_safe_interrupt select_interruptor)
   in
@@ -226,11 +226,12 @@ let thread_safe_interrupt_select t =
    [schedule_from_thread]. *)
 
 let finish_cycle t =
-  Core_scheduler.finish_cycle ~now:(Time.now ());
+  let maybe_jobs_remain = Core_scheduler.finish_cycle ~now:(Time.now ()) in
   if current_thread_id () <> t.id_of_thread_running_the_select_loop then
     (* If we are not in the select loop, wake it up so it can process any remaining jobs,
        clock events, or an unhandled exception. *)
-    thread_safe_interrupt_select t
+    thread_safe_interrupt_select t;
+  maybe_jobs_remain
 ;;
 
 let have_lock_do_cycle t =
@@ -239,10 +240,12 @@ let have_lock_do_cycle t =
 ;;
 
 (* [schedule_from_thread] is run from other threads and so must acquire the lock. *)
-let schedule_from_thread t ~within run : unit =
+let schedule_from_thread t ~within f a =
   with_lock t (fun () ->
-    Core_scheduler.add_job within run;
-    have_lock_do_cycle t)
+    Core_scheduler.add_job within f a;
+    (* It's OK to do nothing even if jobs remain, because [finish_cycle] interrupted the
+       select loop, because we're not the thread running the select loop. *)
+    ignore (have_lock_do_cycle t : [ `Jobs_remain | `No_jobs_remain ]));
 ;;
 
 INCLUDE "config.mlh"
@@ -250,17 +253,15 @@ let create_thread t ?(default_thread_name_first16 = "helper-thread") squeue =
   t.num_live_threads <- t.num_live_threads + 1;
   let dead () = t.num_live_threads <- t.num_live_threads - 1 in
   let (_ : Thread.t) = Thread.create (fun () ->
-    let set_thread_name =
-IFDEF LINUX_EXT THEN
-      let last_thread_name = ref "" in
-      fun thread_name ->
-        if String.(<>) thread_name !last_thread_name then begin
-          Linux_ext.pr_set_name_first16 thread_name;
-          last_thread_name := thread_name;
-        end
-ELSE
-      ignore
-ENDIF
+    let last_thread_name = ref "" in
+    let set_thread_name thread_name =
+      if String.(<>) thread_name !last_thread_name then begin
+        begin match Linux_ext.pr_set_name_first16 with
+        | Ok f -> f thread_name
+        | Error _ -> ()
+        end;
+        last_thread_name := thread_name;
+      end;
     in
     set_thread_name default_thread_name_first16;
     let rec loop () =
@@ -314,24 +315,24 @@ let request_stop_watching t fd read_or_write value =
 let select_loop t =
   t.id_of_thread_running_the_select_loop <- current_thread_id ();
   let rec handle_finalizers () =
-    if debug then Debug.print "scheduling finalizers";
+    if debug then Debug.log_string "scheduling finalizers";
     match Thread_safe_queue.dequeue t.finalizer_jobs with
     | None -> ()
     | Some (execution_context, work) ->
-      Core_scheduler.add_job execution_context work;
+      Core_scheduler.add_job execution_context work ();
       handle_finalizers ()
   in
   let handle_delivered_signals () =
-    if debug then Debug.print "handling delivered signals";
-    Raw_signal_handlers.handle_delivered t.signal_handlers;
+    if debug then Debug.log_string "handling delivered signals";
+    Signal_handlers.handle_delivered t.signal_handlers;
   in
-  let compute_timeout () =
-    if debug then Debug.print "compute_timeout";
+  let compute_timeout maybe_jobs_remain =
+    if debug then Debug.log_string "compute_timeout";
     (* We want to set the timeout to `Zero if there are still jobs remaining, so that we
        immediately come back and start running them after select() checks for I/O. *)
-    if Core_scheduler.jobs_left () then
-      `Zero
-    else begin
+    match maybe_jobs_remain with
+    | `Jobs_remain -> `Zero
+    | `No_jobs_remain ->
       let now = Time.now () in
       match Core_scheduler.next_upcoming_event () with
       | None -> `Forever
@@ -340,7 +341,6 @@ let select_loop t =
           `Wait_for (Time.diff time now)
         else
           `Zero
-    end
   in
   (* The select loop has the following structure to ensure that interrupt_select's writes
      to the pipe are not dropped.
@@ -358,7 +358,7 @@ let select_loop t =
   let rec loop () =
     (* At this point, we have the lock. *)
     invariant t;
-    have_lock_do_cycle t;
+    let maybe_jobs_remain = have_lock_do_cycle t in
     invariant t;
     match Core_scheduler.uncaught_exception () with
     | Some exn ->
@@ -374,7 +374,7 @@ let select_loop t =
       | `Already_closed -> fail "can not watch select interruptor" t <:sexp_of< t >>
       end;
       let rec select_loop () =
-        let timeout = compute_timeout () in
+        let timeout = compute_timeout maybe_jobs_remain in
         let select_timeout =
           match timeout with
           | `Forever -> (-1.0)
@@ -384,7 +384,7 @@ let select_loop t =
                timeouts to select. *)
             Float.min (Time.Span.to_sec span) 1.0
         in
-        if debug then Debug.print "selecting for %g" select_timeout;
+        if debug then Debug.log "selecting for" select_timeout <:sexp_of< float >>;
         let pre = File_descr_watcher.pre_check t.file_descr_watcher in
         unlock t ~allow_from_any_thread:!!true;
         let check_result =
@@ -397,9 +397,9 @@ let select_loop t =
         | `Ok post -> post
       in
       let post = select_loop () in
-      if debug then Debug.print "select returned";
+      if debug then Debug.log_string "select returned";
       Interruptor.clear t.select_interruptor;
-      if debug then Debug.print "done with empty_interrupt_pipe";
+      if debug then Debug.log_string "done with empty_interrupt_pipe";
       handle_finalizers ();
       handle_delivered_signals ();
       let handle_post read_or_write =
@@ -453,7 +453,7 @@ let finalize t f obj =
    if the thread has not already done so implicitly via use of an async operation that
    used [the_one_and_only]. *)
 let go t () =
-  if debug then Debug.print "Scheduler.go";
+  if debug then Debug.log_string "Scheduler.go";
   if not (am_in_async t) then Nano_mutex.lock_exn t.mutex;
   if t.go_has_been_called then begin
     (* Someone else has run the scheduler already, so we are just going to never
@@ -464,7 +464,7 @@ let go t () =
   end else begin
     (* We handle [Signal.pipe] so that write() calls on a closed pipe/socket get EPIPE but
        the process doesn't die due to an unhandled SIGPIPE. *)
-    Raw_signal_handlers.handle_signal t.signal_handlers Signal.pipe;
+    Signal_handlers.handle_signal t.signal_handlers Signal.pipe;
     t.go_has_been_called <- true;
     select_loop t;
   end
@@ -510,7 +510,7 @@ let init () =
 let () = init ()
 
 let delta_reserved_threads t bg i =
-  if debug then Debug.print "delta_reserved_threads %d" i;
+  if debug then Debug.log "delta_reserved_threads" i <:sexp_of< int >>;
   t.num_reserved_threads <- t.num_reserved_threads + i;
   bg.Block_group.num_reserved_threads <- bg.Block_group.num_reserved_threads + i;
 ;;
@@ -576,7 +576,9 @@ let thread_safe_deferred t =
   let put x =
     with_lock t (fun () ->
       Ivar.fill i x;
-      have_lock_do_cycle t)
+      match have_lock_do_cycle t with
+      | `No_jobs_remain -> ()
+      | `Jobs_remain -> thread_safe_interrupt_select t)
   in
   (Ivar.read i, put)
 ;;
@@ -596,7 +598,7 @@ let run_in_thread t ?thread ?name_first16 f =
           | Some w -> add_work_for_threads w
           | None -> finish_with_thread t block_group
         end;
-        Ivar.fill ivar (Result.ok_exn result));
+        Ivar.fill ivar (Result.ok_exn result)) ();
       `Continue;
     in
     let work = { Work. doit; set_thread_name_to = name_first16 } in
@@ -627,7 +629,10 @@ let run_in_async_gen (type a) (type b)
     in
     begin match maybe_run_a_cycle with
     | `Do_not_run_a_cycle -> ()
-    | `Run_a_cycle -> have_lock_do_cycle t
+    | `Run_a_cycle ->
+      match have_lock_do_cycle t with
+      | `No_jobs_remain -> ()
+      | `Jobs_remain -> thread_safe_interrupt_select t
     end;
     after_cycle_end res)
 ;;

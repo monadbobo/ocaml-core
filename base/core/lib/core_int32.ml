@@ -3,9 +3,11 @@ open Bin_prot.Std
 open Int32
 
 module T = struct
-  type t = int32 with sexp, bin_io
+  include Comparator.Make_binable (struct
+    type t = int32 with sexp, bin_io
+    let compare (x : t) y = compare x y
+  end)
 
-  let compare (x : t) y = compare x y
   let equal (x : t) y = x = y
   let hash (x : t) = Hashtbl.hash x
 
@@ -22,9 +24,6 @@ let bits_of_float = bits_of_float
 let shift_right_logical = shift_right_logical
 let shift_right = shift_right
 let shift_left = shift_left
-let (<<) a b = shift_left a b
-let (>>) a b = shift_right a b
-let (~>>) a b = shift_right_logical a b
 let bit_not = lognot
 let bit_xor = logxor
 let bit_or = logor
@@ -56,8 +55,8 @@ let ( < ) (x : t) y = x < y
 let ( <> ) (x : t) y = x <> y
 
 include Hashable.Make_binable (T)
-module Map = Core_map.Make (T)
-module Set = Core_set.Make (T)
+module Map = Core_map.Make_binable (T)
+module Set = Core_set.Make_binable (T)
 
 let ( / ) = div
 let ( * ) = mul

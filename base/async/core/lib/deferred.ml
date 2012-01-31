@@ -226,10 +226,10 @@ end
 
 module Map = struct
 
-  type ('a, 'b) t = ('a, 'b) Map.t
+  type ('a, 'b) t = ('a, 'b) Map.Poly.t
 
   let filter_mapi ~f t =
-    List.fold (Map.to_alist t) ~init:Map.empty ~f:(fun map (key, data) ->
+    List.fold (Map.to_alist t) ~init:Map.Poly.empty ~f:(fun map (key, data) ->
       f ~key ~data >>= function
       | Some data2 -> return (Map.add ~key ~data:data2 map)
       | None -> return map)

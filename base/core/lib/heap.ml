@@ -149,7 +149,7 @@ external found_of_heap_el : 'el heap_el -> found = "%identity"
 external heap_el_of_found : found -> 'el heap_el = "%identity"
 exception Found of found
 
-let find_heap_el { ar = ar; cmp = cmp } el =
+let find_heap_el_exn { ar = ar; cmp = cmp } el =
   let len = Array.length ar in
   if P.(len = 0) then raise Not_found;
   let rec loop pos =

@@ -43,8 +43,8 @@ end
 (* These functors allow users to write:
    module Foo = struct
      type t = String.t * Int.t
-     include Tuple.T2.Comparable (String.t) (Int)
-     include Tuple.T2.Hashable (String.t) (Int)
+     include Tuple.Comparable (String.t) (Int)
+     include Tuple.Hashable (String.t) (Int)
    end
 *)
 
@@ -65,8 +65,36 @@ module type Hashable_sexpable = sig
   include Sexpable.S with type t := t
 end
 
+(** The difference between [Hashable] and [Hashable_t] functors is that the former's
+    result type doesn't contain type [t] and the latter does. Therefore, [Hashable] can't
+    be used to combine two pairs into 4-tuple. but [Hashable_t] can. On the other hand
+    result of [Hashable_t] cannot be combined with [Comparable].
+
+    example:
+    module Four_ints = Tuple.Hashable_t (Tuple.Hashable_t (Int)(Int))
+                                        (Tuple.Hashable_t (Int)(Int))
+
+    If instead we used [Hashable] compiler would complain that the input to outer functor
+    doesn't have type [t].
+
+    On the other hand:
+    module Foo = struct
+      type t = String.t * Int.t
+      include Tuple.Comparable (String.t) (Int)
+      include Tuple.Hashable (String.t) (Int)
+    end
+
+    If we used [Hashable_t] above, compiler would compile that we have two types [t]
+    defined.
+
+    Unfortunately, it is not possible to define just one functor that could be used in
+    both cases.
+*)
 module Hashable (S1 : Hashable_sexpable) (S2 : Hashable_sexpable)
   : Hashable_sexpable with type t := Make (S1) (S2).t
+
+module Hashable_t (S1 : Hashable_sexpable) (S2 : Hashable_sexpable)
+  : Hashable_sexpable with type t = Make (S1) (S2).t
 
 module Sexpable (S1 : Sexpable.S) (S2 : Sexpable.S)
   : Sexpable.S with type t := Make (S1) (S2).t

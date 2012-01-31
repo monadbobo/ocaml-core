@@ -7,6 +7,7 @@ module Array = struct
   include Extended_array
 end
 module Ascii_table = Ascii_table
+module Alternating_primary_backup_assignment = Alternating_primary_backup_assignment
 module Atomic_edit = Atomic_edit
 IFDEF POSIX_TIMERS THEN
 module Bench = Bench
@@ -100,6 +101,7 @@ module List = struct
   include Core.Std.List
   include Extended_list
 end
+module List_zipper = List_zipper
 module Logger = Logger
 module Loggers = Loggers
 module Memo = struct
@@ -122,6 +124,7 @@ module Result = struct
 end
 module Runtime_blockout_detector = Runtime_blockout_detector
 module Rw_mutex = Rw_mutex
+module Sampler = Sampler
 module Search = Search_foo
 module Service_command = Service_command
 module Semaphore = Semaphore
@@ -136,6 +139,7 @@ module String = struct
   include Core.Std.String
   include Extended_string
 end
+module String_zipper = String_zipper
 module Sys = struct
   include Core.Std.Sys
   include Extended_sys

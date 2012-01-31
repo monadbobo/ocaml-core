@@ -493,7 +493,7 @@ CAMLprim inline value read_raw_string_stub(
 
 /* Reading bigarrays */
 
-#define MK_BA1_READER(NAME, TYPE, TFLAG) \
+#define MK_BA1_READER(NAME, TYPE, TFLAG, TLAYOUT)                               \
   CAMLprim inline value read_##NAME##_stub(char **sptr_ptr, char *eptr) \
   { \
     unsigned long len = read_nat0(sptr_ptr, eptr); \
@@ -507,7 +507,7 @@ CAMLprim inline value read_raw_string_stub(
     dim = len; \
     v_res = \
       caml_ba_alloc( \
-        CAML_BA_##TFLAG | CAML_BA_FORTRAN_LAYOUT, 1, NULL, &dim); \
+        CAML_BA_##TFLAG | CAML_BA_##TLAYOUT##_LAYOUT, 1, NULL, &dim); \
     *sptr_ptr = next; \
     if (unlikely(tot_size > 65536)) { \
       Begin_roots1(v_res); \
@@ -521,10 +521,10 @@ CAMLprim inline value read_raw_string_stub(
   \
   MK_ML_READER(NAME)
 
-MK_BA1_READER(bigstring, char, UINT8)
+MK_BA1_READER(bigstring, char, UINT8, C)
 
 #define MK_VEC_MAT_READERS(NAME, TYPE, TFLAG) \
-  MK_BA1_READER(NAME##_vec, TYPE, TFLAG) \
+  MK_BA1_READER(NAME##_vec, TYPE, TFLAG, FORTRAN) \
   \
   CAMLprim inline value read_##NAME##_mat_stub(char **sptr_ptr, char *eptr) \
   { \

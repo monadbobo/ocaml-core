@@ -5,7 +5,7 @@ module Event = struct
   type 'a t =
     { at : Time.t;
       value : 'a;
-      mutable heap_element : 'a t Heap.heap_el option sexp_opaque;
+      mutable heap_element : 'a t Heap.heap_el sexp_opaque option;
     }
   with fields, sexp_of
 
@@ -22,9 +22,14 @@ let is_empty t = Heap.is_empty t.events
 
 let is_ready t event = Time.(event.Event.at <= t.now)
 
-let invariant (type a) t =
+let invariant t =
   try
-    Heap.iter t.events ~f:(fun event -> assert (not (is_ready t event)));
+    Heap.iter t.events ~f:(fun event ->
+      begin match event.Event.heap_element with
+      | None -> assert false
+      | Some heap_el -> assert (Heap.heap_el_mem t.events heap_el)
+      end;
+      assert (not (is_ready t event)));
   with
   | exn -> fail "invariant failed" (exn, t) <:sexp_of< exn * a t >>
 ;;

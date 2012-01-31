@@ -30,16 +30,17 @@ val error : (_, 'err) t -> 'err option
 
 val of_option : 'ok option -> error:'err -> ('ok, 'err) t
 
-val iter : ('ok, _) t -> f:('ok -> unit) -> unit
-val iter_error : (_, 'err) t -> f:('err -> unit) -> unit
-val map : ('ok, 'err) t  -> f:('ok -> 'c) -> ('c, 'err) t
-val map_error : ('ok, 'err) t  -> f:('err -> 'c) -> ('ok, 'c) t
+val iter       : ('ok, _   ) t -> f:('ok  -> unit) -> unit
+val iter_error : (_  , 'err) t -> f:('err -> unit) -> unit
+
+val map       : ('ok, 'err) t -> f:('ok  -> 'c) -> ('c , 'err) t
+val map_error : ('ok, 'err) t -> f:('err -> 'c) -> ('ok, 'c  ) t
 
 (* Returns Ok if both are Ok and Error otherwise. *)
-val combine :
-  ('ok1, 'err) t
+val combine
+  :  ('ok1, 'err) t
   -> ('ok2, 'err) t
-  -> ok: ('ok1  -> 'ok2 -> 'ok3)
+  -> ok: ('ok1 -> 'ok2 -> 'ok3)
   -> err:('err -> 'err -> 'err)
   -> ('ok3, 'err) t
 

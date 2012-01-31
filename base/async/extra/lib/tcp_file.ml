@@ -290,9 +290,9 @@ module Server = struct
     | `No      -> Deferred.return 0
     | `Unknown -> failwithf "unable to open file: %s" filename ()
     | `Yes ->
-      (* There is no strong case for using [exclusive:true] since locks are advisory, but
-         it expresses something in the code that we want to be true, and shouldn't hurt.
-      *)
+      (* There is no strong case for using [exclusive:true] here, since locks are
+         advisory, but it expresses something in the code that we want to be true, and
+         shouldn't hurt. *)
       Reader.with_file ~exclusive:true filename
         ~f:(fun r -> Pipe.drain_and_count (Reader.lines r))
   ;;
@@ -329,8 +329,8 @@ module Server = struct
   let stop_serving = stop_serving_internal
 
   let close ?(stop_serving=true) t =
-    if t.File.closed then
-      Deferred.unit
+    if t.File.closed
+    then Deferred.unit
     else begin
       t.File.closed <- true;
       if stop_serving then stop_serving_internal t;
@@ -365,12 +365,21 @@ module Server = struct
     gen_message t (fun writer -> Atomic_operations.schedule_message t msg writer)
 
   let write_sexp =
+    (* We use strings for Sexps whose string representations can fit on the minor heap and
+       Bigstring.t's for those that can't.  As of late 2011, the max size for something on
+       the minor heap is 128 words.  I think there may be a header, so we reduce the 1024
+       chars by a few to account for the possibility of a header. *)
+    let use_bigstring_if_longer_than = 1024 - 64 in
     let buf = Bigbuffer.create 1024 in
-    (fun t sexp ->
+    fun t sexp ->
       Bigbuffer.clear buf;
       Sexp.to_buffer_gen sexp ~buf ~add_char:Bigbuffer.add_char
         ~add_string:Bigbuffer.add_string;
-      schedule_message t (Bigbuffer.big_contents buf))
+      if Bigbuffer.length buf <= use_bigstring_if_longer_than then
+        write_message t (Bigbuffer.contents buf)
+      else
+        schedule_message t (Bigbuffer.big_contents buf);
+  ;;
 
   let with_file ?append filename ~f =
     open_file ?append filename >>= fun t ->

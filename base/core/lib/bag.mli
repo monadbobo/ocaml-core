@@ -1,12 +1,11 @@
 (** A bag is a data structure like a set, except that:
- *
- *   - It doesn't require anything (hashable, comparable) of elements in the bag.
- *   - Duplicates are allowed.
- *   - Addition and removal are constant time.
- *
- * It is an error to modify a bag (add, remove, remove_one, ...) during iteration
- * (fold, iter, ...).
- *)
+
+    - It doesn't require anything (hashable, comparable) of elements in the bag.
+    - Duplicates are allowed.
+    - Addition and removal are constant time.
+
+    It is an error to modify a bag (add, remove, remove_one, ...) during iteration (fold,
+    iter, ...).  *)
 open Std_internal
 
 module Elt : sig
@@ -66,9 +65,8 @@ val find_elt : 'a t -> f:('a -> bool) -> 'a Elt.t option
 *)
 val until_empty : 'a t -> ('a -> unit) -> unit
 
-(** [transfer ~src ~dst] moves all of the elements in [src] into [dst]
-    in constant time.
-*)
+(** [transfer ~src ~dst] moves all of the elements from [src] to [dst] in constant
+    time. *)
 val transfer : src:'a t -> dst:'a t -> unit
 
 val sexp_of_t : ('a -> Sexp.t) -> 'a t -> Sexp.t

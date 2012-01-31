@@ -1,6 +1,8 @@
 open Std_internal
 open Time_internal.Helpers
 
+let sec = Span.of_sec
+
 (* Create an abstract type for Ofday to prevent us from confusing it with
     other floats.
 *)
@@ -26,7 +28,7 @@ end = struct
      precision *)
   include Float_robust_compare.Make(struct let epsilon = 1E-6 end)
 
-  let to_span_since_start_of_day t = Span.of_sec t
+  let to_span_since_start_of_day t = sec t
 
   (* ofday must be >= 0 and <= 24h *)
   let is_valid (t:t) =
@@ -143,7 +145,7 @@ let of_string_iso8601_extended ?pos ?len str =
           else
             let second = parse_two_digits str (pos + 6) in
             if second >= 60 then failwith "second > 60";
-            let span = Span.(+) span (Span.of_sec (float second)) in
+            let span = Span.(+) span (sec (float second)) in
             if hour = 24 && second <> 0 then
               failwith "24 hours and non-zero seconds";
             if len = 8 then span
@@ -161,7 +163,7 @@ let of_string_iso8601_extended ?pos ?len str =
                   failwith "24 hours and non-zero subseconds"
                 else
                   Span.(+) span
-                    (Span.of_sec (float subs /. (10. ** float (len - 9))))
+                    (sec (float subs /. (10. ** float (len - 9))))
               | _ -> failwith "missing subsecond separator"
         in
         T.of_span_since_start_of_day span
@@ -186,7 +188,7 @@ let small_diff =
     (*  d2 is in (0;hour) *)
     let d2 = mod_float (d1 +. hour) hour in
     let d = if d2 > hour /. 2. then d2 -. hour else d2 in
-    Span.of_sec d)
+    sec d)
 ;;
 
 (* There are a number of things that would be shadowed by this include because of the
@@ -220,7 +222,7 @@ let of_string s =
       failwithf "minutes out of valid range: %i" m ();
     if not Float.(s < 60. && s >= 0.) then
       failwithf "seconds out of valid range: %g" s ();
-    Option.value_exn (add (create ~hr:h ~min:m ()) (Span.of_sec s))
+    Option.value_exn (add (create ~hr:h ~min:m ()) (sec s))
   with exn ->
     invalid_argf "Ofday.of_string (%s): %s" s (Exn.to_string exn) ()
 ;;
@@ -238,4 +240,4 @@ let t_of_sexp sexp =
 
 let sexp_of_t span = Sexp.Atom (to_string span)
 
-let of_float f = T.of_span_since_start_of_day (Span.of_sec f)
+let of_float f = T.of_span_since_start_of_day (sec f)

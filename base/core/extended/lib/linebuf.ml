@@ -213,7 +213,7 @@ let try_read_lnum lbuf =
 let try_read lbuf =
   Option.map (try_read_lnum lbuf) ~f:snd
 
-let read_frequency = Span.of_sec 0.01
+let read_frequency = sec 0.01
 
 let rec read lbuf =
   match try_read lbuf with

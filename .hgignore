@@ -80,6 +80,8 @@ ocaml_path
 \#*
 .\#*
 
+# Please do not add directory-specific files to ignore here.  Instead, add them to the
+# .hgignore.in file in the directory where the file you want to ignore lives.
 glob:base/async/INSTALL
 glob:base/async/Makefile
 glob:base/async/_build
@@ -155,6 +157,7 @@ glob:base/compare/_tags
 glob:base/compare/configure
 glob:base/compare/lib/META
 glob:base/compare/lib/comparelib.mllib
+glob:base/compare/lib/comparelib_dummy.ml
 glob:base/compare/myocamlbuild.ml
 glob:base/compare/sample_output/generated_test.ml
 glob:base/compare/sample_output/generated_test.mli
@@ -163,7 +166,6 @@ glob:base/compare/setup.log
 glob:base/compare/setup.ml
 glob:base/compare/syntax/pa_compare.mllib
 glob:base/compare/syntax/pa_fields_conv.mllib
-glob:base/compare/lib/comparelib_dummy.ml
 glob:base/core/INSTALL
 glob:base/core/Makefile
 glob:base/core/_build

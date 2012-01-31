@@ -1,5 +1,10 @@
 (** Type for tracking errors in an Error.t. This is a specialization of the Result type,
-    where the Error constructor carries an Error.t *)
+    where the Error constructor carries an Error.t.
+
+    A common idiom is to wrap a function that is not implemented on all platforms, e.g.:
+
+    val do_something_linux_specific : (unit -> unit) Or_error.t
+*)
 
 open Sexplib
 
@@ -7,6 +12,7 @@ type 'a t = ('a, Error.t) Result.t
 
 include Sexpable.S1 with type 'a t := 'a t
 include Binable .S1 with type 'a t := 'a t
+include Monad.S with type 'a t := 'a t
 
 (** Catches any exceptions and returns them in the Result.t as an Error.t *)
 val try_with      : (unit -> 'a  ) -> 'a t
@@ -28,3 +34,5 @@ val of_exn : exn -> 'a t
 val error        : string -> 'a -> ('a -> Sexp.t) -> _ t
 val error_string : string                         -> _ t
 
+(** [unimplemented name] returns a standard error value for an unimplemented value. *)
+val unimplemented : string -> _ t

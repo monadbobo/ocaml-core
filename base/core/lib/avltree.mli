@@ -37,8 +37,12 @@
     better interface, implement a hash table with it, and show that your table has better
     performance than Core_hashtbl.
 *)
-
-type ('k, 'v) t
+(* estokes: We expose [t] to allow an optimization in Hashtbl that makes iter and fold
+   more than twice as fast. *)
+type ('k, 'v) t =
+| Empty
+| Node of ('k, 'v) t * 'k * 'v * int * ('k, 'v) t
+| Leaf of 'k * 'v
 
 val empty : ('k, 'v) t
 

@@ -1,6 +1,6 @@
 open Core.Std
 
-(* Note: this module is only compiled if the system supports Posix Timers *)
+
 
 module Test : sig
   type t

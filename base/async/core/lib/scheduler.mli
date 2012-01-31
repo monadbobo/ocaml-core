@@ -6,12 +6,11 @@ val current_execution_context  : unit -> Execution_context.t
 val set_block_group            : Block_group.t -> unit
 val set_main_execution_context : Execution_context.t -> unit
 val with_execution_context     : Execution_context.t -> f:(unit -> 'a) -> 'a
-val add_job                    : Execution_context.t -> (unit -> unit) -> unit
+val add_job                    : Execution_context.t -> ('a -> unit) -> 'a -> unit
 val main_execution_context     : unit -> Execution_context.t
 val cycle_start : unit -> Time.t
 val start_cycle : now:Time.t -> unit
-val finish_cycle : now:Time.t -> unit
-val jobs_left : unit -> bool
+val finish_cycle : now:Time.t -> [ `Jobs_remain | `No_jobs_remain ]
 val next_upcoming_event : unit -> Time.t option
 val uncaught_exception : unit -> exn option
 val num_pending_jobs : unit -> int

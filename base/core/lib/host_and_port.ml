@@ -3,6 +3,7 @@ open Std_internal
 module T = struct
   type t = string * int with sexp, bin_io
   let compare = Pervasives.compare
+  let hash = Hashtbl.hash
 end
 
 include T
@@ -27,10 +28,6 @@ let of_string s =
 let pp ppf t = Format.fprintf ppf "%s" (to_string t)
 let () = Pretty_printer.register "Core.Host_and_port.pp"
 
-include (Hashable.Make_binable (struct
-  include T
-  let hash = Hashtbl.hash
-end) : Hashable.S_binable with type t := t)
+include (Hashable.Make_binable (T) : Hashable.S_binable with type t := t)
 
-include Comparable.Make (T)
-
+include Comparable.Make_binable (T)

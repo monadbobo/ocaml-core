@@ -93,7 +93,7 @@ module Make (Arg : Arg) = struct
       >>> function
         | Error exn ->
           Monitor.send_exn (Monitor.current ()) exn;
-          Clock.after (Time.Span.of_sec 0.5) >>> loop
+          Clock.after (sec 0.5) >>> loop
         | Ok (sock, `Inet (addr, port)) ->
             (* Go ahead and accept more connections. *)
             loop ();

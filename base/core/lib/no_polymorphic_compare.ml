@@ -13,4 +13,3 @@ let (<>)    _ _ = `no_polymorphic_compare
 let equal   _ _ = `no_polymorphic_compare
 let min     _ _ = `no_polymorphic_compare
 let max     _ _ = `no_polymorphic_compare
-

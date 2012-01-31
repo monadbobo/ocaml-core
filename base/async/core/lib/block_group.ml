@@ -3,13 +3,12 @@ open Core.Std
 (* Each block group reserves a certain number of threads that it may concurrently use.
    Async guarantees the threads will be available by keeping the sum of the
    "num_reserved_threads" over all block groups less than some maximum, which is a small
-   constant (like 100) for which we are confident that we can simultaneously have that many
-   threads. *)
+   constant (like 100) for which we are confident that we can simultaneously have that
+   many threads. *)
 
 module Work = struct
   type t =
-    {
-      (* When this work starts running, the name of the thread will be set
+    { (* When this work starts running, the name of the thread will be set
          (via Linux_ext.pr_set_name) to this name if provided. *)
       set_thread_name_to : string option;
       doit : unit -> [ `Stop | `Continue ];

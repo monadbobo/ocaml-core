@@ -65,9 +65,6 @@ val length : t -> int64
 
 val set_binary_mode : t -> bool -> unit
 
-
-(** Convenience functions. *)
-
 (** [read_lines filename] Opens filename, reads all lines, and closes the file. *)
 val read_lines : string -> string list
 

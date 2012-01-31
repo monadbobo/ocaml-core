@@ -187,7 +187,7 @@ let wait_for_exit ?(is_child=false) span pid =
           signals to a zombie*)
     else if not (exited ()) then true
     else begin
-      Time.pause (Time.Span.of_sec 0.1);
+      Time.pause (sec 0.1);
       loop ()
     end
   in
@@ -195,7 +195,7 @@ let wait_for_exit ?(is_child=false) span pid =
 
 let kill
     ?is_child
-    ?(wait_for=Time.Span.of_sec 2.0)
+    ?(wait_for=sec 2.0)
     ?(signal=Caml.Sys.sigterm)
     pid
     =

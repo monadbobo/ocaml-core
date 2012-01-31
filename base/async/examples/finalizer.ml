@@ -27,7 +27,7 @@ let rec loop i =
   if i = 0 then
     shutdown 0
   else
-    upon (Clock.after (Time.Span.of_sec 1.)) (fun () ->
+    upon (Clock.after (sec 1.)) (fun () ->
       compact ();
       loop (i - 1))
 ;;

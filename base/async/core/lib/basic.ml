@@ -47,43 +47,43 @@ module Ivar0 = struct
 
   let equal (t : _ t) t' = phys_equal t t'
 
-  let rec sexp_of_t sexp_of_a i =
-    match !i with
-    | Full v -> Sexp.List [Sexp.Atom "Full"; sexp_of_a v]
-    | Empty
-    | Empty_one_handler _
-    | Empty_many_handlers _ -> Sexp.Atom "Empty"
-    | Indir v -> sexp_of_t sexp_of_a v
+  (* Returns a non-indirected ivar, and path compresses any indirections. *)
+  let rec tail_recursive_squash t ac =
+    match !t with
+    | Indir t' -> tail_recursive_squash t' (t :: ac)
+    | _ ->
+      let indir = Indir t in
+      List.iter ac ~f:(fun ancestor ->
+        match !ancestor with
+        | Indir already_points_to ->
+          (* Don't bother mutating if it didn't change. *)
+          if not (phys_equal t already_points_to) then ancestor := indir;
+        | _ -> assert false (* We only put [Indir]s on [ac] *)
+      );
+      t
   ;;
 
-  (* Returns a non-indirected ivar, and path compresses any indirections.  May overflow
-     stack if you pass it an ivar chain that is too long. *)
-  let rec squash t =
-    match !t with
-    | Indir r ->
-      let r' = squash r in
-      (* Don't bother mutating if it didn't change. *)
-      if not (phys_equal r r') then t := Indir r';
-      r'
-    | _ -> t
+  let rec squash t = tail_recursive_squash t []
+
+  let rec sexp_of_t sexp_of_a t =
+    match !(squash t) with
+    | Indir _ -> assert false (* fulfilled by squash *)
+    | Full v -> Sexp.List [Sexp.Atom "Full"; sexp_of_a v]
+    | Empty | Empty_one_handler _ | Empty_many_handlers _ -> Sexp.Atom "Empty"
   ;;
 
   let peek t =
     match !(squash t) with
     | Indir _ -> assert false (* fulfilled by squash *)
     | Full a -> Some a
-    | Empty
-    | Empty_one_handler _
-    | Empty_many_handlers _ -> None
+    | Empty | Empty_one_handler _ | Empty_many_handlers _ -> None
   ;;
 
   let is_empty t =
     match !(squash t) with
     | Indir _ -> assert false (* fulfilled by squash *)
     | Full _ -> false
-    | Empty
-    | Empty_one_handler _
-    | Empty_many_handlers _ -> true
+    | Empty | Empty_one_handler _ | Empty_many_handlers _ -> true
   ;;
 
   let is_full t = not (is_empty t)
@@ -119,7 +119,7 @@ module Monitor = struct
 
   module Pretty = struct
     type one =
-      { name : string option;
+      { name_opt : string option;
         id : int;
         has_seen_error : bool;
         someone_is_listening : bool
@@ -131,16 +131,10 @@ module Monitor = struct
   end
 
   let rec to_pretty t =
-    let rec loop t ac =
-      let ac =
-        { Pretty.
-          name = t.name_opt;
-          id = t.id;
-          has_seen_error = t.has_seen_error;
-          someone_is_listening = t.someone_is_listening;
-        }
-        :: ac
-      in
+    let rec loop
+        { name_opt; id; parent = _; errors = _; has_seen_error; someone_is_listening }
+        ac =
+      let ac = { Pretty. name_opt; id; has_seen_error; someone_is_listening } :: ac in
       match t.parent with
       | None -> List.rev ac
       | Some t -> loop t ac
@@ -198,7 +192,6 @@ module Scheduler = struct
       mutable num_jobs_run : int;
       mutable cycle_count : int;
       mutable cycle_start : Time.t;
-      mutable jobs_left : bool;
       cycle_times : Time.Span.t Tail.t;
       cycle_num_jobs : int Tail.t;
       events : Clock_event.t Events.t;
@@ -223,11 +216,12 @@ module Scheduler = struct
       cycle_times = Tail.create ();
       cycle_num_jobs = Tail.create ();
       events = Events.create ~now;
-      jobs_left = false;
     }
   ;;
 
   let invariant () =
+    assert (t.num_jobs_run >= 0);
+    assert (t.cycle_count >= 0);
     Events.invariant t.events;
     try
       Events.iter t.events ~f:(fun events_event ->
@@ -250,15 +244,13 @@ module Scheduler = struct
       t.current_execution_context <- execution_context;
   ;;
 
-  let add_job execution_context work =
+  let add_job execution_context f a =
     let job = Job.create (fun () ->
       set_execution_context execution_context;
-      work ())
+      f a)
     in
     let priority = execution_context.priority in
-    if debug then
-      Debug.print "enqueing job %d with priority %s" (Job.id job)
-        (Priority.to_string priority);
+    if debug then Debug.log "enqueing job" priority <:sexp_of< Priority.t >>;
     Jobs.add t.jobs priority job;
   ;;
 
@@ -276,7 +268,7 @@ module Handler = struct
     }
   ;;
 
-  let schedule t v = Scheduler.add_job t.execution_context (fun () -> t.run v)
+  let schedule t v = Scheduler.add_job t.execution_context t.run v
 
   let priority t = t.execution_context.priority
 
@@ -298,13 +290,13 @@ module Ivar = struct
     | Empty -> repr := Full v
     | Empty_one_handler (run, context) ->
       repr := Full v;
-      Scheduler.add_job context (fun () -> run v)
+      Scheduler.add_job context run v;
     | Empty_many_handlers handlers ->
       repr := Full v;
       Bag.iter handlers ~f:(fun h -> Handler.schedule h v);
   ;;
 
-  let fill_if_empty t v = if not (is_full t) then fill t v
+  let fill_if_empty t v = if is_empty t then fill t v
 
   include Bin_prot.Utils.Make_binable1 (struct
     module Binable = struct
@@ -393,7 +385,7 @@ module Deferred = struct
       let cell = repr t in
       match !cell with
       | Indir _ -> assert false (* fulfilled by repr *)
-      | Full v -> Scheduler.add_job current_execution_context (fun () -> run v)
+      | Full v -> Scheduler.add_job current_execution_context run v
       | Empty -> cell := Empty_one_handler (run, current_execution_context)
       | Empty_one_handler (run', execution_context') ->
         let bag = Bag.create () in

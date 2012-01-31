@@ -13,6 +13,13 @@ module Unpack_one = struct
        | `Invalid_data of Error.t
        ]
 
+  let map t ~f =
+    fun ?partial_unpack ?pos ?len buf ->
+      match t ?partial_unpack ?pos ?len buf with
+      | `Invalid_data _ | `Not_enough_data _ as x -> x
+      | `Ok (a, pos) -> `Ok (f a, pos)
+  ;;
+
   let create unpack_one =
     fun ?partial_unpack ?pos ?len buf ->
       let (pos, len) =
@@ -99,7 +106,7 @@ let invariant t =
       if t.len = 0 then assert (t.pos = 0);
       assert (t.pos + t.len <= Bigstring.length t.buf);
   with exn ->
-    Error.fail "invariant failed" (exn, to_sexp_ignore t) <:sexp_of< exn * Sexp.t >>
+    failwiths "invariant failed" (exn, to_sexp_ignore t) <:sexp_of< exn * Sexp.t >>
 ;;
 
 let create ?partial_unpack unpack_one =

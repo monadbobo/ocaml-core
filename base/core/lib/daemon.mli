@@ -1,23 +1,37 @@
-(** [daemonize ?(close_stdio = true) ?(cd = "/") ?umask=[0] ()] makes the current
-    executing process a daemon, and dups /dev/null to stdin/stdout/stderr if
-    close_stdio=true. See Chapter 13 of Advanced Programming in the UNIX Environment
+(* Describes how you would like to redirect stdio *)
+
+type redirect_fds = [
+| `Dev_null (* default *)
+| `Do_not_redirect
+| `File_append of string
+| `File_truncate of string
+]
+
+(** [daemonize ?(redirect_stdout=`Dev_null) ?(redirect_stderr=`Dev_null)
+    ?(cd = "/") ?umask=[0] ()] makes the current
+    executing process a daemon, and dups "/dev/null", redirect_stdout, redirect_stderr
+    to stdin/stdout/stderr. redirect_stdout and redirect_stderr default to /dev/null.
+    See Chapter 13 of Advanced Programming in the UNIX Environment
     Second Edition by Stephens and Rago for more details.
 
     @raise Failure if fork was unsuccessful.
 *)
 val daemonize :
-  ?close_stdio : bool
+  ?redirect_stdout : redirect_fds
+  -> ?redirect_stderr : redirect_fds
   -> ?cd : string
   -> ?umask : int
   -> unit
   -> unit
 
-(** [daemonize_wait ?(cd = "/") ?(umask=0) ()] makes the executing process a daemon, but
-    delays full detachment from the calling shell/process until the returned [release]
-    function is called.  Any output to stdout/stderr before [release] is called will get
-    sent out normally.  After [release] is called, /dev/null gets dup'd to
-    stdin/stdout/stderr.  If the process exits before [release] is called, the exit code
-    will bubble up to the calling shell/process.
+(** [daemonize_wait ?(cd = "/") ?(umask=0) ()] makes the executing process a
+    daemon, but delays full detachment from the calling shell/process until
+    the returned "release" closure is called.
+
+    Any output to stdout/stderr before the "release" closure is called will get
+    sent out normally.  After "release" is called, "/dev/null", redirect_stdout, and
+    redirect_stderr gets dup'd to stdin/stdout/stderr.
+    redirect_stdout and redirect_stderr default to /dev/null.
 
     Note that calling [release] will adjust SIGPIPE handling, so you should not rely on
     the delivery of this signal during this time.
@@ -29,4 +43,10 @@ val daemonize :
 
     @raise Failure if fork was unsuccessful.
 *)
-val daemonize_wait : ?cd : string -> ?umask : int -> unit -> (unit -> unit)
+val daemonize_wait :
+  ?redirect_stdout : redirect_fds
+  -> ?redirect_stderr : redirect_fds
+  -> ?cd : string
+  -> ?umask : int
+  -> unit
+  -> (unit -> unit)

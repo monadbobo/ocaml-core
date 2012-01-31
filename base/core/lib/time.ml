@@ -23,6 +23,7 @@ let utc_mktime ~year ~month ~day ~hour ~min ~sec ~ms ~us =
   let hours      = 24. *. days +. hour in
   let mins       = 60. *. hours +. min in
   60. *. mins +. sec +. (float_of_int ms /. 1000.) +. (float_of_int us /. 1000. /. 1000.)
+;;
 
 include Time_internal
 
@@ -84,7 +85,7 @@ module Epoch_cache = struct
     day_start : float;
     day_end   : float;
     date      : Date.t
-  }
+  } with sexp
 end
 
 let of_epoch_internal zone time (* shifted epoch for the time zone for conversion *) =
@@ -107,13 +108,7 @@ let of_epoch_internal zone time (* shifted epoch for the time zone for conversio
   let ofday     = Ofday.of_span_since_start_of_day (Span.of_sec ofday_span) in
   let day_start = time -. ofday_span in
   let day_end   = day_start +. (24. *. 60. *. 60.) in
-  let cache     = {Epoch_cache.
-      zone      = zone;
-      day_start = day_start;
-      day_end   = day_end;
-      date      = date
-    }
-  in
+  let cache     = {Epoch_cache. zone; day_start; day_end; date } in
   (cache, (date, ofday))
 ;;
 
@@ -124,7 +119,7 @@ let of_epoch =
   (fun zone unshifted ->
     let time   = Zone.shift_epoch_time zone `UTC unshifted in
     let {Epoch_cache.zone = z; day_start = s; day_end = e; date = date} = !cache in
-    if zone = z && time >= s && time < e then (
+    if phys_equal zone z && time >= s && time < e then (
       (date, Ofday.of_span_since_start_of_day (Span.of_sec (time -. s))))
     else begin
       let (new_cache,r) = of_epoch_internal zone time in
@@ -420,4 +415,3 @@ let of_localized_string zone str =
   with e ->
     Exn.reraise e "Time.of_localstring"
 ;;
-

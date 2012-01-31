@@ -1,22 +1,9 @@
 open Core.Std
 
-type t =
-  { id : int;
-    work : unit -> unit;
-  }
-with sexp_of
+type t = unit -> unit
 
-let id t = t.id
+let sexp_of_t = sexp_of_a
 
-let run t = t.work ()
+let run t = t ()
 
-let next_id =
-  let r = ref 0 in
-  (fun () -> incr r; !r);
-;;
-
-let create work =
-  { id = next_id ();
-    work;
-  }
-;;
+let create work = work

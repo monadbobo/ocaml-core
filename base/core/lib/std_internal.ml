@@ -14,28 +14,29 @@ module Hashtbl = Core_hashtbl
 module String = Core_string
 module List = struct
   include Core_list
-  (** [stable_dedup] Same as [dedup] but maintains the order of the list
-      and doesn't allow compare function to be specified (otherwise,
-      the implementation in terms of Set.t would hide a heavyweight
-      functor instantiation at each call). *)
-  let stable_dedup = Set.stable_dedup_list
+  (** [stable_dedup] Same as [dedup] but maintains the order of the list and doesn't allow
+      compare function to be specified (otherwise, the implementation in terms of Set.t
+      would hide a heavyweight functor instantiation at each call). *)
+  let stable_dedup = Set.Poly.stable_dedup_list
 
   let stable_dedup_involving_an_application_of_the_set_functor (type _t) ~compare =
     let module Set =
-      Set.Make(struct
-        type t = _t
-        let compare = compare
-        (* [stable_dedup_list] never calls these *)
-        let t_of_sexp _ = assert false
-        let sexp_of_t _ = assert false
-      end)
+          Set.Make (struct
+            type t = _t
+            let compare = compare
+            (* [stable_dedup_list] never calls these *)
+            let t_of_sexp _ = assert false
+            let sexp_of_t _ = assert false
+          end)
     in
     Set.stable_dedup_list
+  ;;
 
 end
 include List.Infix
 
 module Queue = Core_queue
+module Random = Core_random
 module Stack = Core_stack
 module Sys = Core_sys
 module Char = Core_char

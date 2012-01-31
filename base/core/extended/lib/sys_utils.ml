@@ -157,6 +157,7 @@ let checked_edit ?(create=false) ~check file =
       `Ok
 
 
+
 module Sexp_checked_edit (S:Sexpable) = struct
   let check file =
     try ignore (Sexp.load_sexp_conv_exn file S.t_of_sexp : S.t);
@@ -170,4 +171,43 @@ module Sexp_checked_edit (S:Sexpable) = struct
 
   let edit       = checked_edit ~check
   let edit_sexps = checked_edit ~check:check_sexps
+end
+
+
+
+module Cpu_use = struct
+  type sample = {
+    jiffies : Big_int.big_int;
+    time : Time.t;
+  }
+
+  type t = {
+    pid : Pid.t;
+    jps : float;
+    mutable s0 : sample;
+    mutable s1 : sample;
+  }
+
+  let sample_exn pid =
+    let module P = Procfs.Process in
+    let {P.Stat.utime; stime} = (Procfs.with_pid_exn pid).P.stat in
+    { jiffies = Big_int.add_big_int utime stime;
+      time = Time.now () }
+
+  let get ?(pid=Unix.getpid ()) () =
+    { pid;
+      jps = Procfs.jiffies_per_second_exn ();
+      s0 = sample_exn pid;
+      s1 = sample_exn pid; }
+
+  let update_exn t =
+    t.s0 <- t.s1;
+    t.s1 <- sample_exn t.pid
+
+  let cpu_use {jps; s0={jiffies=j0;time=t0}; s1={jiffies=j1;time=t1}} =
+    let my_jps =
+      Big_int.float_of_big_int (Big_int.sub_big_int j1 j0)
+      /. Time.Span.to_sec (Time.diff t1 t0)
+    in
+    my_jps /. jps
 end

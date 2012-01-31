@@ -30,9 +30,7 @@ let create_with_parent ?name:name_opt parent =
       someone_is_listening = false;
     }
   in
-  if debug then
-    Debug.print "creating monitor %s with parent %s"
-      (name t) (match parent with None -> "<none>" | Some p -> name p);
+  if debug then Debug.log "creating monitor" t <:sexp_of< t >>;
   t
 ;;
 
@@ -146,7 +144,7 @@ let schedule ?block_group ?monitor ?priority work =
   Scheduler.add_job
     (Execution_context.create_like (Scheduler.current_execution_context ())
        ?block_group ?monitor ?priority)
-    work
+    work ()
 ;;
 
 let schedule' ?block_group ?monitor ?priority work =
@@ -154,8 +152,8 @@ let schedule' ?block_group ?monitor ?priority work =
     Scheduler.add_job
       (Execution_context.create_like (Scheduler.current_execution_context ())
          ?block_group ?monitor ?priority)
-      (fun () -> upon (work ()) (fun a -> Ivar.fill i a)))
-
+      (fun () -> upon (work ()) (fun a -> Ivar.fill i a))
+      ())
 ;;
 
 let current () = (Scheduler.current_execution_context ()).Execution_context.monitor

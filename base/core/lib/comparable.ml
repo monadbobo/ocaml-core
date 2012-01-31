@@ -16,46 +16,47 @@ module type S_common = sig
   val descending : t -> t -> int
   val min : t -> t -> t
   val max : t -> t -> t
+
+  type comparator
+  val comparator : (t, comparator) Comparator.t
 end
 
 module type S = sig
   include S_common
 
-  module Map : Core_map.S with type key = t
-  module Set : Core_set.S with type elt = t
+  module Map : Core_map.S with type Key.t = t
+  module Set : Core_set.S with type Elt.t = t
 end
 
 module type S_binable = sig
   include S_common
 
-  module Map : Core_map.S_binable with type key = t
-  module Set : Core_set.S_binable with type elt = t
+  module Map : Core_map.S_binable with type Key.t = t
+  module Set : Core_set.S_binable with type Elt.t = t
 end
 
 module Poly (T : sig
   type t
   include Sexpable.S with type t := t
 end) : S with type t := T.t = struct
-  type t = T.t
   include Pervasives                    (* for Infix *)
   let ascending = compare
   let descending x y = compare y x
   let equal = (=)
-  module C = struct
-    include T
+  module T = struct
+    type t = T.t with sexp
     let compare = compare
   end
+  module C = Comparator.Make (T)
+  include C
   module Map = Core_map.Make (C)
   module Set = Core_set.Make (C)
 end
 
 module Make_common (T : sig
-  type t
-  include Sexpable.S with type t := t
+  type t with sexp
   val compare : t -> t -> int
 end) = struct
-  type t = T.t
-
   let compare = T.compare
   let ascending = compare
   let descending t t' = compare t' t
@@ -80,10 +81,11 @@ module Make (T : sig
   include Sexpable.S with type t := t
   val compare : t -> t -> int
 end) : S with type t := T.t = struct
+  module T = Comparator.Make (T)
+  include T
   include Make_common (T)
-
-  module Map = Core_map.Make (T)
-  module Set = Core_set.Make (T)
+  module Map = Core_map.Make_using_comparator (T)
+  module Set = Core_set.Make_using_comparator (T)
 end
 
 module Make_binable (T : sig
@@ -92,25 +94,23 @@ module Make_binable (T : sig
   include Binable.S with type t := t
   val compare : t -> t -> int
 end) : S_binable with type t := T.t = struct
+  module T = Comparator.Make_binable (T)
+  include T
   include Make_common (T)
-
-  module Map = Core_map.Make_binable (T)
-  module Set = Core_set.Make_binable (T)
+  module Map = Core_map.Make_binable_using_comparator (T)
+  module Set = Core_set.Make_binable_using_comparator (T)
 end
 
 (** Inherit comparability from a component. *)
 module Inherit (C : S)
   (T : sig
-    type t
-    include Sexpable.S with type t := t
+    type t with sexp
     val component : t -> C.t
   end)
   : S with type t = T.t = struct
 
-    type t = T.t
-    (* We write [binary] in this way for performance reasons.  It is always
-     * applied to one argument and builds a two-argument closure.
-     *)
+    (* We write [binary] in this way for performance reasons.  It is always applied to one
+       argument and builds a two-argument closure.  *)
     let binary f = (); fun t t' -> f (T.component t) (T.component t')
     let compare = binary C.compare
     let (>=) = binary C.(>=)
@@ -125,14 +125,15 @@ module Inherit (C : S)
     let min t t' = if t <= t' then t else t'
     let max t t' = if t >= t' then t else t'
 
-    module M = struct
-      include T
+    module M = Comparator.Make (struct
+      type t = T.t with sexp
       let compare = compare
-    end
+    end)
+    include M
 
     module Map = Core_map.Make (M)
     module Set = Core_set.Make (M)
-end
+  end
 
 (* compare [x] and [y] lexicographically using functions in the list [cmps] *)
 let lexicographic cmps x y =

@@ -9,7 +9,7 @@ let () =
       let rec loop i =
         eprintf "about to write %d\n" i;
         Writer.write writer buf;
-        upon (Clock.after (Time.Span.of_sec 1.)) (fun () -> loop (i + 1));
+        upon (Clock.after (sec 1.)) (fun () -> loop (i + 1));
       in
       loop 0
     )

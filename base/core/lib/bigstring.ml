@@ -4,6 +4,7 @@ open Unix
 open Bigarray
 open Common
 open Sexplib.Std
+open Result.Export
 
 module Z : sig
   type t = (char, int8_unsigned_elt, c_layout) Array1.t
@@ -290,8 +291,22 @@ let sendto_nonblocking_no_sigpipe fd ?(pos = 0) ?len bstr sockaddr =
   let len = get_opt_len bstr ~pos len in
   check_args ~loc:"sendto_nonblocking_no_sigpipe" ~pos ~len bstr;
   unsafe_sendto_nonblocking_no_sigpipe fd ~pos ~len bstr sockaddr
-ENDIF
 
+let really_send_no_sigpipe                = Ok really_send_no_sigpipe
+let send_nonblocking_no_sigpipe           = Ok send_nonblocking_no_sigpipe
+let sendto_nonblocking_no_sigpipe         = Ok sendto_nonblocking_no_sigpipe
+let unsafe_really_send_no_sigpipe         = Ok unsafe_really_send_no_sigpipe
+let unsafe_send_nonblocking_no_sigpipe    = Ok unsafe_send_nonblocking_no_sigpipe
+
+ELSE
+
+let really_send_no_sigpipe             = Error.unimplemented "Bigstring.really_send_no_sigpipe"
+let send_nonblocking_no_sigpipe        = Error.unimplemented "Bigstring.send_nonblocking_no_sigpipe"
+let sendto_nonblocking_no_sigpipe      = Error.unimplemented "Bigstring.sendto_nonblocking_no_sigpipe"
+let unsafe_really_send_no_sigpipe      = Error.unimplemented "Bigstring.unsafe_really_send_no_sigpipe"
+let unsafe_send_nonblocking_no_sigpipe = Error.unimplemented "Bigstring.unsafe_send_nonblocking_no_sigpipe"
+
+ENDIF
 
 external unsafe_write :
   file_descr -> pos : int -> len : int -> t -> int = "bigstring_write_stub"
@@ -333,12 +348,11 @@ external unsafe_writev_assume_fd_is_nonblocking :
 let writev_assume_fd_is_nonblocking fd ?count iovecs =
   let count = get_iovec_count "writev_nonblocking" iovecs count in
   unsafe_writev_assume_fd_is_nonblocking fd iovecs count
-
+;;
 
 (* Memory mapping *)
 
 let map_file ~shared fd n = Array1.map_file fd Bigarray.char c_layout shared n
-
 
 IFDEF MSG_NOSIGNAL THEN
 (* Input and output, linux only *)
@@ -355,6 +369,20 @@ let unsafe_sendmsg_nonblocking_no_sigpipe fd iovecs count =
 let sendmsg_nonblocking_no_sigpipe fd ?count iovecs =
   let count = get_iovec_count "sendmsg_nonblocking_no_sigpipe" iovecs count in
   unsafe_sendmsg_nonblocking_no_sigpipe fd iovecs count
+
+let sendmsg_nonblocking_no_sigpipe        = Ok sendmsg_nonblocking_no_sigpipe
+let unsafe_sendmsg_nonblocking_no_sigpipe = Ok unsafe_sendmsg_nonblocking_no_sigpipe
+
+ELSE
+
+let sendmsg_nonblocking_no_sigpipe =
+  Error.unimplemented "Bigstring.sendmsg_nonblocking_no_sigpipe"
+;;
+
+let unsafe_sendmsg_nonblocking_no_sigpipe =
+  Error.unimplemented "Bigstring.unsafe_sendmsg_nonblocking_no_sigpipe"
+;;
+
 ENDIF
 (* Search *)
 

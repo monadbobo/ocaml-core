@@ -49,16 +49,14 @@ val lowercase : t -> t
 val capitalize   : t -> t
 val uncapitalize : t -> t
 
-val index : t -> char -> int option
-val index_exn : t -> char -> int
-
-val rindex : t -> char -> int option
+val index      : t -> char -> int option
+val index_exn  : t -> char -> int
+val rindex     : t -> char -> int option
 val rindex_exn : t -> char -> int
 
-val index_from : t -> int -> char -> int option
-val index_from_exn : t -> int -> char -> int
-
-val rindex_from : t -> int -> char -> int option
+val index_from      : t -> int -> char -> int option
+val index_from_exn  : t -> int -> char -> int
+val rindex_from     : t -> int -> char -> int option
 val rindex_from_exn : t -> int -> char -> int
 
 (** [slice s start stop] gets a slice of [s] between [start] and [stop].
@@ -149,6 +147,9 @@ val map : t -> f : (char -> char) -> t
     resulting string. *)
 val mapi : t -> f : (int -> char -> char) -> t
 
+(** [foldi] works similarly to [fold], but also pass in index of each character to [f] *)
+val foldi : t -> init : 'a -> f : (int -> 'a -> char -> 'a) -> 'a
+
 (** Like [map], but allows replacement of a single character with zero or two or more
     characters. *)
 val concat_map : ?sep:t -> t -> f : (char -> t) -> t
@@ -208,80 +209,95 @@ end
 
 val of_char : char -> t
 
+val of_char_list : char list -> t
+
+(** Operations for escaping and unescaping strings, with paramaterized escape and
+    escapeworthy characters. Escaping/unescaping using this module is more efficient than
+    using Pcre *)
 module Escaping : sig
-  (**
-     String escaping.
+  (** [escape_gen_exn escapeworthy_map escape_char] returns a function that will escape a
+      string [s] as follows: if [(c1,c2)] is in [escapeworthy_map], then all occurences of
+      [c1] are replaced by [escape_char] concatenated to [c2].
 
-     Operations for escaping and unescaping strings, with paramaterized escape
-     and escapeworthy characters.
+      Raises an exception if [escapeworthy_map] is not one-to-one. If [escape_char] is not
+      in [escapeworthy_map], then it will be escaped to itself.*)
+  val escape_gen_exn
+    :  escapeworthy_map:(char * char) list
+    -> escape_char:char
+    -> (string -> string) Staged.t
+
+  val escape_gen
+    :  escapeworthy_map:(char * char) list
+    -> escape_char:char
+    -> (string -> string) Or_error.t
+
+  (** [escape ~escapeworthy ~escape_char s] is
+      {[
+        escape_gen_exn ~escapeworthy_map:(List.zip_exn escapeworthy escapeworthy)
+          ~escape_char
+      ]}.
+      Duplicates and [escape_char] will be removed from [escapeworthy].  So, no
+      exception will be raised *)
+  val escape : escapeworthy:char list -> escape_char:char -> (string -> string) Staged.t
+
+  (** [unescape_gen_exn] is the inverse operation of [escape_gen_exn]. That is,
+      {[
+      let escape = Staged.unstage (escape_gen_exn ~escapeworthy_map ~escape_char) in
+      let unescape = Staged.unstage (unescape_gen_exn ~escapeworthy_map ~escape_char) in
+      assert (s = unescape (escape s))
+      ]}
+      always succeed when ~escapeworthy_map is not causing exceptions. *)
+  val unescape_gen_exn
+    :  escapeworthy_map:(char * char) list
+    -> escape_char:char
+    -> (string -> string) Staged.t
+
+  val unescape_gen
+    :  escapeworthy_map:(char * char) list
+    -> escape_char:char
+    -> (string -> string) Or_error.t
+
+  (** [unescape ~escape_char] is defined as [unescape_gen_exn ~map:\[\] ~escape_char] *)
+  val unescape : escape_char:char -> (string -> string) Staged.t
+
+  (** Any char in an escaped string is either escaping, escaped or literal. For example,
+      for escaped string "0_a0__0" with escape_char as '_', pos 1 and 4 are escaping, 2
+      and 5 are escaped, and the rest are literal
+
+      [is_char_escaping s ~escape_char pos] return true if the char at [pos] is escaping,
+      false otherwise.
   *)
-  (** [escape_gen_exn escapeworthy_map escape_char] returns a (string -> string) function that
-      will escape a string [s] as follows: if [(c1,c2)] is in [escapeworthy_map], then all
-      occurences of [c1] are replaced by [escape_char] concatenated to [c2].
+  val is_char_escaping : string -> escape_char:char -> int -> bool
 
-      If you have multiple strings to escape using the same set of rules it is important
-      to note that you will get much better performance (2 - 20x) if you save the result
-      of escape_gen_exn and apply it multiple times, e.g.
-
-      let escape_some_chars = escape_gen_exn ~escapeworthy_map:['c','c';'x','x' ~escape_char:'.' in
-      List.map strings_to_escape ~f:escape_some_chars
-
-      is MUCH faster than
-
-      List.map strings_to_escape ~f:(fun s -> escape_gen_exn
-        ~escapeworthy_map:['c','c';'x','x'] ~escape_char:'.' s)
-
-      Raises an exception if escapeworthy_map is not one-to-one.
-  *)
-  val escape_gen_exn : escapeworthy_map:(char * char) list -> escape_char:char
-    -> (string -> string)
-
-  (** [escape escapeworthy escape_char s] is
-      [escape_gen_exn ~escapeworthy_map:(List.zip_exn escapeworthy escapeworthy)
-      ~escape_char]. Escape is implemented in terms of escape_gen_exn, so the same
-      performance advice applies. *)
-  val escape : escapeworthy:char list -> escape_char:char
-    -> (string -> string)
-
-  (** [unescape_gen] is the inverse operation of [escape_gen_exn], assuming an inverse
-      map is given.  That is, [unescape_gen map escape_char s] returns an escaped string
-      based on [s] as follows: if [(c1,c2)] is in [map], then all occurrences of
-      [escape_char][c1] are replaced by [c2]. *)
-  val unescape_gen :
-    map:(char * char) list -> escape_char:char -> (string -> string)
-
-  (** [unescape escape_char s] is [unescape_gen ~map:\[\] ~escape_char str] *)
-  val unescape : escape_char:char -> string -> string
-
-  (** [is_escaped escape_char s pos] return true if the char at pos is escaped,
+  (** [is_char_escaped s ~escape_char pos] return true if the char at [pos] is escaped,
       false otherwise. *)
-  val is_char_escaped : escape_char:char -> string -> int -> bool
+  val is_char_escaped : string -> escape_char:char -> int -> bool
 
-  (** [is_literal escape_char s pos] return true if the char at pos is not escaped
-      (literal). *)
-  val is_char_literal : escape_char:char -> string -> int -> bool
+  (** [is_literal s ~escape_char pos] return true if the char at [pos] is not escaped or
+      escaping. *)
+  val is_char_literal : string -> escape_char:char -> int -> bool
 
-  (** [index escape_char s char] find the first literal (not escaped) instance of
+  (** [index s ~escape_char char] find the first literal (not escaped) instance of
       char in s starting from 0. *)
-  val index : escape_char:char -> string -> char -> int option
-  val index_exn : escape_char:char -> string -> char -> int
+  val index     : string -> escape_char:char -> char -> int option
+  val index_exn : string -> escape_char:char -> char -> int
 
-  (** [rindex escape_char s char] find the first literal (not escaped) instance of
+  (** [rindex s ~escape_char char] find the first literal (not escaped) instance of
       char in s starting from the end of s and proceeding towards 0. *)
-  val rindex : escape_char:char -> string -> char -> int option
-  val rindex_exn : escape_char:char -> string -> char -> int
+  val rindex     : string -> escape_char:char -> char -> int option
+  val rindex_exn : string -> escape_char:char -> char -> int
 
-  (** [index_from escape_char s pos char] find the first literal (not escaped)
+  (** [index_from s ~escape_char pos char] find the first literal (not escaped)
       instance of char in s starting from pos and proceeding towards the end of s. *)
-  val index_from : escape_char:char -> string -> int -> char -> int option
-  val index_from_exn : escape_char:char -> string -> int -> char -> int
+  val index_from     : string -> escape_char:char -> int -> char -> int option
+  val index_from_exn : string -> escape_char:char -> int -> char -> int
 
-  (** [rindex_from escape_char s pos char] find the first literal (not escaped)
+  (** [rindex_from s ~escape_char pos char] find the first literal (not escaped)
       instance of char in s starting from pos and towards 0. *)
-  val rindex_from : escape_char:char -> string -> int -> char -> int option
-  val rindex_from_exn : escape_char:char -> string -> int -> char -> int
+  val rindex_from     : string -> escape_char:char -> int -> char -> int option
+  val rindex_from_exn : string -> escape_char:char -> int -> char -> int
 
-  (** [split escape_char s ~on] @return a list of substrings of [s] that are separated by
+  (** [split s ~escape_char ~on] @return a list of substrings of [s] that are separated by
       literal versions of [on].  Consecutive [on] characters will cause multiple empty
       strings in the result.  Splitting the empty string returns a list of the empty
       string, not the empty list.
@@ -302,11 +318,11 @@ module Escaping : sig
 
   (* [lsplit2 s on escape_char] splits s into a pair on the first literal instance
      of [on] (meaning the first unescaped instance) starting from the left. *)
-  val lsplit2 : string -> on:char -> escape_char:char -> (string * string) option
+  val lsplit2     : string -> on:char -> escape_char:char -> (string * string) option
   val lsplit2_exn : string -> on:char -> escape_char:char -> (string * string)
 
-  (* [rsplit2 s on escape_char] splits s into a pair on the first literal instance
+  (* [rsplit2 s on escape_char] splits [s] into a pair on the first literal instance
      of [on] (meaning the first unescaped instance) starting from the right. *)
-  val rsplit2 : string -> on:char -> escape_char:char -> (string * string) option
+  val rsplit2     : string -> on:char -> escape_char:char -> (string * string) option
   val rsplit2_exn : string -> on:char -> escape_char:char -> (string * string)
 end

@@ -5,7 +5,7 @@ module Array = Core_array
 module Entry = struct
   module T = struct
     type ('key, 'data) t =
-      { mutable key : 'key;
+      { mutable key : 'key;             (* the int is fixed, but the 'key can change *)
         mutable data : 'data;
         (* The index in [defined_entries] where this [Entry.t] is placed. *)
         mutable defined_entries_index : int;
@@ -34,13 +34,12 @@ type ('key, 'data) t =
 with fields, sexp_of
 
 let sexp_of_key t =
-  fun key ->
-    match t.sexp_of_key with
-    | None -> Int.sexp_of_t (t.key_to_int key)
-    | Some f -> f key
+  match t.sexp_of_key with
+  | Some f -> f
+  | None -> fun key -> Int.sexp_of_t (t.key_to_int key)
 ;;
 
-let to_sexp_ignore_data t = sexp_of_t (sexp_of_key t) (fun _ -> Sexp.Atom "<DATA>") t
+let to_sexp_ignore_data t = sexp_of_t (sexp_of_key t) (fun _ -> Sexp.Atom "_") t
 
 let invariant t =
   try
@@ -71,8 +70,7 @@ let invariant t =
     assert (t.length = Array.length entries);
     assert (Array.equal entries entries' ~equal:phys_equal)
   with exn ->
-    Error.fail "invariant failed" (exn, to_sexp_ignore_data t)
-      (<:sexp_of< exn * Sexp.t >>)
+    failwiths "invariant failed" (exn, to_sexp_ignore_data t) (<:sexp_of< exn * Sexp.t >>)
 ;;
 
 let debug = ref false
@@ -81,7 +79,7 @@ let check_invariant t = if !debug then invariant t
 
 let create ?sexp_of_key ~num_keys ~key_to_int () =
   if num_keys < 0 then
-    Error.fail "num_keys must be nonnegative" num_keys <:sexp_of< int >>;
+    failwiths "num_keys must be nonnegative" num_keys <:sexp_of< int >>;
   let t =
     { num_keys;
       sexp_of_key;
@@ -130,8 +128,10 @@ let entry_opt t key =
   let index = t.key_to_int key in
   try t.entries_by_key.(index)
   with _ ->
-    Error.fail "key out of range" (index, `Should_be_between_0_and (t.num_keys - 1))
-      (<:sexp_of< int * [ `Should_be_between_0_and of int ] >>)
+    let sexp_of_key = sexp_of_key t in
+    failwiths "key's index out of range"
+      (key, index, `Should_be_between_0_and (t.num_keys - 1))
+      (<:sexp_of< key * int * [ `Should_be_between_0_and of int ] >>)
 ;;
 
 let find t key = Option.map (entry_opt t key) ~f:Entry.data
@@ -166,8 +166,8 @@ let add_exn t ~key ~data =
   | `Ok -> ()
   | `Duplicate ->
     let sexp_of_key = sexp_of_key t in
-    Error.fail "Bounded_int_table.add of key that is already present"
-      key <:sexp_of< key >>
+    failwiths "Bounded_int_table.add_exn of key whose index is already present"
+      (key, t.key_to_int key) <:sexp_of< key * int >>
 ;;
 
 let remove t key =
@@ -192,6 +192,14 @@ let remove t key =
 
 TEST_MODULE = struct
   let () = debug := true
+
+  TEST_UNIT =
+    (* Check that [add] replaces the key. *)
+    let t = create ~num_keys:1 ~key_to_int:(fun _ -> 0) () in
+    set t ~key:13 ~data:();
+    set t ~key:14 ~data:();
+    assert (keys t = [14]);
+  ;;
 
   let create ~num_keys : (_, _) t = create ~num_keys ~key_to_int:Fn.id ()
 

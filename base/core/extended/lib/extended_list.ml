@@ -4,11 +4,11 @@ open Core.Std
 
 
 let set_diff l1 l2 =
-  let set = Set.of_list l2 in
+  let set = Set.Poly.of_list l2 in
   List.filter l1 ~f:(fun x -> not (Set.mem set x))
 
 let set_inter l1 l2 =
-  let set = Set.of_list l2 in
+  let set = Set.Poly.of_list l2 in
   List.dedup (List.filter l1 ~f:(fun x -> Set.mem set x))
 
 let classify ?(equal=( = )) ~f list =

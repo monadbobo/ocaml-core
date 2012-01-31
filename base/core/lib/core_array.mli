@@ -138,9 +138,9 @@ val is_sorted : 'a t -> cmp:('a -> 'a -> int) -> bool
 (* same as [List.concat_map] *)
 val concat_map : 'a t -> f:('a -> 'b array) -> 'b array
 
-val partition : 'a t -> f:('a -> bool) -> 'a t * 'a t
+val partition_tf : 'a t -> f:('a -> bool) -> 'a t * 'a t
 
-val partitioni : 'a t -> f:(int -> 'a -> bool) -> 'a t * 'a t
+val partitioni_tf : 'a t -> f:(int -> 'a -> bool) -> 'a t * 'a t
 
 (** Array lengths [l] satisfy [0 <= l < max_length]. *)
 val max_length : int

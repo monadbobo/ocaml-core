@@ -88,7 +88,7 @@ module List : Deferred_sequence with type 'a t = 'a list
 
 module Queue : Deferred_sequence with type 'a t = 'a Queue.t
 
-module Map : Deferred_map with type ('k, 'v) t = ('k, 'v) Map.t
+module Map : Deferred_map with type ('k, 'v) t = ('k, 'v) Map.Poly.t
 
 (** [whenever t] ignores t completely.  It is like [Fn.ignore], but is
     more constrained because it requires a deferred.

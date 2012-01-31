@@ -119,12 +119,12 @@ val write_sexp : ?hum:bool -> t -> Sexp.t -> unit
     before the data itself.  This is the format that Reader.read_bin_prot reads. *)
 val write_bin_prot : t -> 'a Bin_prot.Type_class.writer -> 'a -> unit
 
-INCLUDE "config.mlh"
-IFDEF LINUX_EXT THEN
-(** serialize data using marshal and write it to the writer *)
-val write_marshal :
-  t -> flags:Marshal.extern_flags list -> 'a -> unit
-ENDIF
+(** serialize data using marshal and write it to the writer
+
+    The [Or_error] is because it may not be implemented on some platforms.
+    The [unit -> ] is to allow polymorphism. *)
+val write_marshal
+  : unit -> (t -> flags:Marshal.extern_flags list -> 'a -> unit) Or_error.t
 
 (** Unlike the [write_] functions, all functions starting with [schedule_] require
     flushing or closing of the writer after returning before it is safe to modify the
@@ -160,7 +160,7 @@ val flushed      : t ->   unit Deferred.t
 val flushed_time : t -> Time.t Deferred.t
 
 val fsync : t -> unit Deferred.t
-val fdatasync : t -> unit Deferred.t
+val fdatasync : (t -> unit Deferred.t) Or_error.t
 
 (** [send t s] writes a string to the channel that can be read back
     using Reader.recv *)

@@ -592,7 +592,7 @@ let give_buf t desired =
     (t.buf, pos)
   end else begin
     (* Preallocated buffer too small; schedule buffered writes *)
-    if desired > buf_len / 2 then begin
+    if desired > buf_len then begin
       schedule_unscheduled t `Keep;
       (* Preallocation size too small; allocate dedicated buffer *)
       let buf = Bigstring.create desired in
@@ -617,13 +617,17 @@ module Write_substring (S : Substring_intf.S) = struct
     if is_stopped_permanently t then
       got_bytes t len
     else begin
-      if Bigstring.length t.buf - t.back >= len then begin
+      let available = Bigstring.length t.buf - t.back in
+      if available >= len then begin
         got_bytes t len;
         S.blit_to_bigstring src ~dst:t.buf ~dst_pos:t.back;
         t.back <- t.back + len;
       end else begin
-        let dst, dst_pos = give_buf t len in
-        S.blit_to_bigstring src ~dst ~dst_pos;
+        got_bytes t available;
+        S.blit_to_bigstring (S.prefix src available) ~dst:t.buf ~dst_pos:t.back;
+        t.back <- t.back + available;
+        let dst, dst_pos = give_buf t (len - available) in
+        S.blit_to_bigstring (S.drop_prefix src available) ~dst ~dst_pos;
       end;
       maybe_start_writer t;
     end
@@ -676,18 +680,26 @@ let newline t = write_char t '\n'
 
 let write_byte t i = write_char t (char_of_int (i % 256))
 
-let write_sexp ?(hum = false) t sexp =
-  let conv =
-    if hum then Sexp.to_string_hum ~indent:!Sexp.default_indent
-    else Sexp.to_string
-  in
-  let str = conv sexp in
-  write t str;
-  (* If the string representation doesn't start/end with paren or double quote, we add a
-     space after it to ensure that the parser can recognize the end of the sexp. *)
-  let c = str.[0] in
-  if not (c = '(' || c = '"') then
-    write_char t ' ';
+let write_sexp =
+  let initial_size = 1024 * 1024 in
+  let buffer = Buffer.create initial_size in
+  let blit_str = ref (String.create initial_size) in
+  fun ?(hum = false) t sexp ->
+    Buffer.clear buffer;
+    if hum then
+      Sexp.to_buffer_hum ~buf:buffer ~indent:!Sexp.default_indent sexp
+    else
+      Sexp.to_buffer ~buf:buffer sexp;
+    let len = Buffer.length buffer in
+    let blit_str_len = String.length !blit_str in
+    if len > blit_str_len then blit_str := String.create (max len (2 * blit_str_len));
+    Buffer.blit buffer 0 !blit_str 0 len;
+    write t !blit_str ~len;
+    (* If the string representation doesn't start/end with paren or double quote, we add a
+       space after it to ensure that the parser can recognize the end of the sexp. *)
+    let c = !blit_str.[0] in
+    if not (c = '(' || c = '"') then
+      write_char t ' ';
 ;;
 
 include (struct
@@ -725,17 +737,13 @@ end : sig
   val write_bin_prot : t -> 'a Bin_prot.Type_class.writer -> 'a -> unit
 end)
 
-INCLUDE "config.mlh"
-IFDEF LINUX_EXT THEN
-let write_marshal t ~flags a =
-  schedule_unscheduled t `Keep;
-  let iovec =
-    IOVec.of_bigstring (Bigstring_marshal.marshal ~flags a)
-  in
-  add_iovec t `Destroy iovec ~count_bytes_as_received:true;
-  maybe_start_writer t
+let write_marshal () =
+  Or_error.map Bigstring_marshal.marshal ~f:(fun marshal t ~flags a ->
+    schedule_unscheduled t `Keep;
+    let iovec = IOVec.of_bigstring (marshal ~flags a) in
+    add_iovec t `Destroy iovec ~count_bytes_as_received:true;
+    maybe_start_writer t)
 ;;
-ENDIF
 
 let send t s =
   write t (string_of_int (String.length s) ^ "\n");
@@ -764,8 +772,9 @@ let schedule_bigstring t ?pos ?len bstr =
 let flushed_time t = ensure_not_closed t; flushed_time t
 let flushed t = ensure_not_closed t; flushed t
 let fsync t   = ensure_not_closed t; flushed t >>= fun _ -> Unix.fsync t.fd
-let fdatasync t =
-  ensure_not_closed t; flushed t >>= fun _ -> Unix.fdatasync t.fd
+let fdatasync =
+  Or_error.map Unix.fdatasync ~f:(fun fdatasync t ->
+    ensure_not_closed t; flushed t >>= fun _ -> fdatasync t.fd)
 ;;
 let write_bin_prot t sw_arg v = ensure_not_closed t; write_bin_prot t sw_arg v
 let send t s                  = ensure_not_closed t; send t s
@@ -775,9 +784,10 @@ let schedule_bigstring t ?pos ?len bstr =
   ensure_not_closed t; schedule_bigstring t ?pos ?len bstr
 let write ?pos ?len t s       = ensure_not_closed t; write ?pos ?len t s
 let writef t                  = ensure_not_closed t; writef t
-IFDEF LINUX_EXT THEN
-let write_marshal t ~flags a  = ensure_not_closed t; write_marshal t ~flags a
-ENDIF
+let write_marshal () =
+  Or_error.map (write_marshal ()) ~f:(fun write_marshal t ~flags a ->
+    ensure_not_closed t; write_marshal t ~flags a)
+;;
 let write_sexp ?hum t s       = ensure_not_closed t; write_sexp ?hum t s
 let write_bigsubstring t s    = ensure_not_closed t; write_bigsubstring t s
 let write_substring t s       = ensure_not_closed t; write_substring t s

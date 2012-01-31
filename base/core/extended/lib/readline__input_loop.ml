@@ -1,8 +1,8 @@
 open Core.Std
 
 module Term = Console.Ansi
-module LZ = Readline__list_zipper
-module SZ = Readline__string_zipper
+module LZ = List_zipper
+module SZ = String_zipper
 
 type t = {
   hist : string LZ.t;
