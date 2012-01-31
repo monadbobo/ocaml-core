@@ -52,10 +52,8 @@ module Binable = struct
 end
 
 
-IFDEF LINUX_EXT THEN
 module Linux_ext = Linux_ext
 module Bigstring_marshal = Bigstring_marshal
-ENDIF
 module Binary_packing = Binary_packing
 module Blang = Blang
 module Bounded_int_table = Bounded_int_table

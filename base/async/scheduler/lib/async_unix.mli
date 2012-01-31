@@ -89,7 +89,7 @@ val ftruncate : Fd.t -> len:int64 -> unit Deferred.t
 
 val fsync : Fd.t -> unit Deferred.t
 
-val fdatasync : (Fd.t -> unit Deferred.t) Or_error.t
+val fdatasync : Fd.t -> unit Deferred.t
 
 val sync : unit -> unit Deferred.t
 

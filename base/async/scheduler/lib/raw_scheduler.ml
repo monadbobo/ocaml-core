@@ -45,7 +45,7 @@ type t =
        * to process a toplevel unhandled exception *)
     select_interruptor : Interruptor.t;
 
-    signal_handlers : Signal_handlers.t;
+    signal_handlers : Raw_signal_handlers.t;
 
     (* Finalizers are very much like signals; they can come at any time and in any
        thread.  So, when an OCaml finalizer fires, we stick a closure to do the work
@@ -195,7 +195,7 @@ let create () =
   let finalizer_jobs = Thread_safe_queue.create () in
   let select_interruptor = Interruptor.create fd_by_descr in
   let signal_handlers =
-    Signal_handlers.create
+    Raw_signal_handlers.create
       ~thread_safe_notify_signal_delivered:(fun () ->
         Interruptor.thread_safe_interrupt select_interruptor)
   in
@@ -324,7 +324,7 @@ let select_loop t =
   in
   let handle_delivered_signals () =
     if debug then Debug.log_string "handling delivered signals";
-    Signal_handlers.handle_delivered t.signal_handlers;
+    Raw_signal_handlers.handle_delivered t.signal_handlers;
   in
   let compute_timeout maybe_jobs_remain =
     if debug then Debug.log_string "compute_timeout";
@@ -464,7 +464,7 @@ let go t () =
   end else begin
     (* We handle [Signal.pipe] so that write() calls on a closed pipe/socket get EPIPE but
        the process doesn't die due to an unhandled SIGPIPE. *)
-    Signal_handlers.handle_signal t.signal_handlers Signal.pipe;
+    Raw_signal_handlers.handle_signal t.signal_handlers Signal.pipe;
     t.go_has_been_called <- true;
     select_loop t;
   end

@@ -12,6 +12,7 @@ exception Bug of string
 exception Finally of exn * exn
 
 exception Unimplemented of string
+val unimplemented : string -> _ Or_error.t
 
 (* The sexps of this type only have 12 digits after the decimal. Therefore they're less
    annoying to look at than the sexps of floats. The input sexps disallow nan and inf. *)

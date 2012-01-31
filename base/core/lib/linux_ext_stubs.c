@@ -208,7 +208,6 @@ CAMLprim value linux_pr_get_name(value __unused v_unit)
     uerror("pr_get_name", Nothing);
   return caml_copy_string(buf);
 }
-#endif /* JSC_LINUX_EXT */
 
 /* copy of the ocaml's stdlib wrapper for getpid */
 CAMLprim value linux_ext_gettid(value v_unit __unused)
@@ -279,3 +278,5 @@ CAMLprim value linux_get_ipv4_address_for_interface(value v_interface)
   close(fd);
   CAMLreturn(caml_copy_string(inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr)));
 }
+
+#endif /* JSC_LINUX_EXT */

@@ -10,10 +10,10 @@ let the_one_and_only = Scheduler.the_one_and_only
 let handle ?stop ts ~f =
   let scheduler = the_one_and_only () in
   let signal_handlers = scheduler.Scheduler.signal_handlers in
-  let z = Signal_handlers.install_handler signal_handlers ts f in
+  let z = Raw_signal_handlers.install_handler signal_handlers ts f in
   Option.iter stop ~f:(fun stop ->
     upon stop (fun () ->
-      Signal_handlers.remove_handler signal_handlers z));
+      Raw_signal_handlers.remove_handler signal_handlers z));
 ;;
 
 let standard =

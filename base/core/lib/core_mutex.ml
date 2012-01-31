@@ -14,6 +14,6 @@ let timedlock = Ok timedlock
 
 ELSE
 
-let timedlock = Error.unimplemented "Mutex.timedlock"
+let timedlock = Or_error.unimplemented "Mutex.timedlock"
 
 ENDIF

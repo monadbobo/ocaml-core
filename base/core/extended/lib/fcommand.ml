@@ -298,12 +298,12 @@ include struct
   let zero = zero
 end
 
-let cmd ~summary ?readme ?(global_flags = []) t main =
+let cmd ~summary ?readme ?autocomplete ?(global_flags = []) t main =
   let flags = t.flags @ global_flags in
   let flag_names = List.map ~f:Command.Flag.name flags in
   Option.iter (List.find_a_dup ~compare:String.compare flag_names) ~f:(fun dup ->
     failwithf "Duplicate flag name: %S" dup ());
-  Command.create ~summary ?readme
+  Command.create ~summary ?readme ?autocomplete
     ~usage_arg:(Anons_grammar.usage_arg t.anons)
     ~init:Fn.id
     ~flags

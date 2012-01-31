@@ -70,7 +70,7 @@ module Sysinfo = struct
 
   external raw_sysinfo : unit -> Raw_sysinfo.t = "linux_sysinfo"
 
-  let sysinfo () =
+  let sysinfo = Ok (fun () ->
     let raw = raw_sysinfo () in
     {
       uptime = Span.of_int_sec raw.Raw_sysinfo.uptime;
@@ -87,7 +87,7 @@ module Sysinfo = struct
       totalhigh = raw.Raw_sysinfo.totalhigh;
       freehigh = raw.Raw_sysinfo.freehigh;
       mem_unit = raw.Raw_sysinfo.mem_unit;
-    }
+    })
 end
 
 external gettcpopt_bool :
@@ -248,9 +248,17 @@ let cores =
   )
 ;;
 
+external get_terminal_size : unit -> int * int = "linux_get_terminal_size"
+
+external get_ipv4_address_for_interface : string -> string =
+  "linux_get_ipv4_address_for_interface" ;;
+
 let cores                          = Ok cores
 let file_descr_realpath            = Ok file_descr_realpath
+let get_ipv4_address_for_interface = Ok get_ipv4_address_for_interface
+let get_terminal_size              = Ok get_terminal_size
 let gettcpopt_bool                 = Ok gettcpopt_bool
+let gettid                         = Ok gettid
 let in_channel_realpath            = Ok in_channel_realpath
 let out_channel_realpath           = Ok out_channel_realpath
 let pr_get_name                    = Ok pr_get_name
@@ -270,39 +278,37 @@ ELSE
 module Sysinfo = struct
   include Sysinfo0
 
-  let sysinfo = Error.unimplemented "Linux_ext.Sysinfo.sysinfo"
+  let sysinfo = unimplemented "Linux_ext.Sysinfo.sysinfo"
 end
 
 module Clock = struct
   include Clock0
-  let get               = Error.unimplemented "Linux_ext.Clock.get"
-  let get_time          = Error.unimplemented "Linux_ext.Clock.get_time"
-  let set_time          = Error.unimplemented "Linux_ext.Clock.set_time"
-  let get_resolution    = Error.unimplemented "Linux_ext.Clock.get_resolution"
-  let get_process_clock = Error.unimplemented "Linux_ext.Clock.get_process_clock"
-  let get_thread_clock  = Error.unimplemented "Linux_ext.Clock.get_thread_clock"
+  let get               = unimplemented "Linux_ext.Clock.get"
+  let get_time          = unimplemented "Linux_ext.Clock.get_time"
+  let set_time          = unimplemented "Linux_ext.Clock.set_time"
+  let get_resolution    = unimplemented "Linux_ext.Clock.get_resolution"
+  let get_process_clock = unimplemented "Linux_ext.Clock.get_process_clock"
+  let get_thread_clock  = unimplemented "Linux_ext.Clock.get_thread_clock"
 end
 
-let cores                          = Error.unimplemented "Linux_ext.cores"
-let file_descr_realpath            = Error.unimplemented "Linux_ext.file_descr_realpath"
-let gettcpopt_bool                 = Error.unimplemented "Linux_ext.gettcpopt_bool"
-let in_channel_realpath            = Error.unimplemented "Linux_ext.in_channel_realpath"
-let out_channel_realpath           = Error.unimplemented "Linux_ext.out_channel_realpath"
-let pr_get_name                    = Error.unimplemented "Linux_ext.pr_get_name"
-let pr_get_pdeathsig               = Error.unimplemented "Linux_ext.pr_get_pdeathsig"
-let pr_set_name_first16            = Error.unimplemented "Linux_ext.pr_set_name_first16"
-let pr_set_pdeathsig               = Error.unimplemented "Linux_ext.pr_set_pdeathsig"
-let sched_setaffinity              = Error.unimplemented "Linux_ext.sched_setaffinity"
-let sched_setaffinity_this_thread  = Error.unimplemented "Linux_ext.sched_setaffinity_this_thread"
-let send_no_sigpipe                = Error.unimplemented "Linux_ext.send_no_sigpipe"
-let send_nonblocking_no_sigpipe    = Error.unimplemented "Linux_ext.send_nonblocking_no_sigpipe"
-let sendfile                       = Error.unimplemented "Linux_ext.sendfile"
-let sendmsg_nonblocking_no_sigpipe = Error.unimplemented "Linux_ext.sendmsg_nonblocking_no_sigpipe"
-let settcpopt_bool                 = Error.unimplemented "Linux_ext.settcpopt_bool"
+let cores                          = unimplemented "Linux_ext.cores"
+let file_descr_realpath            = unimplemented "Linux_ext.file_descr_realpath"
+let get_ipv4_address_for_interface = unimplemented "Linux_ext.get_ipv4_address_for_interface"
+let get_terminal_size              = unimplemented "Linux_ext.get_terminal_size"
+let gettcpopt_bool                 = unimplemented "Linux_ext.gettcpopt_bool"
+let gettid                         = unimplemented "Linux_ext.gettid"
+let in_channel_realpath            = unimplemented "Linux_ext.in_channel_realpath"
+let out_channel_realpath           = unimplemented "Linux_ext.out_channel_realpath"
+let pr_get_name                    = unimplemented "Linux_ext.pr_get_name"
+let pr_get_pdeathsig               = unimplemented "Linux_ext.pr_get_pdeathsig"
+let pr_set_name_first16            = unimplemented "Linux_ext.pr_set_name_first16"
+let pr_set_pdeathsig               = unimplemented "Linux_ext.pr_set_pdeathsig"
+let sched_setaffinity              = unimplemented "Linux_ext.sched_setaffinity"
+let sched_setaffinity_this_thread  = unimplemented "Linux_ext.sched_setaffinity_this_thread"
+let send_no_sigpipe                = unimplemented "Linux_ext.send_no_sigpipe"
+let send_nonblocking_no_sigpipe    = unimplemented "Linux_ext.send_nonblocking_no_sigpipe"
+let sendfile                       = unimplemented "Linux_ext.sendfile"
+let sendmsg_nonblocking_no_sigpipe = unimplemented "Linux_ext.sendmsg_nonblocking_no_sigpipe"
+let settcpopt_bool                 = unimplemented "Linux_ext.settcpopt_bool"
 
 ENDIF
-
-external get_terminal_size : unit -> int * int = "linux_get_terminal_size"
-
-external get_ipv4_address_for_interface : string -> string =
-  "linux_get_ipv4_address_for_interface" ;;

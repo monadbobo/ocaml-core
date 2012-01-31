@@ -172,7 +172,7 @@ module Spec : sig
 
   val help : (string Lazy.t -> 'm, 'm) t (* the help text for this command *)
   val path : unit -> (string list   -> 'm, 'm) t (* the subcommand path of this command *)
-  val args : (string list   -> 'm, 'm) t (* the arguments passed to this command *)
+  val args : (string list -> 'm, 'm) t (* the arguments passed to this command *)
 
 end
 

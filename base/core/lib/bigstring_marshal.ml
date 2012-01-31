@@ -130,6 +130,8 @@ let unmarshal_next      = Ok unmarshal_next
 
 ELSE
 
+open Std_internal
+
 let marshal             = unimplemented "Bigstring_marshal.marshal"
 let marshal_blit        = unimplemented "Bigstring_marshal.marshal_blit"
 let marshal_data_size   = unimplemented "Bigstring_marshal.marshal_data_size"
