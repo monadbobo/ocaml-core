@@ -8,8 +8,7 @@
 
     The "front" is the smallest valid index, while the "back" is the largest.
 
-    All operations are amortized O(1) with a small constant
-*)
+    All operations are amortized O(1) with a small constant. *)
 
 open Std_internal
 
@@ -35,12 +34,11 @@ val back_index : 'a t -> int
 (* [get q i] raises Invalid_argument unless front_index <= i <= back_index *)
 val get_exn : 'a t -> int -> 'a
 
-(* raises Invalid_argument iff dequeue is empty *)
+(* The _exn versions raise Invalid_argument iff dequeue is empty *)
+val get_front     : 'a t -> 'a option
 val get_front_exn : 'a t -> 'a
-val get_back_exn : 'a t -> 'a
-
-val get_front : 'a t -> 'a option
-val get_back : 'a t -> 'a option
+val get_back      : 'a t -> 'a option
+val get_back_exn  : 'a t -> 'a
 
 (* mutates the indexed element *)
 val set_exn : 'a t -> int -> 'a -> unit

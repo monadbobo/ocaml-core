@@ -376,7 +376,7 @@ end = struct
     let field_names =
       match sexp with
       | Sexp.Atom _ -> fail ()
-      | Sexp.List l -> Map.of_alist_exn (List.map l ~f:(fun field ->
+      | Sexp.List l -> Map.Poly.of_alist_exn (List.map l ~f:(fun field ->
         match field with
         | Sexp.List [Sexp.Atom name;sexp] -> name,sexp
         | _ -> fail ()

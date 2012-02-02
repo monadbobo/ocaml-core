@@ -230,6 +230,7 @@ module Flag : sig
         [fun r -> (r.foo, (fun foo' -> { r with foo = foo' }))]
   *)
   val lift : 'a t -> project:('b -> 'a * ('a -> 'b)) -> 'b t
+  val lift_unit : unit t -> 'any t
 
   val lookup : 'a t list -> string -> 'a Action.t option
 
@@ -269,7 +270,6 @@ end = struct
         Arg (fun r x -> let (f, inject) = project r in inject (g f x))
       | Rest g ->
         Rest (fun r xs -> let (f, inject) = project r in inject (g f xs))
-    ;;
   end
 
   (* Action is a deprecated interface, that we here gussy up to be usable on the
@@ -301,6 +301,10 @@ end = struct
   type 'a flag = 'a t
 
   let lift t ~project = { t with spec = Action'.lift t.spec ~project }
+
+  let lift_unit t =
+    let project t = (), fun _ -> t in
+    lift t ~project
 
   let create ?(aliases=[]) ?(full_flag_required=false) ~name ~doc spec =
     assert_no_underscores name;

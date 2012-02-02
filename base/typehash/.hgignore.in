@@ -1,0 +1,12 @@
+INSTALL
+Makefile
+_build
+_oasis
+_tags
+configure
+myocamlbuild.ml
+setup.data
+setup.ml
+syntax/pa_typehash.mllib
+lib/typehashlib.mllib
+lib/META

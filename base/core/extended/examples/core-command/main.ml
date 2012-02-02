@@ -50,8 +50,10 @@ module Sing = struct
         ++ flag "-note" (listed Note.arg_type) ~doc:"NOTE a note"
         (* anonymous arguments *)
         ++ anon ("NAME" %: string)
+        ++ anon ("FOO" %: string)
+        ++ anon (sequence "BAR" string)
       )
-      (fun ~slow loudness date notes song ->
+      (fun ~slow loudness date notes song _ _ ->
         (* ... your code here... *)
         print_endline (if slow then "slow" else "fast");
         printf "loudness = %s\n"

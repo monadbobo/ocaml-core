@@ -12,14 +12,8 @@ let in_channel_length = `Deprecated_use_in_channel
 let modf = `Deprecated_use_float_modf
 let truncate = `Deprecated_use_float_iround_towards_zero
 
-let read_wrap ?binary ~f _ =
-  ignore binary;
-  ignore f;
- `Deprecated_use_In_channel_with_file
-let write_wrap ?binary ~f _ =
-  ignore binary;
-  ignore f;
- `Deprecated_use_Out_channel_with_file
+let read_wrap ?binary:_ ~f:_ _ = `Deprecated_use_In_channel_with_file
+let write_wrap ?binary:_ ~f:_ _ = `Deprecated_use_Out_channel_with_file
 
 let write_lines _ _ = `Deprecated_use_Out_channel_write_lines
 let read_lines _ = `Deprecated_use_In_channel_read_lines
@@ -68,6 +62,8 @@ external ascending : 'a -> 'a -> int = "%compare"
 let descending x y = compare y x
 
 open Sexplib
+
+let failwiths = Error.failwiths
 
 include struct
   open Core_printf
@@ -133,9 +129,14 @@ module Decimal = struct
     Conv.of_sexp_error "decimal_of_sexp: Expected Atom, found List" s
 end
 
+let stage = Staged.stage
+let unstage = Staged.unstage
+
 type decimal = Decimal.t with sexp, bin_io
 
 type passfail = Pass | Fail of string
 
 exception Unimplemented of string with sexp
+let unimplemented = Or_error.unimplemented
+
 exception Bug of string with sexp

@@ -3,46 +3,43 @@
    MoreLabels.Hashtbl, which is O(N)
 
    A hash table is implemented as an array of AVL trees (see [Avltree]). If
-   [growth_allowed] (default true) is false then [size] is the final size of
-   the array, the table can always hold more elements than [size], however they
-   will all go into tree nodes. If it is true (default) then the array will
-   double in size when the number of elements in the table reaches twice the
-   size of the array. When this happens all existing elements will be
-   reinserted, which can take a long time. If you care about latency set [size]
-   and [growth_allowed=false] if possible.
+   [growth_allowed] (default true) is false then [size] is the final size of the array,
+   the table can always hold more elements than [size], however they will all go into tree
+   nodes. If it is true (default) then the array will double in size when the number of
+   elements in the table reaches twice the size of the array. When this happens all
+   existing elements will be reinserted, which can take a long time. If you care about
+   latency set [size] and [growth_allowed=false] if possible.
 
    We have three kinds of hash table modules:
 
-     Hashtbl
-     Hashtbl.Poly
-     Key.Table       (a class of similar modules)
+   Hashtbl
+   Hashtbl.Poly
+   Key.Table       (a class of similar modules)
 
    There are three kinds of hash-table functions:
 
-     creation from nothing (create, of_alist)
-     sexp converters (t_of_sexp, sexp_of_t, and bin_io too)
-     accessors and mappers (fold, mem, find, map, filter_map, ...)
+   creation from nothing (create, of_alist)
+   sexp converters (t_of_sexp, sexp_of_t, and bin_io too)
+   accessors and mappers (fold, mem, find, map, filter_map, ...)
 
    Here is a table showing what classes of functions are available in each kind
    of hash-table module:
 
-                    creation   sexp-conv   accessors
-     Hashtbl                       X'          X
-     Hashtbl.Poly      X           X
-     Key.Table         X           X           X'
+   creation   sexp-conv   accessors
+   Hashtbl                       X'          X
+   Hashtbl.Poly      X           X
+   Key.Table         X           X           X'
 
-   Those entries marked with X' are there only for historical reasons, and at
-   will be eliminated at some point.  The upshot is that one should use
-   [Hashtbl] for accessors, [Hashtbl.Poly] for hash-table creation and sexp
-   conversion using polymorphic compare/hash, and [Key.Table] for hash-table
-   creation and sexp conversion using [Key.compare] and [Key.hash].
-*)
+   Those entries marked with X' are there only for historical reasons, and at will be
+   eliminated at some point.  The upshot is that one should use [Hashtbl] for accessors,
+   [Hashtbl.Poly] for hash-table creation and sexp conversion using polymorphic
+   compare/hash, and [Key.Table] for hash-table creation and sexp conversion using
+   [Key.compare] and [Key.hash]. *)
 
 (** For many students of ocaml, using hashtables is complicated by the
     functors.  Here are a few tips: *)
 
 (** For a list of hashtable functions see [Hashtbl_intf.S].*)
-
 
 (** To create a hashtable with string keys use String.Table.
    {[
@@ -79,36 +76,43 @@
 
 open Core_hashtbl_intf
 
-module type Key = Key
+module Hashable : Hashable
 
 val hash : 'a -> int
 val hash_param : int -> int -> 'a -> int
 
-module T : sig
-  type ('a, 'b) t
-end
+type ('a, 'b) t
 
-type ('a, 'b) t = ('a, 'b) T.t
+include Creators
+  with type ('a, 'b) t  := ('a, 'b) t
+  with type 'a key = 'a
+  with type ('a, 'z) create_options := ('a, 'z) create_options_with_hashable_required
 
-include Access_sig (T) (Key_poly).S
-include Global_sig (T).S
+include Accessors with type ('a, 'b) t := ('a, 'b) t with type 'a key := 'a key
 
-include Binable.S2 with type  ('a, 'b) t := ('a, 'b) t
-include Sexpable.S2 with type ('a, 'b) t := ('a, 'b) t
 
 module Poly : sig
-  include Binable.S2 with type ('a, 'b) t := ('a, 'b) t
-  include Sexpable.S2 with type ('a, 'b) t := ('a, 'b) t
-  include Create_sig (T) (Key_poly).S
-end
 
-module Make (Key : Key) : Monomorphic (T) (Key).S
+  type ('a, 'b) t with bin_io, sexp
+
+  val hashable : 'a Hashable.t
+
+  include Creators
+    with type ('a, 'b) t  := ('a, 'b) t
+    with type 'a key = 'a
+    with type ('key, 'z) create_options := ('key, 'z) create_options_without_hashable
+
+  include Accessors with type ('a, 'b) t := ('a, 'b) t with type 'a key := 'a key
+
+end with type ('a, 'b) t = ('a, 'b) t
+
+module type Key = Key
+module type S         = S         with type ('a, 'b) hashtbl = ('a, 'b) t
+module type S_binable = S_binable with type ('a, 'b) hashtbl = ('a, 'b) t
+
+module Make (Key : Key) : S with type key = Key.t
 
 module Make_binable (Key : sig
   include Key
   include Binable.S with type t := t
-end) : sig
-  include Monomorphic (T) (Key).S
-
-  include Binable.S1 with type 'v t := 'v t
-end
+end) : S_binable with type key = Key.t

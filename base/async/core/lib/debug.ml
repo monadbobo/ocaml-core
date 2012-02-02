@@ -4,7 +4,7 @@ let debug = is_some (Sys.getenv "DEBUG_ASYNC")
 
 (* Calls to [Debug.print] should look like [if debug then Debug.print ...]. *)
 
-let log (type a) message a sexp_of_a =
+let log message a sexp_of_a =
   eprintf "%s\n%!"
     (Sexp.to_string_mach
        (<:sexp_of< Pid.t * int * Time.t * string * a >>
@@ -12,5 +12,3 @@ let log (type a) message a sexp_of_a =
 ;;
 
 let log_string message = log message () <:sexp_of< unit >>
-
-let print f = Printf.ksprintf log_string f

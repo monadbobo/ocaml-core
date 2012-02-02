@@ -278,10 +278,10 @@ let run_fold ?eol ~init ~f = run_gen
 (*
 TEST_UNIT =
   (* This should not hand because the stdin is closed... *)
-  run ~timeout:(Some (Time.Span.of_sec 0.5)) "cat" []
+  run ~timeout:(Some (sec 0.5)) "cat" []
 TEST_UNIT =
   try
-    run ~timeout:(Some (Time.Span.of_sec 0.5)) "cat" []
+    run ~timeout:(Some (sec 0.5)) "cat" []
   with Process.
 *)
 

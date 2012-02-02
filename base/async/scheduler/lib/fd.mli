@@ -19,29 +19,29 @@
    syscall_in_thread_exn
 
    The [Fd] module keeps track of which of these functions that are currently accessing
-   the file descriptor, and ensures that any close happens after they complete.  Also,
-   once close has been called, it refuses to provide further access to the file descriptor,
-   either by returning a variant, `Already_closed, or raising an exception.
+  the file descriptor, and ensures that any close happens after they complete.  Also,
+  once close has been called, it refuses to provide further access to the file descriptor,
+  either by returning a variant, `Already_closed, or raising an exception.
 
-   Some of the above functions take an optional [?nonblocking:bool] argument.  The default
-   is false, but if it is set to true, then before supplying the underlying [file_descr],
-   the [Fd] module will first call [Unix.set_nonblock file_descr], if it hasn't previously
-   done so on that file descriptor.  This is intended to support making nonblocking system
-   calls (e.g. connect, read, write) directly within async, without releasing the OCaml
-   lock or the async lock, and without using another thread. *)
+  Some of the above functions take an optional [?nonblocking:bool] argument.  The default
+  is false, but if it is set to true, then before supplying the underlying [file_descr],
+  the [Fd] module will first call [Unix.set_nonblock file_descr], if it hasn't previously
+  done so on that file descriptor.  This is intended to support making nonblocking system
+  calls (e.g. connect, read, write) directly within async, without releasing the OCaml
+  lock or the async lock, and without using another thread. *)
 open Core.Std
 open Import
 
 module Kind : sig
-  type t =
-  | Char (* a terminal *)
-  | Fifo (* a pipe *)
-  | File (* a regular file *)
-  | Socket of [ `Unconnected (* the result of socket() *)
-              | `Bound       (* the result of bind() *)
-              | `Passive     (* the result of listen() *)
-              | `Active      (* the result of connect() or accept() *)
-              ]
+type t =
+| Char (* a terminal *)
+| Fifo (* a pipe *)
+| File (* a regular file *)
+| Socket of [ `Unconnected (* the result of socket() *)
+            | `Bound       (* the result of bind() *)
+            | `Passive     (* the result of listen() *)
+            | `Active      (* the result of connect() or accept() *)
+            ]
 end
 
 type t with sexp_of

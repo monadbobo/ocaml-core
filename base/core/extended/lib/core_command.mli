@@ -75,19 +75,19 @@ module Spec : sig
   val float     : float  arg_type
   val bool      : bool   arg_type
   val date      : Date.t arg_type
-  val time_span : Span.t arg_type
+  val time_span : Time.Span.t arg_type
   val file      : string arg_type (* with bash autocompletion *)
 
   (** {1 flag specifications} *)
 
   type 'a flag (** a flag specification *)
 
-  (** [flag name spec ~doc] specifies a command that, among other things, takes 
-      a flag named [name] on its command line.  [doc] indicates the meaning of 
+  (** [flag name spec ~doc] specifies a command that, among other things, takes
+      a flag named [name] on its command line.  [doc] indicates the meaning of
       the flag.
 
       NOTE: the [doc] for a flag which takes an argument should be of the
-      form [arg_name ^ " " ^ description] where [arg_name] describes the 
+      form [arg_name ^ " " ^ description] where [arg_name] describes the
       argument and [description] describes the meaning of the flag.
 
       NOTE: [name] must not contain underscores.  Use dashes instead.
@@ -116,7 +116,7 @@ module Spec : sig
   val no_arg_register : key:unit Hmap.Key.t -> bool flag
 
   (** [escape] flags may be passed at most once.  They cause the command
-      line parser to abort and pass through all remaining command line 
+      line parser to abort and pass through all remaining command line
       arguments as the value of the flag. *)
   val escape : string list option flag
 
@@ -172,7 +172,7 @@ module Spec : sig
 
   val help : (string Lazy.t -> 'm, 'm) t (* the help text for this command *)
   val path : unit -> (string list   -> 'm, 'm) t (* the subcommand path of this command *)
-  val args : (string list   -> 'm, 'm) t (* the arguments passed to this command *)
+  val args : (string list -> 'm, 'm) t (* the arguments passed to this command *)
 
 end
 
@@ -193,7 +193,7 @@ val basic :
 
 (** [group ~summary subcommand_alist] is a compound command with named
     subcommands, as found in [subcommand_alist].
-    
+
     [summary] is to contain a short description of
     the commands behavior that will go into the output of command help.
 

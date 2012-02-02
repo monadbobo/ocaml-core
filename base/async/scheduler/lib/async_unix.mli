@@ -35,10 +35,8 @@ val child_of_init : ?poll_delay:Time.Span.t -> unit -> unit Deferred.t
 
 val nice : int -> int
 
-(** [cores ()] Returns the number of cores, or None if we're unable to
-    detect the correct number. *)
-val cores : unit -> int option Deferred.t
-val cores_exn : unit -> int Deferred.t
+(** [cores ()] Returns the number of cores *)
+val cores : (unit -> int Deferred.t) Or_error.t
 
 type open_flag =
   [ `Rdonly

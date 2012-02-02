@@ -125,6 +125,7 @@ module Flag : sig
   *)
   val lift : 'a t -> project:('b -> 'a * ('a -> 'b)) -> 'b t
 
+  val lift_unit : unit t -> 'any t
 end
 
 module Shared_flags : sig

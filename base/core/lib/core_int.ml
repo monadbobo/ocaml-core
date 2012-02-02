@@ -3,14 +3,16 @@ open Bin_prot.Std
 open Common
 
 module T = struct
-  type t = int with bin_io, sexp
+  include Comparator.Make_binable (struct
+    type t = int with bin_io, sexp
 
-  (* According to estokes,
-     if i = j then 0 else if i < j then -1 else 1
-     is only slightly faster, so we've decided to stick with
-     Pervasives.compare
-  *)
-  let compare (x : t) y = compare x y
+    (* According to estokes,
+       if i = j then 0 else if i < j then -1 else 1
+       is only slightly faster, so we've decided to stick with
+       Pervasives.compare *)
+    let compare (x : t) y = compare x y
+  end)
+
   let equal (x : t) y = x = y
   let hash (x : t) = Hashtbl.hash x
 
@@ -43,8 +45,8 @@ let ( < ) (x : t) y = x < y
 let ( <> ) (x : t) y = x <> y
 
 include Hashable.Make_binable (T)
-module Map = Core_map.Make (T)
-module Set = Core_set.Make (T)
+module Map = Core_map.Make_binable (T)
+module Set = Core_set.Make_binable (T)
 
 let zero = 0
 let one = 1
@@ -118,6 +120,3 @@ let bit_not a = lnot a
 let bit_or a b = a lor b
 let bit_and a b = a land b
 let bit_xor a b = a lxor b
-let (<<) a b = shift_left a b
-let (>>) a b = shift_right a b
-let (~>>) a b = shift_right_logical a b

@@ -1,7 +1,7 @@
 (** A [Bounded_int_table] is a table whose keys can be mapped to integers in a fixed
     range, 0 ... num_keys-1, where [num_keys] is specified at table-creation time.  The
-    purpose of [Bounded_int_table] is to be faster than a [Hashtbl] in situations where
-    one is willing to pay a space cost for the speed.
+    purpose of [Bounded_int_table] is to be faster than [Hashtbl] in situations where one
+    is willing to pay a space cost for the speed.
 
     [Bounded_int_table] presents a subset of the [Hashtbl] interface.  The key type can be
     any type, but table creation requires a [key_to_int] function, which will be used
@@ -28,7 +28,7 @@ val invariant : (_, _) t -> unit
 
     [sexp_of_key], if supplied, will be used to display keys in error messages. *)
 val create
-  : ?sexp_of_key:('key -> Sexp.t)
+  :  ?sexp_of_key:('key -> Sexp.t)
   -> num_keys:int
   -> key_to_int:('key -> int)
   -> unit
@@ -37,19 +37,19 @@ val create
 (** Standard hashtbl functions. *)
 val data : (_, 'data) t -> 'data list
 val find : ('key, 'data) t -> 'key -> 'data option
-val fold :
-  ('key, 'data) t
+val fold
+  :  ('key, 'data) t
   -> init:'accum
   -> f:(key:'key -> data:'data -> 'accum -> 'accum)
   -> 'accum
-val iter : ('key, 'data) t -> f:(key:'key -> data:'data -> unit) -> unit
-val iter_vals : (_, 'data) t -> f:('data -> unit) -> unit
+val iter      : ('key, 'data) t -> f:(key:'key -> data:'data -> unit) -> unit
+val iter_vals : (_   , 'data) t -> f:(                 'data -> unit) -> unit
 val keys : ('key, _) t -> 'key list
 val length : (_, _) t -> int
 val mem : ('key, _) t -> 'key -> bool
 val remove : ('key, _) t -> 'key -> unit
-val set : ('a, 'b) t -> key:'a -> data:'b -> unit
-val add : ('a, 'b) t -> key:'a -> data:'b -> [ `Ok | `Duplicate ]
+val set     : ('a, 'b) t -> key:'a -> data:'b -> unit
+val add     : ('a, 'b) t -> key:'a -> data:'b -> [ `Ok | `Duplicate ]
 val add_exn : ('a, 'b) t -> key:'a -> data:'b -> unit
 val to_alist : ('key, 'data) t -> ('key * 'data) list
 

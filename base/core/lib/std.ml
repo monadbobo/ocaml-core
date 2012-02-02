@@ -12,8 +12,7 @@ module Time = struct
   module Ofday = struct
     include Ofday
 
-    (* This helper function is used more than 30 times in the base tree, but can't be
-       defined in Ofday directly because it would create a circular reference *)
+    (* can't be defined in Ofday directly because it would create a circular reference *)
     let now () = snd (Time.to_local_date_ofday (Time.now ()))
   end
 
@@ -53,10 +52,8 @@ module Binable = struct
 end
 
 
-IFDEF LINUX_EXT THEN
 module Linux_ext = Linux_ext
 module Bigstring_marshal = Bigstring_marshal
-ENDIF
 module Binary_packing = Binary_packing
 module Blang = Blang
 module Bounded_int_table = Bounded_int_table
@@ -97,7 +94,6 @@ module Interfaces = Interfaces
 module Interval = Interval
 module Field = Core_field
 module Lock_file = Lock_file
-module Math = Math
 module Memo = Memo
 module Monad = Monad
 module Month = Month
@@ -111,11 +107,11 @@ module Or_error = Or_error
 module Out_channel = Out_channel
 module Pid = Pid
 module Piecewise_linear = Piecewise_linear
+module Polymorphic_compare = Polymorphic_compare
 module Pretty_printer = Pretty_printer
 module Printexc = Core_printexc
 module Printf = Core_printf
 module Quickcheck = Quickcheck
-module Random = Core_random
 module Result = Result
 module Robustly_comparable = Robustly_comparable
 module Set_once = Set_once
@@ -124,8 +120,8 @@ module Sexp_maybe = Core_sexp.Sexp_maybe
 module Signal = Signal
 module Space_safe_tuple2 = Space_safe_tuple.T2
 module Space_safe_tuple3 = Space_safe_tuple.T3
-module Span = Span
 module Squeue = Squeue
+module Staged = Staged
 module Stringable = Stringable
 module String_id = String_id
 module Substring = Substring
@@ -148,3 +144,8 @@ module Word_size = Word_size
 module Zone = Zone
 
 module type Unique_id = Unique_id_intf.Id
+
+include T
+
+
+

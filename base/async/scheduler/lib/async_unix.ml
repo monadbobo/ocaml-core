@@ -51,15 +51,7 @@ let child_of_init ?(poll_delay = sec 1.) () =
 
 let nice i = Unix.nice i
 
-INCLUDE "config.mlh"
-IFDEF LINUX_EXT THEN
-let cores () = syscall_exn (fun () -> Some (Linux_ext.cores ()))
-ELSE
-let cores () = return None
-ENDIF
-
-let cores_exn () =
-  cores () >>| Option.value_exn_message "cores: only supported on Linux"
+let cores = Or_error.map Linux_ext.cores ~f:(fun cores () -> syscall_exn cores)
 
 (* basic input/output *)
 
@@ -121,6 +113,7 @@ let ftruncate fd ~len =
 let fsync fd = Fd.syscall_in_thread_exn fd Unix.fsync
 
 let fdatasync fd = Fd.syscall_in_thread_exn fd Unix.fdatasync
+;;
 
 let sync () = syscall_exn Unix.sync
 
@@ -371,45 +364,37 @@ let fork_exec ~prog ~args ?use_path ?env () =
   In_thread.run (fun () -> Unix.fork_exec ~prog ~args ?use_path ?env ())
 ;;
 
-
 type wait_on = Unix.wait_on
 
-let wait wait_on = syscall_exn (fun () -> Unix.wait wait_on)
-
-let wait_untraced wait_on = syscall_exn (fun () -> Unix.wait_untraced wait_on)
+let make_wait wait_nohang =
+  let waits = ref [] in
+  let install_sigchld_handler_the_first_time =
+    lazy (
+      Async_signal.handle [Signal.chld] ~f:(fun _s ->
+        waits :=
+          List.fold !waits ~init:[] ~f:(fun ac ((wait_on, result) as wait) ->
+            match wait_nohang wait_on with
+            | None -> wait :: ac
+            | Some x -> Ivar.fill result x; ac)))
+  in
+  fun wait_on ->
+    match wait_nohang wait_on with
+    | Some result -> return result
+    | None ->
+      Deferred.create (fun result ->
+        Lazy.force install_sigchld_handler_the_first_time;
+        waits := (wait_on, result) :: !waits);
+;;
 
 let wait_nohang = Unix.wait_nohang
 
 let wait_nohang_untraced = Unix.wait_nohang_untraced
 
-module Wait_without_in_thread = struct
-  let pids = ref [] ;;
-  let initialize =
-    lazy (
-      Async_signal.handle [Signal.chld] ~f:(fun _s ->
-        (* Awkward, because we want to compute a new [pids] before filling any
-           ivars so we don't introduce a race condition. *)
-        let pids', notify =
-          List.fold_left
-            !pids
-            ~init:([], [])
-            ~f:(fun (pids', notify) (pid, ivar) ->
-              match Unix.wait_nohang (`Pid pid) with
-              | None -> ((pid, ivar) :: pids'), notify
-              | Some (_, exit_or_signal) -> pids', (ivar, exit_or_signal) :: notify)
-        in
-        pids := pids';
-        List.iter notify ~f:(fun (ivar, exit_or_signal) ->
-          Ivar.fill ivar exit_or_signal))
-    )
-  ;;
-  let wait pid =
-    Lazy.force initialize;
-    Deferred.create (fun ivar -> pids := (pid, ivar) :: !pids)
-  ;;
-end ;;
+let wait = make_wait wait_nohang
 
-let waitpid pid = Wait_without_in_thread.wait pid ;;
+let wait_untraced = make_wait wait_nohang_untraced
+
+let waitpid pid = wait (`Pid pid) >>| fun (_pid, exit_or_signal) -> exit_or_signal
 
 module Inet_addr = struct
   include Unix.Inet_addr

@@ -51,8 +51,6 @@ let cycle_num_jobs () = Tail.collect t.cycle_num_jobs
 
 let cycle_count () = t.cycle_count
 
-let jobs_left () = t.jobs_left
-
 let num_jobs_run () = t.num_jobs_run
 
 let set_max_num_jobs_per_priority_per_cycle int =
@@ -62,7 +60,7 @@ let set_max_num_jobs_per_priority_per_cycle int =
 ;;
 
 let start_cycle ~now =
-  if debug then Debug.print "start_cycle";
+  if debug then Debug.log_string "start_cycle";
   t.cycle_count <- t.cycle_count + 1;
   t.cycle_start <- now;
 ;;
@@ -73,7 +71,7 @@ let finish_cycle =
       match jobs with
       | [] -> ()
       | job::jobs ->
-        if debug then Debug.print "running job %d" (Job.id job);
+        if debug then Debug.log_string "running job";
         begin
           try
             t.num_jobs_run <- t.num_jobs_run + 1;
@@ -103,14 +101,14 @@ let finish_cycle =
     | `Ok events -> List.iter events ~f:Clock_event.fire
     end;
     do_one_cycle ();
-    t.jobs_left <- not (Jobs.is_empty t.jobs);
+    let result = if Jobs.is_empty t.jobs then `No_jobs_remain else `Jobs_remain in
     if debug then
       Debug.log "cycle finished"
-        (t.jobs_left, t.uncaught_exception, is_some (Events.next_upcoming t.events))
-        <:sexp_of< bool * exn option * bool >>;
+        (t.uncaught_exception, is_some (Events.next_upcoming t.events))
+        <:sexp_of< exn option * bool >>;
     (* This can potentially add more jobs if somebody is listening to cycle_times
        stream, so we have to check [Jobs.is_empty] before. *)
     Tail.extend t.cycle_times (Time.diff now t.cycle_start);
     Tail.extend t.cycle_num_jobs (t.num_jobs_run - num_jobs_run_before_cycle);
+    result
 ;;
-

@@ -1,4 +1,3 @@
-INCLUDE "config.mlh"
 type t = Mutex.t
 
 val create : unit -> t
@@ -19,15 +18,13 @@ val lock : t -> unit
 *)
 val try_lock : t -> bool
 
-IFDEF MUTEX_TIMED_LOCK THEN
 (** [timedlock mtx timeout] like [lock], but takes a [timeout] parameter.
     @return [true] if the mutex was acquired, or [false] when [timeout]
     expires otherwise.
 
     @raise Unix_error if [timedlock] attempts to acquire [mtx] recursively.
 *)
-val timedlock : t -> Time.t -> bool
-ENDIF
+val timedlock : (t -> Time.t -> bool) Or_error.t
 
 (** [unlock mtx] unlocks [mtx].
 

@@ -47,7 +47,7 @@ module Process = struct
         String.split s ~on:'\n'
         |! List.map ~f:String.strip
         |! List.filter ~f:(fun line -> line <> "")
-        |! List.fold ~init:Map.empty ~f:(fun map line ->
+        |! List.fold ~init:String.Map.empty ~f:(fun map line ->
           match
             String.strip line
             |! String.lowercase
@@ -432,10 +432,6 @@ module Meminfo = struct
       swap_cached   : bigint;
       active        : bigint;
       inactive      : bigint;
-      high_total    : bigint;
-      high_free     : bigint;
-      low_total     : bigint;
-      low_free      : bigint;
       swap_total    : bigint;
       swap_free     : bigint;
       dirty         : bigint;
@@ -457,7 +453,7 @@ module Meminfo = struct
     let of_kb = Big_int.mult_int_big_int 1024 in
     let map =
       In_channel.read_lines "/proc/meminfo"
-      |! List.fold ~init:Map.empty ~f:(fun map line ->
+      |! List.fold ~init:String.Map.empty ~f:(fun map line ->
         match String.strip line
               |! String.tr ~target:':' ~replacement:' '
               |! String.split ~on:' '
@@ -482,10 +478,6 @@ module Meminfo = struct
       swap_free     = get "SwapFree";
       active        = get "Active";
       inactive      = get "Inactive";
-      high_total    = get "HighTotal";
-      high_free     = get "HighFree";
-      low_total     = get "LowTotal";
-      low_free      = get "LowFree";
       swap_total    = get "SwapTotal";
       dirty         = get "Dirty";
       writeback     = get "Writeback";
@@ -504,6 +496,26 @@ module Meminfo = struct
   ;;
 end ;;
 
+module Loadavg = struct
+  type t = {
+    one : float;
+    ten : float;
+    fifteen : float;
+  } with fields
+
+  (* /proc/loadavg has just 1 line nearly all the time, but occasionally there's an extra
+     blank line. just be extra forgiving and grab only the first line. *)
+  let load_exn () =
+    match In_channel.read_lines "/proc/loadavg" with
+    | line::_rest -> begin match String.split line ~on:' ' with
+      | o::t::f::_rest ->
+        let one,ten,fifteen = Float.of_string o, Float.of_string t, Float.of_string f in
+        {one;ten;fifteen}
+      | _ -> failwithf "couldn't parse load average from line: %s" line ()
+    end
+    | [] -> failwith "no lines read from /proc/loadavg!"
+end
+
 let is_pid s =
   try
     let _ = Int.of_string s in
@@ -519,7 +531,7 @@ let get_all_procs () =
        procfs queries on Linux simply are not consistent.
        They're generally thwarted by terminating processes.
        We simply skip the proc entry on failure.
-     *)
+    *)
     Option.try_with (fun () -> Process.load_exn (Pid.of_string pid))
   )
   |! Array.to_list
@@ -569,9 +581,11 @@ let jiffies_per_second_exn () =
 
 let jiffies_per_second () = Option.try_with jiffies_per_second_exn ;;
 
-let meminfo_exn = Meminfo.load_exn ;;
+let meminfo_exn = Meminfo.load_exn
+let meminfo () = Option.try_with meminfo_exn
 
-let meminfo () = Option.try_with meminfo_exn ;;
+let loadavg_exn = Loadavg.load_exn
+let loadavg () = Option.try_with loadavg_exn
 
 let pgrep f = List.filter (get_all_procs ()) ~f ;;
 
@@ -590,6 +604,130 @@ let pkill ~signal f =
         (pid, result) :: a
       end)
 ;;
+
+module Net = struct
+
+  module Dev = struct
+    type t =
+      {
+      iface : string;
+      rx_bytes  : int;
+      rx_packets: int;
+      rx_errs   : int;
+      rx_drop   : int;
+      rx_fifo   : int;
+      rx_frame  : int;
+      rx_compressed : bool;
+      rx_multicast : bool;
+      tx_bytes  : int;
+      tx_packets: int;
+      tx_errs   : int;
+      tx_drop   : int;
+      tx_fifo   : int;
+      tx_colls  : int;
+      tx_carrier: int;
+      tx_compressed : bool;
+      }
+      with fields;;
+
+  let eval_mul_comp rx_tx =
+    match rx_tx with
+    | 0 -> false;
+    | 1 -> true;
+    | _ -> failwithf "Proc.Net.Dev error : value is %d, expected 0 or 1." rx_tx ()
+
+  let of_string str =
+    let s = String.strip in
+    let ios str  = Int.of_string str in
+    match String.split ~on:'\t' str with
+    | [ iface; rx_bytes; rx_packets; rx_errs; rx_drop; rx_fifo; rx_frame; rx_compressed;
+    rx_multicast; tx_bytes; tx_packets; tx_errs; tx_drop; tx_fifo; tx_colls; tx_carrier;
+    tx_compressed ] ->
+    Some {
+      iface = s iface;
+      rx_bytes = ios (s rx_bytes);
+      rx_packets = ios (s rx_packets);
+      rx_errs   = ios (s rx_errs);
+      rx_drop   = ios (s rx_drop);
+      rx_fifo   = ios (s rx_fifo);
+      rx_frame  = ios (s rx_frame);
+      rx_compressed = (eval_mul_comp (ios rx_compressed));
+      rx_multicast = (eval_mul_comp (ios rx_multicast));
+      tx_bytes  = ios (s tx_bytes);
+      tx_packets = ios (s tx_packets);
+      tx_errs   = ios (s tx_errs);
+      tx_drop   = ios (s tx_drop);
+      tx_fifo   = ios (s tx_fifo);
+      tx_colls  = ios (s tx_colls);
+      tx_carrier = ios (s tx_carrier);
+      tx_compressed = (eval_mul_comp (ios tx_compressed));
+    }
+    | _ -> failwithf "Net.Dev.of_string: unsupported format: %s" str ()
+
+    (* add interfaces () to get a list of all interfaces on box *)
+
+  end
+  module Route = struct
+
+  type t =
+    {
+      iface : string;
+      destination : Unix.Inet_addr.t ;
+      gateway     : Unix.Inet_addr.t ;
+      flags       : int;
+      refcnt      : int;
+      use         : int;
+      metric      : int;
+      mask        : Unix.Inet_addr.t;
+      mtu         : int;
+      window      : int;
+      irtt        : int;
+    }
+    with fields;;
+
+  let unix_inet_addr_of_revhex revhex_str =
+    let ip =  sscanf revhex_str "%2x%2x%2x%2x" (fun a b c d -> sprintf "%d.%d.%d.%d" d c b
+    a) in
+    Unix.Inet_addr.of_string ip ;;
+
+  let of_string str =
+    let s = String.strip in
+    match String.split ~on:'\t' str with
+    | [ iface; dest; gw; flags; refcnt; use; metric; mask; mtu; window; irtt ] ->
+    Some {
+      iface = iface;
+      destination = unix_inet_addr_of_revhex dest;
+      gateway = unix_inet_addr_of_revhex gw;
+      flags = Int.of_string flags;
+      refcnt = Int.of_string refcnt;
+      use = Int.of_string use;
+      metric = Int.of_string metric;
+      mask = unix_inet_addr_of_revhex mask;
+      mtu    = Int.of_string mtu;
+      window = Int.of_string window;
+      irtt = Int.of_string (s irtt);
+    }
+    | _ -> failwithf "Net.Route.of_string: unsupported format: %s" str ()
+
+  let raw_route_list () =
+    let routes = In_channel.with_file "/proc/net/route" ~f:In_channel.input_lines |!
+    List.tl_exn in
+    List.filter_map routes ~f:(of_string)
+
+  let default  =
+    let default_route = Unix.Inet_addr.bind_any in
+    fun () -> match List.filter_map ( raw_route_list () ) ~f:(fun x ->
+      if ( x.destination = default_route )  then Some x.gateway else
+        None
+    )  with
+    | [x] -> x
+    | [] -> failwith "No default gateway set?"
+    | unk -> failwithf "Looks like there are > 1 gateway set: %s !"
+    (String.concat ~sep:", " (List.map unk ~f:Unix.Inet_addr.to_string )) ()
+  ;;
+
+ end
+end
 
 module Mount = struct
   type t =

@@ -156,9 +156,9 @@ val interruptible_pause : Span.t -> [`Ok | `Remaining of Span.t]
 (** [pause_forever] sleeps indefinitely. *)
 val pause_forever : unit -> never_returns
 
-(** [ ofday_occurrence ofday side now ] returns a Time.t that is the occurrence of ofday
-    (in local time) which is the latest occurrence before now or the earliest occurrence
-    after now, according to side.  NOTE: This function is a little bit wrong near daylight
+(** [ofday_occurrence ofday side now] returns a Time.t that is the occurrence of ofday (in
+    local time) which is the latest occurrence before now or the earliest occurrence after
+    now, according to side.  NOTE: This function is a little bit wrong near daylight
     savings time *)
 val ofday_occurrence : t -> Zone.t -> Ofday.t -> [ `right_after | `right_before ] -> t
 
@@ -168,4 +168,5 @@ val format : t -> string -> string
 
 (** [to_epoch t] returns the number of seconds since Jan 1, 1970 00:00:00 in UTC *)
 val to_epoch : t -> float
+
 

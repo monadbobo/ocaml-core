@@ -4,7 +4,7 @@ module type S = sig
   type t
 
   include Binable with type t := t
-  include Comparable with type t := t
+  include Comparable.S_binable with type t := t
   include Floatable with type t := t
   include Hashable.S_binable with type t := t
   include Sexpable with type t := t
@@ -52,10 +52,6 @@ module type S = sig
   val shift_left : t -> int -> t
   val shift_right : t -> int -> t
   val shift_right_logical : t -> int -> t
-
-  val (<<)  : t -> int -> t
-  val (>>)  : t -> int -> t
-  val (~>>) : t -> int -> t
 
   val of_int32_exn : int32 -> t
   val to_int32_exn : t -> int32

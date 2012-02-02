@@ -439,6 +439,10 @@ TEST_UNIT =
   ignore (unzip (zip_exn long long))
 ;;
 
+let zip l1 l2 = try Some (zip_exn l1 l2) with _ -> None
+TEST = zip [1;2;3] [4;5;6] = Some [1,4;2,5;3,6]
+TEST = zip [1] [4;5;6]     = None
+
 (** Additional list operations *)
 
 let rev_mapi l ~f =
@@ -882,37 +886,42 @@ let equal t1 t2 ~equal =
   loop t1 t2
 ;;
 
-let rec transpose_exn xs =
-  if for_all ~f:((=) []) xs then [] else
-    map ~f:hd_exn xs :: transpose_exn (map ~f:tl_exn xs)
+let transpose =
+  let rec transpose_aux t rev_columns =
+    match partition_map t ~f:(function [] -> `Snd () | x :: xs -> `Fst (x, xs)) with
+    | (_ :: _, _ :: _) -> None
+    | ([], _) -> Some (rev_append rev_columns [])
+    | (heads_and_tails, []) ->
+      let (column, trimmed_rows) = unzip heads_and_tails in
+      transpose_aux trimmed_rows (column :: rev_columns)
+  in
+  fun t ->
+    transpose_aux t []
 
 exception Transpose_got_lists_of_different_lengths of int list with sexp
 
-let transpose_exn t =
-  try transpose_exn t with _ ->
-    raise (Transpose_got_lists_of_different_lengths (map ~f:length t))
+let transpose_exn l =
+  match transpose l with
+  | Some l -> l
+  | None ->
+    raise (Transpose_got_lists_of_different_lengths (List.map l ~f:List.length))
+;;
 
 TEST = transpose_exn [] = []
 TEST = transpose_exn [[13]] = [[13]]
 TEST = transpose_exn [[1;2];[3;4]] = [[1;3];[2;4]]
 TEST = try let _ = transpose_exn [[1;2];[3]] in false with _ -> true
-
-let rec transpose xs =
-  match xs with
-  | [] -> []
-  | [] :: xss -> transpose xss
-  | (x :: xs) :: xss  ->
-    (x :: filter_map ~f:hd xss) :: transpose (xs :: filter_map ~f:tl xss)
+TEST = try let _ = transpose_exn [[];[3]] in false with _ -> true
 
 TEST_MODULE "transpose" = struct
 
-  let round_trip a b = transpose a = b && transpose b = a
+  let round_trip a b = transpose a = Some b && transpose b = Some a
 
   TEST = round_trip [] []
 
-  TEST = transpose [[]] = []
-  TEST = transpose [[]; []] = []
-  TEST = transpose [[]; []; []] = []
+  TEST = transpose [[]] = Some []
+  TEST = transpose [[]; []] = Some []
+  TEST = transpose [[]; []; []] = Some []
 
   TEST = round_trip [[1]] [[1]]
 
@@ -932,9 +941,8 @@ TEST_MODULE "transpose" = struct
                                  [2; 5];
                                  [3; 6]]
 
-  TEST = transpose [[]; [1]] = [[1]]
+  TEST = transpose [[]; [1]] = None
 
-  TEST = transpose [[1;2];[3]] = [[1;3];[2]]
+  TEST = transpose [[1;2];[3]] = None
 
 end
-

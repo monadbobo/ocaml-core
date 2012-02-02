@@ -1,6 +1,7 @@
 (** Basic types and definitions required throughout the system. *)
 open Sexplib
 
+
 (* pzimmer: use Bug when the condition is checkable but requires you to look further
    away *)
 exception Bug of string
@@ -11,6 +12,7 @@ exception Bug of string
 exception Finally of exn * exn
 
 exception Unimplemented of string
+val unimplemented : string -> _ Or_error.t
 
 (* The sexps of this type only have 12 digits after the decimal. Therefore they're less
    annoying to look at than the sexps of floats. The input sexps disallow nan and inf. *)
@@ -76,6 +78,8 @@ val descending : 'a -> 'a -> int
 (** same as [Filename.concat]*)
 val (^/) : string -> string -> string
 
+val failwiths    :  string -> 'a -> ('a -> Sexp.t) -> _
+
 val failwithf    : ('r, unit, string, unit -> _) format4 -> 'r
 val invalid_argf : ('r, unit, string, unit -> _) format4 -> 'r
 
@@ -86,13 +90,13 @@ val invalid_argf : ('r, unit, string, unit -> _) format4 -> 'r
    functions allow one to use [<:sexp_of< a t >>] to get a sexp converter for ['a t].  For
    example:q
 
-   let f (type a) a_t = ... (<:sexp_of< a t >> a_t) ...
+   let f a_t = ... (<:sexp_of< a t >> a_t) ...
 
    It is useful to have a variety of such functions for situations when one needs to
    choose an abstract type name other than [a], possibly because there are multiple
    abstract types around simultaneously.  For example:
 
-   let f (type a) a_t (type b) b_t = ... (<:sexp_of< a t * b t >> (a_t, b_t)) ... *)
+   let f a_t b_t = ... (<:sexp_of< a t * b t >> (a_t, b_t)) ... *)
 val sexp_of_a  : _ -> Sexp.t
 val sexp_of_a1 : _ -> Sexp.t
 val sexp_of_a2 : _ -> Sexp.t
@@ -173,4 +177,7 @@ val truncate : [ `Deprecated_use_float_iround_towards_zero ]
     lock.  *)
 val close_in : In_channel.t -> unit
 val close_out : out_channel -> unit
+
+val stage   : 'a -> 'a Staged.t
+val unstage : 'a Staged.t -> 'a
 

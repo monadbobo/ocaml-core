@@ -58,9 +58,9 @@ val deferred : unit -> 'a Deferred.t * ('a -> unit)
 
     For example, if you call
 
-      [run ~thread f1]
-      [run ~thread f2]
-      [run ~thread f3]
+    [run ~thread f1]
+    [run ~thread f2]
+    [run ~thread f3]
 
     Then the thread will run [f1()] to completion, then [f2()] to completion,
     then [f3()] to completion.

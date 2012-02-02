@@ -83,7 +83,7 @@ module Arg_type = struct
   let float     = arg_type Float.of_string
   let bool      = arg_type Bool.of_string
   let date      = arg_type Date.of_string
-  let time_span = arg_type Span.of_string
+  let time_span = arg_type Time.Span.of_string
 
   let file =
     arg_type Fn.id ~complete:(fun _ ~part ->

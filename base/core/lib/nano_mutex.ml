@@ -82,8 +82,9 @@ with fields, sexp_of
 let invariant t =
   try
     assert (t.num_using_blocker >= 0);
+    assert ((t.num_using_blocker = 0) = Option.is_none t.blocker)
   with
-  | exn -> Error.fail "invariant failed" (exn, t) <:sexp_of< exn * t >>
+  | exn -> failwiths "invariant failed" (exn, t) <:sexp_of< exn * t >>
 ;;
 
 let equal (t : t) t' = phys_equal t t'
@@ -103,13 +104,13 @@ let current_thread_id () = Thread.id (Thread.self ())
 
 let current_thread_has_lock t = t.id_of_thread_holding_lock = current_thread_id ()
 
-let recursive_lock t =
+let recursive_lock_error t =
   Error.create "attempt to lock mutex by thread already holding it"
-  (current_thread_id (), t) <:sexp_of< int * t >>
+    (current_thread_id (), t) <:sexp_of< int * t >>
 ;;
 
 let try_lock t =
-  (* The following code relies on an atomic test-and-set of [id_of_thread_holding_lock] ,
+  (* The following code relies on an atomic test-and-set of [id_of_thread_holding_lock],
      so that there is a definitive winner in a race between multiple lockers and everybody
      agrees who acquired the lock. *)
   let current_thread_id = current_thread_id () in
@@ -119,7 +120,7 @@ let try_lock t =
     (* END ATOMIC *)
     Ok `Acquired;
   end else if current_thread_id = t.id_of_thread_holding_lock then
-    Error (recursive_lock t)
+    Error (recursive_lock_error t)
   else
     Ok `Not_acquired
 ;;
@@ -129,8 +130,7 @@ let try_lock_exn t = ok_exn (try_lock t)
 (* [with_blocker t f] runs [f blocker] in a critical section.  It allocates a blocker for
    [t] if [t] doesn't already have one. *)
 let with_blocker t f =
-  let delta i = t.num_using_blocker <- t.num_using_blocker + i in
-  delta 1;
+  t.num_using_blocker <- t.num_using_blocker + 1;
   let blocker =
     match t.blocker with
     | Some blocker -> blocker
@@ -143,6 +143,7 @@ let with_blocker t f =
         (* We need the following test-and-set to be atomic so that there is a definitive
            winner in a race between multiple calls to [with_blocker], so that everybody
            agrees what the underlying [blocker] is. *)
+
         (* BEGIN ATOMIC *)
         match t.blocker with
         | Some blocker -> blocker
@@ -154,33 +155,34 @@ let with_blocker t f =
   in
   protect ~f:(fun () -> Blocker.critical_section blocker ~f:(fun () -> f blocker))
     ~finally:(fun () ->
-      (* We need the following test-and-set to be atomic so that we're sure that nobody
-         can use [blocker]. *)
+      (* We need the following decrement-test-and-set to be atomic so that we're sure that
+         the last user of blocker clears it. *)
       (* BEGIN ATOMIC *)
-      if t.num_using_blocker = 1 then begin
+      t.num_using_blocker <- t.num_using_blocker - 1;
+      if t.num_using_blocker = 0 then begin
         t.blocker <- None;
         (* END ATOMIC *)
         Blocker.save_unused blocker;
-      end;
-      delta (-1))
+      end)
 ;;
 
 let rec lock t =
   (* The following code relies on an atomic test-and-set of [id_of_thread_holding_lock],
-     so that there is a definitive winner in a race between multiple [lock]ers and
+     so that there is a definitive winner in a race between multiple [lock]ers, and
      everybody agrees who acquired the lock.
 
-     If [is_locked t], we block the locking thread using [wait], until some unlocking
-     thread [signal]s us.  There is a race between the [wait] and the [signal].  If the
-     unlocking thread signals in between our test of [t.id_of_thread_holding_lock] and our
-     [wait], then our [wait] could miss the signal and block forever.  We avoid this race
-     by committing to waiting inside a [with_blocker], which increments
-     [t.num_using_blocker].  If the [signal] occurs before the [with_blocker], then we
-     will detect it, not [wait], and loop trying to [lock] again.  Otherwise, when an
-     [unlock] occurs, it will see that [t.num_using_blocker > 0], and willl enter a
-     critical section on [blocker].  But then it must wait until our critical section on
-     [blocker] finishes, and hence until our call to [wait] finishes.  Hence, the [signal]
-     will occur after the [wait].
+     If [is_locked t], we block the locking thread using [Blocker.wait], until some
+     unlocking thread [Blocker.signal]s us.  There is a race between the [wait] and the
+     [signal].  If the unlocking thread signals in between our test of
+     [t.id_of_thread_holding_lock] and our [wait], then our [wait] could miss the signal
+     and block forever.  We avoid this race by committing to waiting inside a
+     [with_blocker], which increments [t.num_using_blocker].  If the [signal] occurs
+     before the [with_blocker], then it will have cleared [t.id_of_thread_holding_lock],
+     which we will notice as [not (is_locked t)], and then not [wait], and loop trying to
+     [lock] again.  Otherwise, when an [unlock] occurs, it will see that [is_some
+     t.blocker], and will enter a critical section on [blocker].  But then it must wait
+     until our critical section on [blocker] finishes, and hence until our call to [wait]
+     finishes.  Hence, the [signal] will occur after the [wait].
 
      The recursive call to [lock] will not spin.  It happens either because we just lost
      the race with an unlocker, in which case the subsequent [lock] will succeed, or
@@ -193,7 +195,7 @@ let rec lock t =
     (* END ATOMIC *)
     Result.ok_unit
   end else if current_thread_id = t.id_of_thread_holding_lock then
-      Error (recursive_lock t)
+      Error (recursive_lock_error t)
     else begin
       with_blocker t (fun blocker -> if is_locked t then Blocker.wait blocker);
       lock t
@@ -261,7 +263,7 @@ TEST_UNIT =
         List.iter threads ~f:Thread.join
       with
       | exn ->
-        Error.fail "test failed"
+        failwiths "test failed"
           (num_threads, num_iterations, pause_for, exn)
           <:sexp_of< int * int * Span.t * exn >>)
 ;;

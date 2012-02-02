@@ -24,20 +24,12 @@ val enqueue : 'a t -> 'a -> unit
 
 (** [dequeue t] returns [None] if [t] is empty, otherwise it removes and returns
     the front of [t] *)
-val dequeue : 'a t -> 'a option
-
-(** [dequeue_exn t] removes and returns the front of [t], raising [Empty] if [t]
-    is empty. *)
+val dequeue     : 'a t -> 'a option
 val dequeue_exn : 'a t -> 'a
 
 (** [peek t] returns [None] if [t] is empty, otherwise it returns [Some x] where
-    [x] is the front of [t].
-*)
-val peek : 'a t -> 'a option
-
-(** [peek_exn t] raises [Empty] if [t] is empty, otherwise it returns the front
-    of [t].
-*)
+    [x] is the front of [t]. *)
+val peek     : 'a t -> 'a option
 val peek_exn : 'a t -> 'a
 
 (** [clear t] discards all elements from [t]. *)

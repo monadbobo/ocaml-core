@@ -24,7 +24,7 @@ BuildTools:   ocamlbuild
 
 Library typehashlib
   Path:               lib
-  Modules:            Typehashlib_dummy
+  Modules:            Typehash
   FindlibName:        typehashlib
 
 Library pa_typehash
@@ -41,13 +41,9 @@ Library pa_typehash
   XMETADescription:   Syntax extension for "with typehash"
 EOF
 
-echo >$HERE/lib/typehashlib_dummy.ml
-
 make_tags $HERE/_tags <<EOF
 <syntax/pa_typehash.ml>: syntax_camlp4o,pkg_camlp4.extend
 EOF
-
-mkdir -p $HERE/lib
 
 cd $HERE
 oasis setup

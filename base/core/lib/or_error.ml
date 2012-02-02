@@ -21,3 +21,7 @@ let of_exn exn = Error (Error.of_exn exn)
 let error message a sexp_of_a = Error (Error.create message a sexp_of_a)
 
 let error_string message = error message () <:sexp_of< unit >>
+
+let unimplemented s = error "unimplemented" s <:sexp_of< string >>
+
+include (Result : Monad.S2 with type ('a, 'b) t := ('a, 'b) Result.t)

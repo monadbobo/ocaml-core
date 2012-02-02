@@ -194,7 +194,7 @@ let of_string (s:string) =
   try
     begin match s with
     | ""             -> failwith "empty string"
-    | "inf" | "-inf" -> failwith "cannot create infinate span"
+    | "inf" | "-inf" -> failwith "cannot create infinite span"
     | _ ->
       let float n =
         match (String.drop_suffix s n) with

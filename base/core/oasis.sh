@@ -13,8 +13,6 @@ fi
 function list_mods {
     for mod in $(find "$HERE/lib" -name "*.ml" -print | mod_names); do
         case "$mod" in
-            Linux_ext|Bigstring_marshal)
-                if [[ "$enable_linux" == "true" ]]; then echo "$mod"; fi;;
             *) echo "$mod";;
         esac
     done
@@ -135,6 +133,7 @@ $(tag_for_pack Core $HERE/lib/*.ml)
 EOF
 
 cd $HERE
+rm -f setup.ml
 oasis setup
 enable_pack_in_setup_ml core
 

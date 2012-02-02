@@ -1,6 +1,5 @@
-(* This file is a modified version of unixLabels.mli from the OCaml distribution.
-*)
-INCLUDE "config.mlh"
+(* This file is a modified version of unixLabels.mli from the OCaml distribution. *)
+
 open Common
 
 (** File descriptor. *)
@@ -113,13 +112,8 @@ val error_message : error -> string
     2. *)
 val handle_unix_error : (unit -> 'a) -> 'a
 
-(**
-   [temp_failure_retry f]
-
-   temp_failure_retry returns the result of running [f ()] unless [f ()] fails
-   with [EINTR]; in which case [f ()] is ran again until it raises another error
-   or returns a value.
-*)
+(** [temp_failure_retry f] returns [f ()] unless [f ()] fails with [EINTR]; in which case
+    [f ()] is run again until it raises another error or returns a value. *)
 val temp_failure_retry : (unit -> 'a) -> 'a
 
 (** {6 Access to the process environment} *)
@@ -317,16 +311,15 @@ val close : ?restart:bool -> File_descr.t -> unit
 (** [with_file file ~mode ~perm ~f] opens [file], and applies [f] to the resulting file
     descriptor.  When [f] finishes (or raises), [with_file] closes the descriptor and
     returns the result of [f] (or raises). *)
-val with_file
-  :  string
+val with_file: ?perm:file_perm
+  -> string
   -> mode:open_flag list
-  -> perm:file_perm
   -> f:(File_descr.t -> 'a)
   -> 'a
 
 (** [with_file_read file ~f] opens [file] for reading and applies [f] to the resulting
-    file descriptor.  When [f] finishes (or raises), [with_file] closes the file descriptor
-    and returns the result of [f] (or raises). *)
+    file descriptor.  When [f] finishes (or raises), [with_file_read] closes the file
+    descriptor and returns the result of [f] (or raises). *)
 val with_file_read : string -> f:(File_descr.t -> 'a) -> 'a
 
 (** [read fd buff ofs len] reads [len] characters from descriptor
@@ -595,20 +588,15 @@ val set_close_on_exec : File_descr.t -> unit
    See {!UnixLabels.set_close_on_exec}.*)
 val clear_close_on_exec : File_descr.t -> unit
 
-
-
 (** {6 Directories} *)
 
-
-(** Create a directory.  The permissions of the created directory are
-    (perm & ~umask & 0777)
-*)
-val mkdir : string -> perm:file_perm -> unit
+(** Create a directory.  The permissions of the created directory are (perm & ~umask &
+    0777).  The default perm is 0777. *)
+val mkdir : ?perm:file_perm -> string -> unit
 
 (** Create a directory recursively.  The permissions of the created directory are
-    those granted by mkdir ~perm
-*)
-val mkdir_p : string -> perm:file_perm -> unit
+    those granted by [mkdir ~perm]. *)
+val mkdir_p : ?perm:file_perm -> string -> unit
 
 (** Remove an empty directory. *)
 val rmdir : string -> unit
@@ -638,7 +626,12 @@ val rewinddir : dir_handle -> unit
 (** Close a directory descriptor. *)
 val closedir : dir_handle -> unit
 
-
+(*
+  open a directory, iter readdir, and close it.
+  raises the same exception than opendir and closedir.
+*)
+val fold_dir : init:'acc -> f:('acc -> string -> 'acc) -> string -> 'acc
+val ls_dir : string -> string list
 
 (** {6 Pipes and redirections} *)
 
@@ -675,12 +668,10 @@ end
     name is automatically passed as the first argument. *)
 val create_process : prog : string -> args : string list -> Process_info.t
 
-(** [create_process_env ~prog ~args ~env] as create process, but takes an
- * additional parameter that extends, or replaces the current environment.
- * No effort is made to ensure that the keys passed in as env are unique, so
- * if an environment variable is set twice the second version will override
- * the first.
- *)
+(** [create_process_env ~prog ~args ~env] as create process, but takes an additional
+    parameter that extends, or replaces the current environment.  No effort is made to
+    ensure that the keys passed in as env are unique, so if an environment variable is set
+    twice the second version will override the first. *)
 val create_process_env :
   ?working_dir : string
   -> prog : string
@@ -692,13 +683,13 @@ val create_process_env :
   -> Process_info.t
 
 (** High-level pipe and process management. These functions
-   (with {!UnixLabels.open_process_out} and {!UnixLabels.open_process})
-   run the given command in parallel with the program,
-   and return channels connected to the standard input and/or
-   the standard output of the command. The command is interpreted
-   by the shell [/bin/sh] (cf. [system]). Warning: writes on channels
-   are buffered, hence be careful to call {!Pervasives.flush} at the right times
-   to ensure correct synchronization. *)
+    (with {!UnixLabels.open_process_out} and {!UnixLabels.open_process})
+    run the given command in parallel with the program,
+    and return channels connected to the standard input and/or
+    the standard output of the command. The command is interpreted
+    by the shell [/bin/sh] (cf. [system]). Warning: writes on channels
+    are buffered, hence be careful to call {!Pervasives.flush} at the right times
+    to ensure correct synchronization. *)
 val open_process_in : string -> in_channel
 
 (** See {!UnixLabels.open_process_in}. *)
@@ -953,8 +944,8 @@ module Passwd : sig
   val getbyuid : int -> t option
   val getbyuid_exn : int -> t
 
-  (** [getpwents] is a thread-safe wrapper over the low-level passwd
-      database functions. *)
+  (** [getpwents] is a thread-safe wrapper over the low-level passwd database
+      functions. *)
   val getpwents : unit -> t list
 
   module Low_level : sig
@@ -1470,9 +1461,6 @@ module Terminal_io : sig
   val setsid : unit -> int
 end
 
-
-(** {6 Jane Street extensions} *)
-
 (** Get a sockaddr from a hostname or IP, and a port *)
 val get_sockaddr : string -> int -> sockaddr
 
@@ -1482,22 +1470,13 @@ val set_in_channel_timeout : in_channel -> float -> unit
 (** Set a timeout for a socket associated with an [out_channel] *)
 val set_out_channel_timeout : out_channel -> float -> unit
 
-(** {2 Utility functions} *)
-
+(** [exit_immediately exit_code] immediately calls the [exit] system call with the given
+    exit code without performing any other actions (unlike Pervasives.exit).  Does not
+    return. *)
 external exit_immediately : int -> _ = "caml_sys_exit"
-(** [exit_immediately exit_code] immediately calls the [exit] system call
-    with the given exit code without performing any other actions
-    (unlike Pervasives.exit).  Does not return. *)
-
 
 (** {2 Filesystem functions} *)
 
-val mknod :
-  ?file_kind : file_kind ->
-  ?perm : int ->
-  ?major : int ->
-  ?minor : int ->
-  string -> unit
 (** [mknod ?file_kind ?perm ?major ?minor path] creates a filesystem
     entry.  Note that only FIFO-entries are guaranteed to be supported
     across all platforms as required by the POSIX-standard.  On Linux
@@ -1512,7 +1491,12 @@ val mknod :
     @param major default = [0]
     @param minor default = [0]
 *)
-
+val mknod :
+  ?file_kind : file_kind ->
+  ?perm : int ->
+  ?major : int ->
+  ?minor : int ->
+  string -> unit
 
 (** {2 I/O vectors} *)
 
@@ -1583,11 +1567,10 @@ external sync : unit -> unit = "unix_sync"
 (** Synchronize all filesystem buffers with disk. *)
 
 external fsync : File_descr.t -> unit = "unix_fsync"
-(** Synchronize the kernel buffers of a given file descriptor with disk. *)
 
-external fdatasync : File_descr.t -> unit = "unix_fdatasync"
 (** Synchronize the kernel buffers of a given file descriptor with disk,
     but do not necessarily write file attributes. *)
+external fdatasync : File_descr.t -> unit = "unix_fdatasync"
 
 external readdir_ino :
   dir_handle -> string * nativeint = "unix_readdir_ino_stub"

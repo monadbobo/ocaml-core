@@ -173,10 +173,6 @@ module Meminfo : sig
       swap_cached   : bigint;
       active        : bigint;
       inactive      : bigint;
-      high_total    : bigint;
-      high_free     : bigint;
-      low_total     : bigint;
-      low_free      : bigint;
       swap_total    : bigint;
       swap_free     : bigint;
       dirty         : bigint;
@@ -195,6 +191,15 @@ module Meminfo : sig
     } with fields
   ;;
 end ;;
+
+module Loadavg : sig
+  (** [t] corresponds to the values in /proc/loadavg. *)
+  type t = {
+    one : float;
+    ten : float;
+    fifteen : float;
+  } with fields
+end
 
 (** [get_all_procs] returns a list of all processes on the system *)
 val get_all_procs : unit -> Process.t list
@@ -228,13 +233,66 @@ val with_username : string -> Process.t list option
     Further reading: https://secure.wikimedia.org/wikipedia/en/wiki/Jiffy_(time)
  *)
 val jiffies_per_second_exn : unit -> float
-
 val jiffies_per_second : unit -> float option
 
 (** [meminfo_exn] queries /proc/meminfo and fills out Meminfo.t.  All values in bytes. *)
 val meminfo_exn : unit -> Meminfo.t
-
 val meminfo : unit -> Meminfo.t option
+
+(** [loadavg_exn] parses /proc/loadavg. *)
+val loadavg_exn : unit -> Loadavg.t
+val loadavg : unit -> Loadavg.t option
+
+module Net : sig
+
+  (*will put in some stuff from proc net *)
+
+  module Dev : sig
+    type t =
+      {
+      iface : string;
+      rx_bytes  : int;
+      rx_packets: int;
+      rx_errs   : int;
+      rx_drop   : int;
+      rx_fifo   : int;
+      rx_frame  : int;
+      rx_compressed : bool;
+      rx_multicast : bool;
+      tx_bytes  : int;
+      tx_packets: int;
+      tx_errs   : int;
+      tx_drop   : int;
+      tx_fifo   : int;
+      tx_colls  : int;
+      tx_carrier: int;
+      tx_compressed : bool;
+      }
+      with fields;;
+  end
+
+  module Route : sig
+  type t =
+    {
+      iface : string; (* maybe this shouldn't be a string? *)
+      destination : Unix.Inet_addr.t;
+      gateway     : Unix.Inet_addr.t;
+      flags       : int;
+      refcnt      : int;
+      use         : int;
+      metric      : int;
+      mask        : Unix.Inet_addr.t;
+      mtu         : int;
+      window      : int;
+      irtt        : int;
+    }
+  with fields ;;
+
+  val default : unit -> Unix.Inet_addr.t
+
+  end
+  
+end
 
 module Mount : sig
   type t =

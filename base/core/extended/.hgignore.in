@@ -1,0 +1,17 @@
+INSTALL
+Makefile
+myocamlbuild.ml
+configure
+setup.ml
+setup.log
+setup.data
+_oasis
+_build
+_tags
+lib/META
+lib/core-extended.odocl
+lib/core-extended.mllib
+lib/libcore_extended.clib
+lib/core_extended.mlpack
+lib/config.mlh
+lib/version_defaults.mlh

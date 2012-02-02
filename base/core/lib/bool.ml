@@ -4,9 +4,11 @@ open Bin_prot.Std
 let invalid_argf = Core_printf.invalid_argf
 
 module T = struct
-  type t = bool with bin_io, sexp
+  include Comparator.Make_binable (struct
+    type t = bool with bin_io, sexp
+    let compare (t : t) t' = compare t t'
+  end)
 
-  let compare (t : t) t' = compare t t'
   (* we use physical equality here because for bools it is the same *)
   let equal (t : t) t' = t == t'
   let hash x = if x then 1 else 0
@@ -39,13 +41,5 @@ include Hashable.Make (T)
 module Set = Core_set.Make (T)
 module Map = Core_map.Make (T)
 
-module True_ =  (val Default.create true  : Default.S with type real = t)
+module True_  = (val Default.create true  : Default.S with type real = t)
 module False_ = (val Default.create false : Default.S with type real = t)
-
-let of_unit_option = function
-  | None -> false
-  | Some () -> true
-
-let to_unit_option = function
-  | true -> Some ()
-  | false -> None

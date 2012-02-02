@@ -340,13 +340,13 @@ let sorted_copy t ~cmp =
   sort t1 ~cmp;
   t1
 
-let partitioni t ~f =
+let partitioni_tf t ~f =
   let (trues, falses) =
     mapi t ~f:(fun i x -> if f i x then (Some x, None) else (None, Some x)) |! split in
   (filter_opt trues, filter_opt falses)
 
-let partition t ~f =
-  partitioni t ~f:(fun _i x -> f x)
+let partition_tf t ~f =
+  partitioni_tf t ~f:(fun _i x -> f x)
 
 let last t = t.(length t - 1)
 

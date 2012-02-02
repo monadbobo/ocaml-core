@@ -14,8 +14,14 @@ disable-linux
 disable-posix-timers
 "
 
-opts=$(getopt -n ${BASH_SOURCE[0]} -o "j:h" \
-              -l "jobs:,help,$(echo -n $configflags | tr ' ' ,)" -- "$@")
+opts=
+if getopt -V | grep -q enhanced; then
+  opts=$(getopt -n ${BASH_SOURCE[0]} -o "j:h" \
+                -l "jobs:,help,$(echo -n $configflags | tr ' ' ,)" -- "$@")
+else
+  opts=$(getopt "j:h" $*)
+fi
+
 if [[ $? != 0 ]]; then usage; exit 1; fi
 
 set -e
@@ -42,7 +48,7 @@ tree=""
 case $# in
     0) tree="."  ;;
     1) tree="$1" ;;
-    *) echo "too many anonymous arguments: $@" ;;
+    *) echo "too many anonymous arguments: $@"; exit 1 ;;
 esac
 
 # in dependency topological order
@@ -81,7 +87,7 @@ for dir in $libraries; do
           trap "rm -r '$dest'" EXIT
           ;;
   esac
-  ./oasis.sh $optflags "${configopts[@]-}"
+  ./oasis.sh $optflags "${configopts[@]:+${configopts[@]}}"
   make build BUILDFLAGS="$makeflags"
   make install || true
   popd

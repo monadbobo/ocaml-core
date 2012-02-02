@@ -1,0 +1,15 @@
+INSTALL
+Makefile
+myocamlbuild.ml
+configure
+lib/sexplib.mlpack
+lib/META
+setup.ml
+setup.log
+setup.data
+syntax/pa_sexp_conv.mllib
+top/sexplib_top.mllib
+_oasis
+_build
+_tags
+lib/sexplib.odocl

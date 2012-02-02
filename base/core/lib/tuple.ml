@@ -91,7 +91,7 @@ module Comparable (S1 : Comparable_sexpable) (S2 : Comparable_sexpable) = struct
   include Comparable.Make (T)
 end
 
-module Hashable (S1 : Hashable_sexpable) (S2 : Hashable_sexpable)
+module Hashable_t (S1 : Hashable_sexpable) (S2 : Hashable_sexpable)
   = struct
   module T = struct
     include Sexpable (S1) (S2)
@@ -102,11 +102,11 @@ module Hashable (S1 : Hashable_sexpable) (S2 : Hashable_sexpable)
       | x -> x
 
     (* The [land] ensures the return value is the same in 32 and 64-bit processes *)
-    let hash (s1, s2) =
-      (S1.hash s1 + S2.hash s2 * 65599) land 0x3FFFFFFF
+    let hash (s1, s2) = (S1.hash s1 + S2.hash s2 * 65599) land 0x3FFFFFFF
   end
   include T
   include Hashable.Make (T)
 end
 
-module Hashable_sexpable = Hashable
+module Hashable = Hashable_t
+

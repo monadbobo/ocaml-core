@@ -125,7 +125,7 @@ end = struct
   let input_abbreviations ic ~len =
     let raw_abbrvs = input_list ic ~len ~f:(input_char) in
     let buf = Buffer.create len in
-    let _,indexed_abbrvs = List.fold raw_abbrvs ~init:(0, Map.empty)
+    let _,indexed_abbrvs = List.fold raw_abbrvs ~init:(0, Map.Poly.empty)
       ~f:(fun (index,abbrvs) c ->
         match c with
         | '\000' ->
@@ -344,6 +344,16 @@ end = struct
   ;;
 
   let fill () =
+    (* GMT based timezones in Etc in the posix timezone system are very deceptive
+       and basically shouldn't be used, so we never load them.  The other two are
+       duplicates of other zone files. *)
+    let skip_prefixes =
+      [
+        "Etc/GMT";
+        "right/";
+        "posix/";
+      ]
+    in
     if not the_one_and_only.full then begin
       the_one_and_only.full <- true;
       let maxdepth = 10 in
@@ -369,9 +379,10 @@ end = struct
         try
           let len = (String.length filename) - pos in
           let zonename = String.sub filename ~pos ~len in
-          (* GMT based timezones in Etc in the posix timezone system are very deceptive
-            * and basically shouldn't be used, so we never load them *)
-          if not (String.is_prefix ~prefix:"Etc/GMT" zonename) then
+          if
+            not (List.exists skip_prefixes
+              ~f:(fun prefix -> String.is_prefix ~prefix zonename))
+          then
             Hashtbl.replace
               the_one_and_only.table ~key:zonename ~data:(Zone_file.input_tz_file
                 ~zonename ~filename);
@@ -544,6 +555,28 @@ let machine_zone =
       t)
 ;;
 
+let transition_as_utc t = (t.Transition.start_time, t.Transition.end_time)
+
+let transition_as_localtime t =
+  let utc_off = t.Transition.regime.Regime.utc_off in
+  (t.Transition.start_time +. utc_off, t.Transition.end_time +. utc_off)
+;;
+
+let linear_search ~min_bound ~max_bound transitions convert_transition time =
+  let rec loop i =
+    if i = min_bound then
+      transitions.(i).Transition.regime
+    else begin
+      let transition = transitions.(i) in
+      let (s,_e)      = convert_transition transition in
+      if time > s then begin
+        transition.Transition.regime
+      end else loop (i - 1)
+    end
+  in
+  loop max_bound
+;;
+
 (* [find_local_regime zone `UTC time] finds the local time regime in force
    in [zone] at [seconds], from 1970/01/01:00:00:00 UTC.
 
@@ -553,29 +586,12 @@ let machine_zone =
 let find_local_regime zone transtype time =
   let module T = Transition in
   let transitions         = zone.transitions in
-  let transition_as_utc t = (t.T.start_time, t.T.end_time) in
-  let transition_as_localtime t =
-    let utc_off = t.T.regime.Regime.utc_off in
-    (t.T.start_time +. utc_off, t.T.end_time +. utc_off)
-  in
   let convert_transition =
     match transtype with
     | `Local -> transition_as_localtime
     | `UTC   -> transition_as_utc
   in
   let num_transitions = Array.length transitions in
-  let linear_search ~min_bound ~max_bound =
-    let rec loop i =
-      if i = min_bound then transitions.(i).T.regime
-      else begin
-        let transition = transitions.(i) in
-        let (s,_)      = convert_transition transition in
-        if time > s then transition.T.regime
-        else loop (i - 1)
-      end
-    in
-    loop max_bound
-  in
   if num_transitions = 0 then
     zone.default_local_time_type
   else if transitions.(0).T.start_time > time then
@@ -590,15 +606,17 @@ let find_local_regime zone transtype time =
     | None   ->
       let rec bin_search i min_bound max_bound =
         (* when we reach a small slice of the array drop to linear search *)
-        if (max_bound - min_bound) <= 3 then begin linear_search ~min_bound ~max_bound
-        end else begin
+        if (max_bound - min_bound) <= 3 then
+          linear_search ~min_bound ~max_bound transitions convert_transition time
+        else begin
           let transition = transitions.(i) in
           let (s,e)      = convert_transition transition in
           if time < s then
             bin_search (i - (Int.max ((i - min_bound) / 2) 1)) min_bound i
           else if time >= e then
             bin_search (i + (Int.max ((max_bound - i) / 2) 1)) i max_bound
-          else transition.T.regime
+          else
+            transition.T.regime
         end
       in
       let last_pos = num_transitions - 1 in

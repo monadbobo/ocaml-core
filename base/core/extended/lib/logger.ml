@@ -190,7 +190,7 @@ let create ?(max_size=`Mb 50L)
       with
       | _ ->
         begin
-          Time.pause (Time.Span.of_sec 0.1);
+          Time.pause (sec 0.1);
           close log
         end
     done) ());

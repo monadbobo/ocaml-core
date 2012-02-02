@@ -11,7 +11,7 @@ let bigsubstring_allocator ?(initial_size = 512) () =
       raise (Bigsubstring_allocator_got_invalid_requested_size requested_size);
     if requested_size > Bigstring.length !buf then
       buf := (Bigstring.create
-                 (Int.max requested_size (2 * Bigstring.length !buf)));
+                (Int.max requested_size (2 * Bigstring.length !buf)));
     Bigsubstring.create !buf ~pos:0 ~len:requested_size
   in
   alloc
@@ -42,6 +42,8 @@ module Version : sig
   val of_int : int -> t
   val to_int : t -> int
   val add : t -> int -> t
+
+  include Hashable with type t := t
 end = struct
   include Int
   let add = (+)
@@ -58,7 +60,6 @@ end
     client to the server.  *)
 module type Datumable = sig
   type datum
-
   include Versions
 
   (** [lookup_marshal_fun v] This function takes a version [v], and returns a
@@ -170,7 +171,7 @@ module type S = sig
   include Arg
 
   type logfun =
-       [ `Recv of Recv.t | `Send of Send.t ]
+  [ `Recv of Recv.t | `Send of Send.t ]
     -> Remote_name.t
     -> time_sent_received:Time.t
     -> unit
@@ -181,7 +182,7 @@ module type S = sig
 
     (** create a new server, and start listening *)
     val create :
-         ?logfun:logfun
+      ?logfun:logfun
       -> ?now:(unit -> Time.t) (** defualt: Scheduler.cycle_start *)
       -> ?enforce_unique_remote_name:bool (** remote names must be unique, default true *)
       -> ?is_client_ip_authorized:(string -> bool)
@@ -239,8 +240,8 @@ module type S = sig
     val send_to_all : t
       -> Send.t
       -> [ `Sent (** sent successfuly to all clients *)
-         | `Dropped (** not sent successfully to any client *)
-         | `Partial_success (** sent to some clients *)] Deferred.t
+           | `Dropped (** not sent successfully to any client *)
+           | `Partial_success (** sent to some clients *)] Deferred.t
 
     (** [send_to_all_ignore_errors t msg] Just like [send_to_all] but with no error
         reporting. *)
@@ -258,7 +259,7 @@ module type S = sig
 
     (** create a new (initially disconnected) client *)
     val create :
-         ?logfun:logfun
+      ?logfun:logfun
       -> ?now:(unit -> Time.t) (** defualt: Scheduler.cycle_start *)
       -> ?check_remote_name:bool (** remote name must match expected remote name. default true *)
       -> ip:string
@@ -303,12 +304,12 @@ module type S = sig
   end
 end
 
-module Make (Z : Arg) : S
-  with module Send = Z.Send and
-       module Recv = Z.Recv and
-       module My_name = Z.My_name and
-       module Remote_name = Z.Remote_name =
-struct
+module Make (Z : Arg) :
+  S with
+    module Send = Z.Send and
+    module Recv = Z.Recv and
+    module My_name = Z.My_name and
+    module Remote_name = Z.Remote_name = struct
   include Z
 
   module Constants = struct
@@ -323,7 +324,7 @@ struct
   open Constants
 
   type logfun =
-    [ `Recv of Recv.t | `Send of Send.t ]
+  [ `Recv of Recv.t | `Send of Send.t ]
     -> Remote_name.t
     -> time_sent_received:Time.t
     -> unit
@@ -360,10 +361,12 @@ struct
 
   module Connection = struct
     type t = {
-      writer: Writer.t;
-      reader: Reader.t;
-      marshal_fun: Send.t marshal_fun;
-      unmarshal_fun: Recv.t unmarshal_fun;
+      writer : Writer.t;
+      reader : Reader.t;
+      marshal_fun : Send.t marshal_fun;
+      unmarshal_fun : Recv.t unmarshal_fun;
+      send_version : Version.t;
+      name : Remote_name.t;
       kill: unit -> unit;
     }
 
@@ -378,8 +381,8 @@ struct
     choose
       [ choice (Clock.after span) (fun () -> `Timeout);
         choice (try_with f) (function
-          | Ok x -> `Ok x
-          | Error x -> `Error x)
+        | Ok x -> `Ok x
+        | Error x -> `Error x)
       ]
   ;;
 
@@ -405,40 +408,44 @@ struct
                  })
   ;;
 
+  let send_raw ~writer ~hdr ~msg =
+    let module H = Message_header in
+    wrap_write_bin_prot
+      ~sexp:H.sexp_of_t ~tc:H.bin_t.Bin_prot.Type_class.writer ~writer
+      ~name:"send" hdr;
+    Writer.write_bigsubstring writer msg
+  ;;
+
   let send_no_flush =
     let module C = Connection in
     let module H = Message_header in
-    let send ~now ~con msg =
-      let hdr = {H.time_stamp = now; body_length = Bigsubstring.length msg} in
-      wrap_write_bin_prot
-        ~sexp:H.sexp_of_t ~tc:H.bin_t.Bin_prot.Type_class.writer ~writer:con.C.writer
-        ~name:"send" hdr;
-      Writer.write_bigsubstring con.C.writer msg
-    in
     let maybe_log ~logfun ~name ~now d =
       match logfun with
       | None -> ()
       | Some f -> f (`Send d) name ~time_sent_received:now
     in
     fun ~logfun ~name ~now con d ->
-      let now = now () in
       match con.C.marshal_fun d with
       | None -> `Not_sent
       | Some msg ->
-          send ~now ~con msg;
-          maybe_log ~logfun ~name ~now d;
-          `Sent
+        let now = now () in
+        let hdr = {H.time_stamp = now; body_length = Bigsubstring.length msg} in
+        send_raw ~writer:con.C.writer ~hdr ~msg;
+        maybe_log ~logfun ~name ~now d;
+        `Sent
+  ;;
 
   let send ~logfun ~name ~now con d =
     match send_no_flush ~logfun:None ~name ~now con d with
     | `Sent ->
-        Writer.flushed_time con.Connection.writer >>| fun tm ->
-          begin match logfun with
-          | None -> ()
-          | Some f -> f (`Send d) name ~time_sent_received:(now ())
-          end;
-          `Sent tm
-    | `Not_sent -> return (`Sent (now ()))
+      Writer.flushed_time con.Connection.writer >>| fun tm ->
+      begin match logfun with
+      | None -> ()
+      | Some f -> f (`Send d) name ~time_sent_received:(now ())
+      end;
+      `Sent tm
+    | `Not_sent -> return `Dropped
+  ;;
 
   let negotiate ~reader ~writer ~my_name ~auth_error =
     let (recv_version, send_version) =
@@ -456,19 +463,19 @@ struct
     wrap_write_bin_prot ~sexp:Hello.sexp_of_t ~tc:Hello.bin_writer_t
       ~writer ~name:"negotiate" h;
     Reader.read_bin_prot reader Hello.bin_reader_t >>| (function
-      | `Eof -> `Eof
-      | `Ok h ->
-          match auth_error h with
-          | Some e -> `Auth_error e
-          | None ->
-              let recv_version = Version.min recv_version h.Hello.send_version in
-              let send_version = Version.min send_version h.Hello.recv_version in
-              match Recv.lookup_unmarshal_fun recv_version with
-              | Error _ -> `Version_error
-              | Ok unmarshal_fun ->
-                  match Send.lookup_marshal_fun send_version with
-                  | Error _ -> `Version_error
-                  | Ok marshal_fun -> `Ok (h, marshal_fun, unmarshal_fun))
+    | `Eof -> `Eof
+    | `Ok h ->
+      match auth_error h with
+      | Some e -> `Auth_error e
+      | None ->
+        let recv_version = Version.min recv_version h.Hello.send_version in
+        let send_version = Version.min send_version h.Hello.recv_version in
+        match Recv.lookup_unmarshal_fun recv_version with
+        | Error _ -> `Version_error
+        | Ok unmarshal_fun ->
+          match Send.lookup_marshal_fun send_version with
+          | Error _ -> `Version_error
+          | Ok marshal_fun -> `Ok (h, send_version, marshal_fun, unmarshal_fun))
   ;;
 
   exception Eof with sexp
@@ -484,21 +491,21 @@ struct
       extend_disconnect remote_name e);
     let upon_ok a f =
       upon a (function
-        | Error e ->
-          con.C.kill ();
-          extend_disconnect remote_name e
-        | Ok `Eof ->
-          con.C.kill ();
-          extend_disconnect remote_name Eof
-        | Ok (`Ok msg) -> f msg)
+      | Error e ->
+        con.C.kill ();
+        extend_disconnect remote_name e
+      | Ok `Eof ->
+        con.C.kill ();
+        extend_disconnect remote_name Eof
+      | Ok (`Ok msg) -> f msg)
     in
     let alloc = bigsubstring_allocator () in
     let read_header () = Reader.read_bin_prot con.C.reader H.bin_reader_t in
     let get_substring hdr = alloc hdr.H.body_length in
     let read_ss ss =
       Reader.really_read_bigsubstring con.C.reader ss >>| function
-        | `Ok -> `Ok ()
-        | `Eof _ -> `Eof
+      | `Ok -> `Ok ()
+      | `Eof _ -> `Eof
     in
     let extend ~time_sent ~time_received data =
       begin match logfun with
@@ -535,10 +542,145 @@ struct
   ;;
 
   module Server = struct
+
+    module Connections : sig
+      type t
+      val create : unit -> t
+      val mem : t -> Remote_name.t -> bool
+      val find : t -> Remote_name.t -> Connection.t option
+      val add : t -> name:Remote_name.t -> conn:Connection.t -> unit
+      val remove : t -> Remote_name.t -> unit
+
+      val fold :
+        t
+        -> init:'a
+        -> f:(name:Remote_name.t -> conn:Connection.t -> 'a-> 'a)
+        -> 'a
+
+      val send_to_all : t
+      -> logfun:logfun option
+      -> now:(unit -> Time.t)
+      -> Send.t
+      -> [ `Sent (** sent successfuly to all clients *)
+         | `Dropped (** not sent successfully to any client *)
+         | `Partial_success (** sent to some clients *)] Deferred.t
+
+      val send_to_all_ignore_errors : t
+        -> logfun:logfun option
+        -> now:(unit -> Time.t)
+        -> Send.t
+        -> unit
+
+    end = struct
+
+      module C = Connection
+
+      type t = {
+        by_name : (C.t Bag.t * C.t Bag.Elt.t) Remote_name.Table.t;
+        by_send_version : (C.t Bag.t * Send.t marshal_fun) Version.Table.t;
+      }
+
+      let create () =
+        { by_name = Remote_name.Table.create ();
+          by_send_version =
+            Version.Table.create
+              ~size:(Version.to_int Send.test_version) ();
+        }
+      ;;
+
+      let fold t ~init ~f =
+        Hashtbl.fold t.by_name ~init ~f:(fun ~key ~data:(_, bag_elt) acc ->
+          f ~name:key ~conn:(Bag.Elt.value bag_elt) acc)
+      ;;
+
+      let mem t name = Hashtbl.mem t.by_name name
+
+      let add t ~name ~conn =
+        let bag, _marshal_fun =
+          Hashtbl.find_or_add t.by_send_version conn.C.send_version
+            ~default:(fun () -> Bag.create (), conn.C.marshal_fun)
+        in
+        let bag_elt = Bag.add bag conn in
+        Hashtbl.replace t.by_name ~key:name ~data:(bag, bag_elt);
+      ;;
+
+      let remove t name =
+        match Hashtbl.find t.by_name name with
+        | None -> ()
+        | Some (bag, bag_elt) ->
+          Bag.remove bag bag_elt;
+          Hashtbl.remove t.by_name name;
+      ;;
+
+      let find t name =
+        match Hashtbl.find t.by_name name with
+        | None -> None
+        | Some (_, bag_elt) -> Some (Bag.Elt.value bag_elt)
+      ;;
+
+      let maybe_log ~logfun ~name ~now d =
+        match logfun with
+        | None -> ()
+        | Some f -> f (`Send d) name ~time_sent_received:now
+      ;;
+
+      let send_to_all' t d ~logfun ~now =
+        let module C = Connection in
+        let module H = Message_header in
+        let now = now () in
+        let res =
+          Hashtbl.fold t.by_send_version ~init:`Init
+            ~f:(fun ~key:_ ~data:(bag, marshal_fun) acc ->
+              if not (Bag.is_empty bag) then begin
+                let res =
+                  match marshal_fun d with
+                  | None -> `Dropped
+                  | Some msg ->
+                    let hdr =
+                      {H.time_stamp = now; body_length = Bigsubstring.length msg}
+                    in
+                    Bag.iter bag ~f:(fun conn ->
+                      send_raw ~writer:conn.C.writer ~hdr ~msg;
+                      maybe_log ~logfun ~now ~name:conn.C.name d);
+                    `Sent
+                in
+                match acc, res with
+                | `Partial_success, _
+                | `Sent           , `Dropped
+                | `Dropped        , `Sent
+                  -> `Partial_success
+                | `Sent           , `Sent
+                  -> `Sent
+                | `Dropped        , `Dropped
+                  -> `Dropped
+                | `Init           , _
+                  -> res
+              end
+              else
+                acc)
+        in
+        match res with
+        | `Init -> `Sent
+        | `Partial_success | `Dropped | `Sent as x -> x
+      ;;
+
+      let send_to_all t ~logfun ~now d =
+        let res = send_to_all' t d ~logfun ~now in
+        Deferred.all_unit (fold t ~init:[] ~f:(fun ~name:_ ~conn acc ->
+          Writer.flushed conn.C.writer :: acc))
+        >>| fun () -> res
+      ;;
+
+      let send_to_all_ignore_errors t ~logfun ~now d =
+        ignore (send_to_all' t d ~logfun ~now : [`Partial_success | `Dropped | `Sent])
+      ;;
+
+    end
+
     type t = {
       tail : (Remote_name.t, Recv.t) Server_msg.t Tail.t;
       logfun : logfun option;
-      connections : Connection.t Remote_name.Table.t;
+      connections : Connections.t;
       mutable am_listening : bool;
       socket : ([ `Bound ], Socket.inet) Socket.t;
       warn_free_connections_pct: float;
@@ -560,54 +702,48 @@ struct
 
     let flushed t ~cutoff =
       let flushes =
-        Hashtbl.fold t.connections ~init:[]
-          ~f:(fun ~key:client ~data:conn acc ->
+        Connections.fold t.connections ~init:[]
+          ~f:(fun ~name:client ~conn acc ->
             (choose [ choice (Writer.flushed conn.Connection.writer)
                         (fun _ -> `Flushed client);
                       choice cutoff (fun () -> `Not_flushed client);
                     ]) :: acc)
       in
       Deferred.all flushes >>| fun results ->
-        let (flushed, not_flushed) =
-          List.partition_map results
-            ~f:(function `Flushed c -> `Fst c | `Not_flushed c -> `Snd c)
-        in
-        `Flushed flushed, `Not_flushed not_flushed
+      let (flushed, not_flushed) =
+        List.partition_map results
+          ~f:(function `Flushed c -> `Fst c | `Not_flushed c -> `Snd c)
+      in
+      `Flushed flushed, `Not_flushed not_flushed
     ;;
 
     let send t name d =
-      match Hashtbl.find t.connections name with
+      match Connections.find t.connections name with
       | None -> return `Dropped
       | Some c -> send ~logfun:t.logfun ~name ~now:t.now c d
+    ;;
 
     let send_ignore_errors t name d =
-      match Hashtbl.find t.connections name with
+      match Connections.find t.connections name with
       | None -> ()
       | Some c -> ignore (send_no_flush ~logfun:t.logfun ~name ~now:t.now c d)
+    ;;
 
     let send_to_all t d =
-      let res =
-        Hashtbl.fold t.connections ~init:[]
-          ~f:(fun ~key ~data:_ acc -> (send t key d) :: acc)
-      in
-      Deferred.all res >>| (fun l ->
-        let f = function `Dropped -> true | `Sent _ -> false in
-        match List.partition_tf l ~f with
-        | ([], _) -> `Sent
-        | (_, []) -> `Dropped
-        | (_, _) -> `Partial_success)
+      Connections.send_to_all t.connections d ~now:t.now ~logfun:t.logfun
+    ;;
 
     let send_to_all_ignore_errors t d =
-      Hashtbl.iter t.connections
-        ~f:(fun ~key ~data:_ -> send_ignore_errors t key d)
+      Connections.send_to_all_ignore_errors t.connections d ~now:t.now ~logfun:t.logfun
+    ;;
 
     let client_is_authorized t ip =
       t.is_client_ip_authorized (Unix.Inet_addr.to_string ip)
     ;;
 
     let close t name =
-      Option.iter (Hashtbl.find t.connections name)
-        ~f:Connection.kill
+      Option.iter (Connections.find t.connections name) ~f:Connection.kill
+    ;;
 
     let handle_client t addr port fd =
       let module S = Server_msg in
@@ -648,58 +784,60 @@ struct
                   None))
         in
         upon res (function
-          | `Error _
-          | `Timeout
-          | `Ok `Eof
-          | `Ok `Version_error -> Lazy.force close
-          | `Ok (`Auth_error e) -> die_error e
-          | `Ok (`Ok (h, marshal_fun, unmarshal_fun)) ->
-              let name =
-                if t.enforce_unique_remote_name then
-                  h.Hello.name
-                else
-                  sprintf "%s:%s:%d:%s"
-                    h.Hello.name
-                    (Unix.Inet_addr.to_string addr)
-                    port
-                    (Int63.to_string t.num_accepts)
+        | `Error _
+        | `Timeout
+        | `Ok `Eof
+        | `Ok `Version_error -> Lazy.force close
+        | `Ok (`Auth_error e) -> die_error e
+        | `Ok (`Ok (h, send_version, marshal_fun, unmarshal_fun)) ->
+          let name =
+            if t.enforce_unique_remote_name then
+              h.Hello.name
+            else
+              sprintf "%s:%s:%d:%s"
+                h.Hello.name
+                (Unix.Inet_addr.to_string addr)
+                port
+                (Int63.to_string t.num_accepts)
+          in
+          match Result.try_with (fun () -> Remote_name.of_string name) with
+          | Error exn ->
+            die_error
+              (C.Protocol_error
+                 (sprintf "error constructing name: %s, error: %s"
+                    name (Exn.to_string exn)))
+          | Ok remote_name ->
+            let module T = Remote_name.Table in
+            if Connections.mem t.connections remote_name then
+              die_error (C.Duplicate remote_name)
+            else begin
+              let close =
+                lazy
+                  (Lazy.force close;
+                   Connections.remove t.connections remote_name)
               in
-              match Result.try_with (fun () -> Remote_name.of_string name) with
-              | Error exn ->
-                  die_error
-                    (C.Protocol_error
-                        (sprintf "error constructing name: %s, error: %s"
-                            name (Exn.to_string exn)))
-              | Ok remote_name ->
-                  let module T = Remote_name.Table in
-                  if T.mem t.connections remote_name then
-                    die_error (C.Duplicate remote_name)
-                  else begin
-                    let close =
-                      lazy
-                        (Lazy.force close;
-                         Hashtbl.remove t.connections remote_name)
-                    in
-                    kill := (fun () -> Lazy.force close);
-                    let con =
-                      { Connection.
-                        writer = w;
-                        reader = r;
-                        unmarshal_fun;
-                        marshal_fun;
-                        kill = !kill }
-                    in
-                    Tail.extend t.tail (S.Control (C.Connect remote_name));
-                    Hashtbl.replace t.connections ~key:remote_name ~data:con;
-                    handle_incoming
-                      ~logfun:t.logfun ~remote_name
-                      ~ip:(Unix.Inet_addr.to_string addr) ~con
-                      ~extend_disconnect:(fun n e ->
-                        Tail.extend t.tail (S.Control (C.Disconnect (n, Exn.sexp_of_t e))))
-                      ~extend_parse_error:(fun n e ->
-                        Tail.extend t.tail (S.Control (C.Parse_error (n, e))))
-                      ~extend_data:(fun x -> Tail.extend t.tail (S.Data x))
-                  end)
+              kill := (fun () -> Lazy.force close);
+              let conn =
+                { Connection.
+                  writer = w;
+                  reader = r;
+                  unmarshal_fun;
+                  marshal_fun;
+                  send_version;
+                  name = remote_name;
+                  kill = !kill }
+              in
+              Tail.extend t.tail (S.Control (C.Connect remote_name));
+              Connections.add t.connections ~name:remote_name ~conn;
+              handle_incoming
+                ~logfun:t.logfun ~remote_name
+                ~ip:(Unix.Inet_addr.to_string addr) ~con:conn
+                ~extend_disconnect:(fun n e ->
+                  Tail.extend t.tail (S.Control (C.Disconnect (n, Exn.sexp_of_t e))))
+                ~extend_parse_error:(fun n e ->
+                  Tail.extend t.tail (S.Control (C.Parse_error (n, e))))
+                ~extend_data:(fun x -> Tail.extend t.tail (S.Data x))
+            end)
       end
 
     let listen t =
@@ -728,24 +866,23 @@ struct
           | None ->
             Monitor.try_with (fun () -> Socket.accept socket)
             >>> function
-              | Error exn ->
-                Monitor.send_exn (Monitor.current ()) exn;
-                upon (Clock.after wait_after_exn) loop
-              | Ok (sock, `Inet (addr, port)) ->
-                assert (Socket.getopt sock Socket.Opt.nodelay);
-                assert (t.free_connections > 0);
-                t.num_accepts <- Int63.succ t.num_accepts;
-                t.free_connections <- t.free_connections - 1;
-                if t.free_connections = 0 then begin
-                  t.when_free <- Some (Ivar.create ());
-                  control (C.Too_many_clients "zero free connections")
-                end else if t.free_connections <= warn_thres then begin
-                  control (C.Almost_full t.free_connections)
-                end;
-                let fd = Socket.fd sock in
-                upon (Fd.close_finished fd) incr_free_connections;
-                Core.Std.protect ~f:(fun () -> handle_client t addr port fd)
-                  ~finally:loop
+            | Error exn ->
+              Monitor.send_exn (Monitor.current ()) exn;
+              upon (Clock.after wait_after_exn) loop
+            | Ok (sock, `Inet (addr, port)) ->
+              assert (Socket.getopt sock Socket.Opt.nodelay);
+              assert (t.free_connections > 0);
+              t.num_accepts <- Int63.succ t.num_accepts;
+              t.free_connections <- t.free_connections - 1;
+              if t.free_connections = 0 then begin
+                t.when_free <- Some (Ivar.create ());
+                control (C.Too_many_clients "zero free connections")
+              end else if t.free_connections <= warn_thres then begin
+                control (C.Almost_full t.free_connections)
+              end;
+              let fd = Socket.fd sock in
+              upon (Fd.close_finished fd) incr_free_connections;
+              protect ~f:(fun () -> handle_client t addr port fd) ~finally:loop
         in
         loop ()
       end;
@@ -755,8 +892,8 @@ struct
     let listen_ignore_errors ?(stop = Deferred.never ()) t =
       let s = Stream.take_until (listen t) stop in
       Stream.filter_map s ~f:(function
-        | Server_msg.Control _ -> None
-        | Server_msg.Data x -> Some x.Read_result.data)
+      | Server_msg.Control _ -> None
+      | Server_msg.Data x -> Some x.Read_result.data)
     ;;
 
     let create
@@ -777,7 +914,7 @@ struct
                 socket;
                 am_listening = false;
                 logfun;
-                connections = Remote_name.Table.create ();
+                connections = Connections.create ();
                 is_client_ip_authorized;
                 my_name;
                 enforce_unique_remote_name;
@@ -810,8 +947,8 @@ struct
       queue : (Send.t * [`Sent of Time.t | `Dropped] Ivar.t) Queue.t;
       mutable con :
         [ `Disconnected
-        | `Connected of Connection.t
-        | `Connecting of unit -> unit ];
+          | `Connected of Connection.t
+          | `Connecting of unit -> unit ];
       mutable trying_to_connect : bool;
       mutable connect_complete : unit Ivar.t;
       mutable ok_to_connect : unit Ivar.t;
@@ -825,9 +962,9 @@ struct
     let raise_after_timeout span f =
       try_with_timeout span f
       >>| function
-        | `Ok a -> a
-        | `Error e -> raise e
-        | `Timeout -> failwith "timeout"
+      | `Ok a -> a
+      | `Error e -> raise e
+      | `Timeout -> failwith "timeout"
     ;;
 
     exception Hello_name_is_not_expected_remote_name of string * string with sexp
@@ -877,65 +1014,67 @@ struct
           raise_after_timeout connect_timeout (fun () ->
             Socket.connect s address))
         >>= function
-          | Error e ->
-            close e;
-            return (Error e)
-          | Ok s ->
-            close_this := `Active_socket s;
-            Monitor.try_with (fun () ->
-              assert (Socket.getopt s Socket.Opt.nodelay);
-              let fd = Socket.fd s in
-              let reader = Reader.create fd in
-              let writer = Writer.create ~syscall:`Per_cycle fd in
-              close_this := `Writer writer;
-              Stream.iter (Monitor.errors (Writer.monitor writer))
-                ~f:(fun e -> close (Write_error e));
-              let my_name = My_name.to_string t.my_name in
-              raise_after_timeout negotiate_timeout (fun () ->
-                negotiate ~reader ~writer
-                  ~my_name ~auth_error:(fun _ -> None))
-              >>| (function
-                | `Eof -> failwith "eof"
-                | `Auth_error _ -> assert false
-                | `Version_error ->
-                  failwith "cannot negotiate a common version"
-                | `Ok (h, marshal_fun, unmarshal_fun) ->
-                  let expected_remote_name =
-                    Remote_name.to_string t.expected_remote_name
-                  in
-                  if t.check_remote_name
-                    && h.Hello.name <> expected_remote_name
-                  then
-                    raise (Hello_name_is_not_expected_remote_name
-                             (h.Hello.name, expected_remote_name))
-                  else begin
-                    let con =
-                      { Connection.
-                        writer;
-                        reader;
-                        marshal_fun;
-                        unmarshal_fun;
-                        kill = (fun () -> close (Failure "")) }
-                    in
-                    let name = Remote_name.of_string h.Hello.name in
-                    Tail.extend t.messages (C.Control (E.Connect name));
-                    t.con <- `Connected con;
-                    handle_incoming
-                      ~logfun:t.logfun ~remote_name:name
-                      ~ip:(Unix.Inet_addr.to_string t.remote_ip)
-                      ~con
-                      ~extend_disconnect:(fun n e ->
-                        Tail.extend t.messages
-                          (C.Control (E.Disconnect (n, Exn.sexp_of_t e))))
-                      ~extend_parse_error:(fun n e ->
-                        Tail.extend t.messages
-                          (C.Control (E.Parse_error (n, e))))
-                      ~extend_data:(fun x ->
-                        Tail.extend t.messages (C.Data x))
-                  end))
-            >>| function
-              | Error e -> close e; Error e
-              | Ok x -> Ok x
+        | Error e ->
+          close e;
+          return (Error e)
+        | Ok s ->
+          close_this := `Active_socket s;
+          Monitor.try_with (fun () ->
+            assert (Socket.getopt s Socket.Opt.nodelay);
+            let fd = Socket.fd s in
+            let reader = Reader.create fd in
+            let writer = Writer.create ~syscall:`Per_cycle fd in
+            close_this := `Writer writer;
+            Stream.iter (Monitor.errors (Writer.monitor writer))
+              ~f:(fun e -> close (Write_error e));
+            let my_name = My_name.to_string t.my_name in
+            raise_after_timeout negotiate_timeout (fun () ->
+              negotiate ~reader ~writer
+                ~my_name ~auth_error:(fun _ -> None))
+            >>| (function
+            | `Eof -> failwith "eof"
+            | `Auth_error _ -> assert false
+            | `Version_error ->
+              failwith "cannot negotiate a common version"
+            | `Ok (h, send_version, marshal_fun, unmarshal_fun) ->
+              let expected_remote_name =
+                Remote_name.to_string t.expected_remote_name
+              in
+              if t.check_remote_name
+                && h.Hello.name <> expected_remote_name
+              then
+                raise (Hello_name_is_not_expected_remote_name
+                         (h.Hello.name, expected_remote_name))
+              else begin
+                let name = Remote_name.of_string h.Hello.name in
+                let con =
+                  { Connection.
+                    writer;
+                    reader;
+                    marshal_fun;
+                    unmarshal_fun;
+                    send_version;
+                    name;
+                    kill = (fun () -> close (Failure "")) }
+                in
+                Tail.extend t.messages (C.Control (E.Connect name));
+                t.con <- `Connected con;
+                handle_incoming
+                  ~logfun:t.logfun ~remote_name:name
+                  ~ip:(Unix.Inet_addr.to_string t.remote_ip)
+                  ~con
+                  ~extend_disconnect:(fun n e ->
+                    Tail.extend t.messages
+                      (C.Control (E.Disconnect (n, Exn.sexp_of_t e))))
+                  ~extend_parse_error:(fun n e ->
+                    Tail.extend t.messages
+                      (C.Control (E.Parse_error (n, e))))
+                  ~extend_data:(fun x ->
+                    Tail.extend t.messages (C.Data x))
+              end))
+          >>| function
+          | Error e -> close e; Error e
+          | Ok x -> Ok x
     ;;
 
     let listen t = Tail.collect t.messages
@@ -943,15 +1082,15 @@ struct
     let listen_ignore_errors ?(stop = Deferred.never ()) t =
       let s = Stream.take_until (listen t) stop in
       Stream.filter_map s ~f:(function
-        | Client_msg.Control _ -> None
-        | Client_msg.Data x -> Some x.Read_result.data)
+      | Client_msg.Control _ -> None
+      | Client_msg.Data x -> Some x.Read_result.data)
 
     let internal_send t d =
       match t.con with
       | `Disconnected
       | `Connecting _ -> return `Dropped
       | `Connected con ->
-          send ~logfun:t.logfun ~name:t.expected_remote_name ~now:t.now con d
+        send ~logfun:t.logfun ~name:t.expected_remote_name ~now:t.now con d
 
     let send_q t =
       Queue.iter t.queue ~f:(fun (d, i) ->
@@ -972,17 +1111,17 @@ struct
         let rec loop () =
           upon (Ivar.read t.ok_to_connect) (fun () ->
             upon (connect t) (function
-              | Error e ->
-                  t.last_connect_error <- Some e;
-                  (* the connect failed, toss everything *)
-                  Queue.iter t.queue ~f:(fun (_, i) -> Ivar.fill i `Dropped);
-                  Queue.clear t.queue;
-                  loop ()
-              | Ok () ->
-                  t.last_connect_error <- None;
-                  t.trying_to_connect <- false;
-                  Ivar.fill t.connect_complete ();
-                  send_q t))
+            | Error e ->
+              t.last_connect_error <- Some e;
+              (* the connect failed, toss everything *)
+              Queue.iter t.queue ~f:(fun (_, i) -> Ivar.fill i `Dropped);
+              Queue.clear t.queue;
+              loop ()
+            | Ok () ->
+              t.last_connect_error <- None;
+              t.trying_to_connect <- false;
+              Ivar.fill t.connect_complete ();
+              send_q t))
         in
         loop ()
       end
@@ -997,17 +1136,17 @@ struct
         match t.con with
         | `Connecting _ -> push t d
         | `Disconnected ->
-            let flush = push t d in
-            try_connect t;
-            flush
+          let flush = push t d in
+          try_connect t;
+          flush
         | `Connected _ ->
-            if Queue.is_empty t.queue then
-              internal_send t d
-            else begin
-              let flush = push t d in
-              send_q t;
-              flush
-            end
+          if Queue.is_empty t.queue then
+            internal_send t d
+          else begin
+            let flush = push t d in
+            send_q t;
+            flush
+          end
 
     let close_connection t =
       match t.con with
@@ -1019,10 +1158,10 @@ struct
       match t.con with
       | `Connecting _
       | `Connected _ ->
-          Ivar.read t.connect_complete
+        Ivar.read t.connect_complete
       | `Disconnected ->
-          try_connect t;
-          Ivar.read t.connect_complete
+        try_connect t;
+        Ivar.read t.connect_complete
 
     let send_ignore_errors t d = ignore (send t d)
 
@@ -1056,7 +1195,7 @@ struct
 
     let last_connect_error t = t.last_connect_error
   end
-end
+    end
 
 (** Helpers to make your types Datumable if they are binable. Works with up
     to 5 versions (easily extensible to more) *)
@@ -1091,8 +1230,8 @@ module Datumable_of_binable = struct
 
     include Versions
     let () = assert (low_version <= prod_version
-                      && prod_version <= test_version
-                      && test_version <= Version.add low_version 5)
+                     && prod_version <= test_version
+                     && test_version <= Version.add low_version 5)
 
     let alloc = bigsubstring_allocator ()
 
@@ -1100,13 +1239,13 @@ module Datumable_of_binable = struct
       match to_v t with
       | None -> None
       | Some v ->
-          let length = bin_size_t v in
-          let bss = alloc length in
-          let start = Bigsubstring.pos bss in
-          let pos = bin_write_t (Bigsubstring.base bss) ~pos:start v in
-          if pos - start <> length then
-            failwithf "marshal failure: %d - %d <> %d" pos start length ();
-          Some bss
+        let length = bin_size_t v in
+        let bss = alloc length in
+        let start = Bigsubstring.pos bss in
+        let pos = bin_write_t (Bigsubstring.base bss) ~pos:start v in
+        if pos - start <> length then
+          failwithf "marshal failure: %d - %d <> %d" pos start length ();
+        Some bss
     ;;
 
     let unmarshal ~of_v ~bin_read_t bss =
@@ -1165,7 +1304,7 @@ module Datumable_of_binable = struct
       (struct
         include Versions
         let test_version = Version.add low_version 4
-      end)
+       end)
       (T)
       (V1)(V2)(V3)(V4)(V5)
       (V1_cvt)(V2_cvt)(V3_cvt)(V4_cvt)(V5_cvt)
@@ -1187,7 +1326,7 @@ module Datumable_of_binable = struct
       (struct
         include Versions
         let test_version = Version.add low_version 3
-      end)
+       end)
       (T)
       (V1)(V2)(V3)(V4)(V4)
       (V1_cvt)(V2_cvt)(V3_cvt)(V4_cvt)(V4_cvt)
@@ -1207,7 +1346,7 @@ module Datumable_of_binable = struct
       (struct
         include Versions
         let test_version = Version.add low_version 2
-      end)
+       end)
       (T)
       (V1)(V2)(V3)(V3)(V3)
       (V1_cvt)(V2_cvt)(V3_cvt)(V3_cvt)(V3_cvt)
@@ -1223,9 +1362,9 @@ module Datumable_of_binable = struct
     : Datumable with type datum = T.t =
     Make_datumable5
       (struct
-          include Versions
-          let test_version = Version.add low_version 1
-      end)
+        include Versions
+        let test_version = Version.add low_version 1
+       end)
       (T)
       (V1)(V2)(V2)(V2)(V2)
       (V1_cvt)(V2_cvt)(V2_cvt)(V2_cvt)(V2_cvt)
@@ -1241,7 +1380,7 @@ module Datumable_of_binable = struct
       (struct
         include Versions
         let test_version = low_version
-      end)
+       end)
       (T)
       (V1)(V1)(V1)(V1)(V1)
       (V1_cvt)(V1_cvt)(V1_cvt)(V1_cvt)(V1_cvt)

@@ -3,7 +3,7 @@ open Std_internal
 type t = private float                  (* number of seconds *)
 
 (* Parts represents the individual parts of a Span as if it were written out (it is the
-   counterpart to create).  For example, (Span.of_sec 90.) is represented by {Parts.hr = 0;
+   counterpart to create).  For example, (sec 90.) is represented by {Parts.hr = 0;
    min = 1; sec = 30; ms = 0}.  The fields will always be positive. *)
 module Parts : sig
   type t = private {
@@ -25,17 +25,19 @@ include Robustly_comparable with type t := t
 include Sexpable with type t := t
 
 (* String converters and sexp converters allow for specifying of time spans in various
-    units.  An unadorned float is interpreted as being in seconds.  Other formats are
-    achieved by appending a string to the end indicating the unit, e.g. 12ms for 12
-    milliseconds 5.1h for 5.1 hours.  The endings are as follows:
+   units.  An unadorned float is interpreted as being in seconds.  Other formats are
+   achieved by appending a string to the end indicating the unit, e.g. 12ms for 12
+   milliseconds 5.1h for 5.1 hours.  The endings are as follows:
 
-    ms - milliseconds
-    s - seconds
-    m - minutes
-    h - hours
-    The outgoing conversion functions use these units as well, choosing the largest
-    available type.  I.e., if it's a bit greater than or equal to 1 day, the span will be
-    rendered in days, e.g., Time.to_string (Time.of_string "66m") = "1.1h".
+   ms - milliseconds
+   s - seconds
+   m - minutes
+   h - hours
+   d - days
+
+   The outgoing conversion functions use these units as well, choosing the largest
+   available type.  I.e., if it's a bit greater than or equal to 1 hour, the span will be
+   rendered in hours, e.g., Time.to_string (Time.of_string "66m") = "1.1h".
 *)
 val to_string : t -> string
 val of_string : string -> t

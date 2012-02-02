@@ -1,10 +1,3 @@
-INCLUDE "config.mlh"
-
-
-(* The preceding C declarations are required for the C preprocessor
-   so that the ifdefs below will correctly reflect the capabilities of
-   the system we are compiling on.  This is only needed for the public
-   release of Core. *)
 
 open Unix
 open Bigarray
@@ -246,8 +239,6 @@ val really_write : file_descr -> ?pos : int -> ?len : int -> t -> unit
     @param len default = [length bstr - pos]
 *)
 
-IFDEF MSG_NOSIGNAL THEN
-val really_send_no_sigpipe : file_descr -> ?pos : int -> ?len : int -> t -> unit
 (** [really_send_no_sigpipe sock ?pos ?len bstr] sends [len] bytes in
     bigstring [bstr] starting at position [pos] to socket [sock] without
     blocking and ignoring [SIGPIPE].
@@ -257,10 +248,14 @@ val really_send_no_sigpipe : file_descr -> ?pos : int -> ?len : int -> t -> unit
 
     @param pos default = 0
     @param len default = [length bstr - pos]
-*)
+
+    [really_send_no_sigpipe] is not implemented on some platforms, in which case it is an
+    [Error] value that indicates that it is unimplemented. *)
+val really_send_no_sigpipe
+  : (file_descr -> ?pos : int -> ?len : int -> t -> unit) Or_error.t
 
 val send_nonblocking_no_sigpipe :
-  file_descr -> ?pos : int -> ?len : int -> t -> int option
+  (file_descr -> ?pos : int -> ?len : int -> t -> int option) Or_error.t
 (** [send_nonblocking_no_sigpipe sock ?pos ?len bstr] tries to send
     [len] bytes in bigstring [bstr] starting at position [pos] to socket
     [sock].  @return [Some bytes_written], or [None] if the operation
@@ -274,7 +269,7 @@ val send_nonblocking_no_sigpipe :
 *)
 
 val sendto_nonblocking_no_sigpipe :
-  file_descr -> ?pos : int -> ?len : int -> t -> sockaddr -> int option
+  (file_descr -> ?pos : int -> ?len : int -> t -> sockaddr -> int option) Or_error.t
 (** [sendto_nonblocking_no_sigpipe sock ?pos ?len bstr sockaddr] tries
     to send [len] bytes in bigstring [bstr] starting at position [pos]
     to socket [sock] using address [addr].  @return [Some bytes_written],
@@ -286,7 +281,6 @@ val sendto_nonblocking_no_sigpipe :
     @param pos default = 0
     @param len default = [length bstr - pos]
 *)
-ENDIF
 
 val write : file_descr -> ?pos : int -> ?len : int -> t -> int
 (** [write fd ?pos ?len bstr] writes [len]
@@ -338,9 +332,8 @@ val writev_assume_fd_is_nonblocking :
     @param count default = [Array.length iovecs]
 *)
 
-IFDEF MSG_NOSIGNAL THEN
 val sendmsg_nonblocking_no_sigpipe :
-  file_descr -> ?count : int -> t Core_unix.IOVec.t array -> int option
+  (file_descr -> ?count : int -> t Core_unix.IOVec.t array -> int option) Or_error.t
 (** [sendmsg_nonblocking_no_sigpipe sock ?count iovecs] sends
     [count] [iovecs] of bigstrings to socket [sock].  @return [Some
     bytes_written], or [None] if the operation would have blocked.
@@ -352,7 +345,6 @@ val sendmsg_nonblocking_no_sigpipe :
 
     @param count default = [Array.length iovecs]
 *)
-ENDIF
 
 val output :
   ?min_len : int -> out_channel -> ?pos : int -> ?len : int -> t -> int
@@ -478,20 +470,18 @@ external unsafe_really_write :
     {!Bigstring.write}, but does not perform any bounds checks.
     Will crash on bounds errors! *)
 
-IFDEF MSG_NOSIGNAL THEN
-external unsafe_really_send_no_sigpipe :
-  file_descr -> pos : int -> len : int -> t -> unit
-  = "bigstring_really_send_no_sigpipe_stub"
+
 (** [unsafe_really_send_no_sigpipe sock ~pos ~len bstr]
     similar to {!Bigstring.send}, but does not perform any
     bounds checks.  Will crash on bounds errors! *)
+val unsafe_really_send_no_sigpipe
+  : (file_descr -> pos : int -> len : int -> t -> unit) Or_error.t
 
-val unsafe_send_nonblocking_no_sigpipe :
-  file_descr -> pos : int -> len : int -> t -> int option
 (** [unsafe_send_nonblocking_no_sigpipe sock ~pos ~len bstr] similar to
     {!Bigstring.send_nonblocking_no_sigpipe}, but does not perform any
     bounds checks.  Will crash on bounds errors! *)
-ENDIF
+val unsafe_send_nonblocking_no_sigpipe
+  : (file_descr -> pos : int -> len : int -> t -> int option) Or_error.t
 
 external unsafe_output :
   min_len : int -> out_channel -> pos : int -> len : int -> t -> int
@@ -507,13 +497,11 @@ external unsafe_writev :
     {!Bigstring.writev}, but does not perform any bounds checks.
     Will crash on bounds errors! *)
 
-IFDEF MSG_NOSIGNAL THEN
-val unsafe_sendmsg_nonblocking_no_sigpipe :
-  file_descr -> t Core_unix.IOVec.t array -> int -> int option
 (** [unsafe_sendmsg_nonblocking_no_sigpipe fd iovecs count]
     similar to {!Bigstring.sendmsg_nonblocking_no_sigpipe}, but
     does not perform any bounds checks.  Will crash on bounds errors! *)
-ENDIF
+val unsafe_sendmsg_nonblocking_no_sigpipe
+  : (file_descr -> t Core_unix.IOVec.t array -> int -> int option) Or_error.t
 
 (** {6 Search} *)
 

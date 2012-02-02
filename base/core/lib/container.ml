@@ -1,10 +1,10 @@
-(* This file has generic signatures for container data structures, with standard
-   functions (iter, fold, exists, for_all, ...) that one would expect to find in
-   any container.  The idea is to include [Container.S0] or [Container.S1] in
-   the signature for every container-like data structure (Array, List, String,
-   ...) to ensure a consistent interface.
-*)
+(* This file has generic signatures for container data structures, with standard functions
+   (iter, fold, exists, for_all, ...) that one would expect to find in any container.  The
+   idea is to include [Container.S0] or [Container.S1] in the signature for every
+   container-like data structure (Array, List, String, ...) to ensure a consistent
+   interface. *)
 
+open T
 open With_return
 
 module type T = sig
@@ -79,7 +79,7 @@ module type S0 = sig
   val find_map : t -> f:(elt -> 'a option) -> 'a option
   val to_list  : t -> elt list
   val to_array : t -> elt array
-  (* val compare : t -> t -> cmp:(elt -> elt -> int) -> int *)
+(* val compare : t -> t -> cmp:(elt -> elt -> int) -> int *)
 end
 
 module type S0_phantom = sig
@@ -134,14 +134,9 @@ module type S1_phantom = sig
   val to_array : ('a, _) t -> 'a array
 end
 
-(* The following functors exist as a consistency check among all the various [S?]
-   interfaces.  They ensure that each particular [S?] is an instance of a more generic
-   signature. *)
-module Check (T : sig
-  type 'a elt
+module type Generic = sig
   type 'a t
-end) (M : sig
-  open T
+  type 'a elt
   val mem : ?equal:('a elt -> 'a elt -> bool) -> 'a t -> 'a elt -> bool
   val length   : _  t -> int
   val is_empty : _  t -> bool
@@ -154,32 +149,44 @@ end) (M : sig
   val find_map : 'a t -> f:('a elt -> 'b option) -> 'b option
   val to_list  : 'a t -> 'a elt list
   val to_array : 'a t -> 'a elt array
-(* val compare : 'a t -> 'a t -> cmp:('a elt -> 'a elt -> int) -> int *)
-end) = struct end
+  (* val compare : 'a t -> 'a t -> cmp:('a elt -> 'a elt -> int) -> int *)
+end
+
+module type Generic_phantom = sig
+  type ('a, 'phantom) t
+  type 'a elt
+  val mem : ?equal:('a elt -> 'a elt -> bool) -> ('a, _) t -> 'a elt -> bool
+  val length   : (_, _) t -> int
+  val is_empty : (_, _) t -> bool
+  val iter     : ('a, _) t -> f:('a elt -> unit) -> unit
+  val fold     : ('a, _) t -> init:'accum -> f:('accum -> 'a elt -> 'accum) -> 'accum
+  val exists   : ('a, _) t -> f:('a elt -> bool) -> bool
+  val for_all  : ('a, _) t -> f:('a elt -> bool) -> bool
+  val count    : ('a, _) t -> f:('a elt -> bool) -> int
+  val find     : ('a, _) t -> f:('a elt -> bool) -> 'a elt option
+  val find_map : ('a, _) t -> f:('a elt -> 'b option) -> 'b option
+  val to_list  : ('a, _) t -> 'a elt list
+  val to_array : ('a, _) t -> 'a elt array
+  (* val compare : 'a t -> 'a t -> cmp:('a elt -> 'a elt -> int) -> int *)
+end
+
+(* The following functors exist as a consistency check among all the various [S?]
+   interfaces.  They ensure that each particular [S?] is an instance of a more generic
+   signature. *)
+module Check (T : T1) (Elt : T1)
+  (M : Generic with type 'a t := 'a T.t with type 'a elt := 'a Elt.t) = struct end
 
 module Check_S0 (M : S0) =
-  Check (struct
-    type 'a elt = M.elt
-    type 'a t = M.t
-  end) (M)
+  Check (struct type 'a t = M.t end) (struct type 'a t = M.elt end) (M)
 
 module Check_S0_phantom (M : S0_phantom) =
-  Check (struct
-    type 'a elt = M.elt
-    type 'a t = 'a M.t
-  end) (M)
+  Check (struct type 'a t = 'a M.t end) (struct type 'a t = M.elt end) (M)
 
 module Check_S1 (M : S1) =
-  Check (struct
-    type 'a elt = 'a
-    type 'a t = 'a M.t
-  end) (M)
+  Check (struct type 'a t = 'a M.t end) (struct type 'a t = 'a end) (M)
 
 type phantom
 
 module Check_S1_phantom (M : S1_phantom) =
-  Check (struct
-    type 'a elt = 'a
-    type 'a t = ('a, phantom) M.t
-  end) (M)
+  Check (struct type 'a t = ('a, phantom) M.t end) (struct type 'a t = 'a end) (M)
 

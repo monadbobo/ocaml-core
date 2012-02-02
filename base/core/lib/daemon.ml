@@ -7,8 +7,8 @@ let default_umask = 0
 
 let check_threads () =
   (* forking, especially to daemonize, when running multiple threads is tricky, and
-    generally a mistake.  It's so bad, and so hard to catch, that we test in two
-    different ways *)
+     generally a mistake.  It's so bad, and so hard to catch, that we test in two
+     different ways *)
   if Thread.threads_have_been_created () then
     failwith
       "Daemon.check_threads: may not be called \
@@ -17,32 +17,54 @@ let check_threads () =
   | None -> ()  (* This is pretty bad, but more likely to be a problem with num_threads *)
   | Some (1 | 2) -> () (* main thread, or main + ticker - both ok *)
   | Some _ ->
-      failwith
-        "Daemon.check_threads: may not be called if more than 2 threads \
+    failwith
+      "Daemon.check_threads: may not be called if more than 2 threads \
         (hopefully the main thread + ticker thread) are running"
   end;
 ;;
 
-let dup_null ~skip_regular_files ~mode ~dst =
-  let is_regular () =
-    try (Unix.fstat dst).Unix.st_kind = Unix.S_REG
-    with Unix.Unix_error (Unix.EBADF, _, _) -> false
-  in
-  let should_skip = skip_regular_files && is_regular () in
-  if not should_skip then begin
-    let null = Unix.openfile "/dev/null" ~mode:[mode] ~perm:0o777 in
-    Unix.dup2 ~src:null ~dst;
-    Unix.close null;
-  end;
+type do_redirect =
+[ `Dev_null
+| `File_append of string
+| `File_truncate of string
+]
+
+type redirect_fds =
+[ `Do_not_redirect | do_redirect ]
 ;;
 
-let close_stdio_fds ~skip_regular_files =
-  dup_null ~skip_regular_files ~mode:Unix.O_RDONLY ~dst:Unix.stdin;
-  dup_null ~skip_regular_files ~mode:Unix.O_WRONLY ~dst:Unix.stdout;
-  dup_null ~skip_regular_files ~mode:Unix.O_WRONLY ~dst:Unix.stderr;
+let dup_null ~skip_regular_files ~mode ~src ~dst =
+  match src with
+  | `Do_not_redirect -> ()
+  | #do_redirect as src ->
+    let is_regular () =
+      try (Unix.fstat dst).Unix.st_kind = Unix.S_REG
+      with Unix.Unix_error (Unix.EBADF, _, _) -> false
+    in
+    let should_skip = skip_regular_files && is_regular () in
+    if not should_skip then begin
+      let src = match src with
+        | `Dev_null -> Unix.openfile "/dev/null" ~mode:[mode] ~perm:0o777
+        | `File_append file -> Unix.openfile file ~mode:[mode; Unix.O_CREAT] ~perm:0o777
+        | `File_truncate file ->
+          let fd = Unix.openfile file ~mode:[mode; Unix.O_CREAT] ~perm:0o777 in
+          Unix.ftruncate fd ~len:Int64.zero;
+          fd
+      in
+      Unix.dup2 ~src ~dst;
+      Unix.close src;
+    end;
 ;;
 
-let daemonize ?(close_stdio=true) ?(cd = "/") ?umask:(umask_value = default_umask) () =
+let redirect_stdio_fds ~skip_regular_files ~stdout ~stderr =
+
+  dup_null ~skip_regular_files ~mode:Unix.O_RDONLY ~src:`Dev_null ~dst:Unix.stdin;
+  dup_null ~skip_regular_files ~mode:Unix.O_WRONLY ~src:stdout ~dst:Unix.stdout;
+  dup_null ~skip_regular_files ~mode:Unix.O_WRONLY ~src:stderr ~dst:Unix.stderr;
+;;
+
+let daemonize ?(redirect_stdout=`Dev_null) ?(redirect_stderr=`Dev_null)
+    ?(cd = "/") ?umask:(umask_value = default_umask) () =
   check_threads ();
   let fork_no_parent () =
     match Unix.handle_unix_error Unix.fork with
@@ -59,14 +81,16 @@ let daemonize ?(close_stdio=true) ?(cd = "/") ?umask:(umask_value = default_umas
   Unix.chdir cd;
   (* Ensure sensible umask.  Adjust as needed. *)
   ignore (Unix.umask umask_value);
-  if close_stdio then close_stdio_fds ~skip_regular_files:false;
+  redirect_stdio_fds ~skip_regular_files:false
+    ~stdout:redirect_stdout ~stderr:redirect_stderr;
 ;;
 
 let fail_wstopped ~pid ~i =
   failwithf "Bug: waitpid on process %i returned WSTOPPED %i, \
     but waitpid not called with WUNTRACED.  This should not happen" i pid ()
 
-let daemonize_wait ?(cd = "/") ?umask:(umask_value = default_umask) () =
+let daemonize_wait ?(redirect_stdout=`Dev_null) ?(redirect_stderr=`Dev_null)
+    ?(cd = "/") ?umask:(umask_value = default_umask) () =
   check_threads ();
   match Unix.handle_unix_error Unix.fork with
   | `In_the_child ->
@@ -81,7 +105,8 @@ let daemonize_wait ?(cd = "/") ?umask:(umask_value = default_umask) () =
       Unix.chdir cd;
       ignore (Unix.umask umask_value);
       (fun () ->
-        close_stdio_fds ~skip_regular_files:true;
+        redirect_stdio_fds ~skip_regular_files:true
+          ~stdout:redirect_stdout ~stderr:redirect_stderr;
         let old_sigpipe_behavior = Signal.signal Signal.pipe `Ignore in
         (try ignore (Unix.write write_end ~buf ~pos:0 ~len : int) with _ -> ());
         Signal.set Signal.pipe old_sigpipe_behavior;

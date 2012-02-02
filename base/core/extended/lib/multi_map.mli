@@ -48,7 +48,7 @@ val fold      :
 
 val filter : f:(key:'k -> data:'v -> bool) -> ('k,'v) t -> ('k,'v) t
 
-val reduce : f:('v list -> 'r) -> ('k,'v) t -> ('k,'r) Map.t
+val reduce : f:('v list -> 'r) -> ('k,'v) t -> ('k,'r) Map.Poly.t
 
 (*
 val data      : ('a, 'b) t -> 'b list

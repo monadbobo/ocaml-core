@@ -87,7 +87,6 @@ let ok_unit = Ok ()
 let ok_exn = function
   | Ok x -> x
   | Error exn -> raise exn
-;;
 
 let failwith_error = function
   | Ok x -> x

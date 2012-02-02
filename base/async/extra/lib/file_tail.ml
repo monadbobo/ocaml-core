@@ -84,9 +84,7 @@ end = struct
         for i = 0 to Buffer.length buffer - 1 do
           assert (Buffer.nth buffer i <> newline)
         done;
-    with exn ->
-      let module E = Core.Std.Error in
-      E.fail "invariant failed" (exn, t) <:sexp_of< exn * t >>
+    with exn -> failwiths "invariant failed" (exn, t) <:sexp_of< exn * t >>
   ;;
 
   let create ~break_on_lines =
@@ -184,9 +182,7 @@ let invariant t =
     (* It is possible to have [t.file_pos > t.file_len], since we read as much as
        we can into [t.read_buf] and the file may have grown in between the time we stat
        and the time we read. *)
-  with exn ->
-    let module E = Core.Std.Error in
-    E.fail "invariant failed" (exn, t) <:sexp_of< exn * t >>
+  with exn -> failwiths "invariant failed" (exn, t) <:sexp_of< exn * t >>
 ;;
 
 let need_to_read t = t.file_pos < t.file_len

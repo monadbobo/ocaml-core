@@ -165,9 +165,10 @@ val fold_right : 'a t -> f:('a -> 'b -> 'b) -> init:'b -> 'b
     [unzip [(a1,b1); ...; (an,bn)]] is [([a1; ...; an], [b1; ...; bn])]. *)
 val unzip : ('a * 'b) t -> 'a t * 'b t
 
-(** Transform a pair of lists into a list of pairs:
+(** Transform a pair of lists into an (optional) list of pairs:
     [zip [a1; ...; an] [b1; ...; bn]] is [[(a1,b1); ...; (an,bn)]].
-    Raise [Invalid_argument] if the two lists have different lengths. *)
+    Returns None if the two lists have different lengths. *)
+val zip     : 'a t -> 'b t -> ('a * 'b) t option
 val zip_exn : 'a t -> 'b t -> ('a * 'b) t
 
 (** mapi is just like map, but it also passes in the index of each
@@ -246,21 +247,18 @@ val exn_if_dup :
     predicate [f].  *)
 val count : 'a t -> f:('a -> bool) -> int
 
-(** [range ?stride start stop] is the list of integers from [start] (defaults to
-    inclusive) to [stop] (defaults to exclusive), stepping by [stride].  If unspecified,
-    [stride] defaults to 1.  If [stride] < 0 then we need [start] > [stop] for the result
-    to be nonempty (or [start] = [stop] in the case where both bounds are inclusive). *)
+(** [range ?stride start stop] is the list of integers from [start] to [stop], stepping by
+    [stride].  If [stride] < 0 then we need [start] > [stop] for the result to be nonempty
+    (or [start] = [stop] in the case where both bounds are inclusive). *)
 val range :
-  ?stride:int
+  ?stride:int                               (* default = 1 *)
   -> ?start_inc_exc:[`inclusive|`exclusive] (* default = `inclusive *)
   -> ?stop_inc_exc:[`inclusive|`exclusive]  (* default = `exclusive *)
   -> int
   -> int
   -> int t
 
-(** [init f n] is [[(f 0); (f 1); ...; (f (n-1))]].
-    It is an error if [n < 0].
-*)
+(** [init f n] is [[(f 0); (f 1); ...; (f (n-1))]]. It is an error if [n < 0]. *)
 val init : int -> f:(int -> 'a) -> 'a t
 
 (** [rev_filter_map f l] is the reversed sublist of [l] containing
@@ -325,13 +323,13 @@ val take_while : 'a t -> f : ('a -> bool) -> 'a t
 (** [drop_while l ~f] drops the longest prefix of [l] for which [f] is [true]. *)
 val drop_while : 'a t -> f : ('a -> bool) -> 'a t
 
-(** Concatenate a list of lists.  The elements of the argument are all
-    concatenated together (in the same order) to give the result.
-    Tail recursive over outer and inner lists. *)
+(** Concatenate a list of lists.  The elements of the argument are all concatenated
+    together (in the same order) to give the result.  Tail recursive over outer and inner
+    lists. *)
 val concat : 'a t t -> 'a t
 
-(** Same as [concat] but faster and without preserving any ordering (ie
-    for lists that are essentially viewed as multi-sets. *)
+(** Same as [concat] but faster and without preserving any ordering (ie for lists that are
+    essentially viewed as multi-sets. *)
 val concat_no_order : 'a t t -> 'a t
 
 val cons : 'a -> 'a t -> 'a t
@@ -359,20 +357,21 @@ module Infix : sig
   val ( @ ) : 'a t -> 'a t -> 'a t
 end
 
+
 (** [transpose m] transposes the rows and columns of the matrix [m],
     considered as either a row of column lists or (dually) a column of row lists.
 
     Example,
 
-      transpose [[1;2;3];[4;5;6]] = [[1;4];[2;5];[3;6]]
+    transpose [[1;2;3];[4;5;6]] = [[1;4];[2;5];[3;6]]
 
     On rectangular matrices, [transpose] is an involution
-      (i.e., [transpose (transpose m) = m]).
+    (i.e., [transpose (transpose m) = m]).
 **)
-val transpose : 'a t t -> 'a t t
+val transpose : 'a t t -> 'a t t option
 
 (** [transpose_exn] transposes the rows and columns of its argument, throwing exception if
-    the list is not "rectangular"
+    the list is not rectangular.
 **)
 val transpose_exn : 'a t t -> 'a t t
 

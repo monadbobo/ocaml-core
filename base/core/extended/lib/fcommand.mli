@@ -105,10 +105,8 @@ val step : ('m1 -> 'm2) -> ('m1, 'm2) t
 val cmd :
   summary:string
   -> ?readme:(unit -> string)
+  -> ?autocomplete:Command.Autocomplete.t
   -> ?global_flags:(unit Command.Flag.t list)
   -> ('main, unit) t
   -> 'main
   -> Command.t
-
-(* [either name ++ spec1 ++ spec2] ensures that at most one spec is supplied *)
-val either : string -> ('a option -> 'b, 'a option -> 'a option -> 'b) t

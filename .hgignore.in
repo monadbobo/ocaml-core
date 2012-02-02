@@ -1,0 +1,84 @@
+# bin/make-hgignore processes this .hgignore.in, along with all the other .hgignore.in
+# files in the hg repo to produce a single .hgignore file at the root.  Please do not add
+# directory-specific files to ignore here.  Instead, add them to the .hgignore.in file in
+# the directory where the file you want to ignore lives.
+
+syntax: regexp
+\.cm(x|xa|a|o|i)$
+\.exe$
+\.bc$
+\.annot$
+\.o$
+\.so(.\d)?$
+\.s$
+\.a$
+\.depend$
+\._.+$
+\.sp.t$
+config.status$
+mycaml$
+\.DS_Store$
+tmtags$
+\.rnc$
+
+^\.git/.*$
+^\.transdeps/.*$
+^chroot_test_tmp/.*$
+
+^lib/packs(/.+\.pack)?$
+^lib/.+/deps
+^lib/.+/.+\.mli
+^test-results.*$
+
+syntax: glob
+personal_compilation_ignores
+*.cp4c
+*~
+*.auto.mli
+*.aux
+*.digest
+*.fls
+*.haux
+*.htoc
+*.log
+*.omc
+*.orig
+*.rej
+*.spot
+*.toc
+.*.sw[pabcdef]
+.mydeps
+inline_tests.ml
+inline_tests_runner.ml
+TAGS
+order_file_*_common.ml
+*_db_pnl_common.ml
+order_file_*_eval.ml
+
+
+# for new omake rules
+*.deps
+*.ml.d
+*.mli.d
+*.libdeps
+*.objdeps
+*.hg_version.c
+*.build_info.c
+hg_version.out
+
+# specific files
+.last_build_env
+.omakedb
+.omakedb.lock
+spec.hg
+libdeps.sexp
+libdeps.dot
+libdeps.ps
+libdeps.corrected
+ocaml_path
+.ocaml-3.10
+\#*
+.\#*
+
+# Please do not add directory-specific files to ignore here.  Instead, add them to the
+# .hgignore.in file in the directory where the file you want to ignore lives.

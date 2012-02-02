@@ -1,6 +1,8 @@
 INCLUDE "config.mlh"
 IFDEF LINUX_EXT THEN
 
+open Sexplib.Conv
+open Result.Export
 open Bigstring
 
 (* Marshalling to/from bigstrings *)
@@ -13,6 +15,7 @@ let marshal_blit ?(flags = []) v ?(pos = 0) ?len bstr =
   let len = get_opt_len bstr ~pos len in
   check_args ~loc:"marshal" bstr ~pos ~len;
   unsafe_marshal_blit v ~pos ~len bstr flags
+;;
 
 external marshal : 'a -> Marshal.extern_flags list -> t
   = "bigstring_marshal_stub"
@@ -51,6 +54,7 @@ let unmarshal_next ?pos bstr =
     else
       let v = unsafe_unmarshal ~pos ~len:block_len bstr in
       v, next_pos
+;;
 
 let unmarshal ?pos bstr = fst (unmarshal_next ?pos bstr)
 
@@ -73,6 +77,7 @@ let skip ?pos bstr =
     if next_pos > len
     then invalid_arg "Bigstring.skip: pos + block_len > len"
     else next_pos
+;;
 
 let marshal_to_sock ?buf ?flags sock v =
   let buf, len =
@@ -82,7 +87,9 @@ let marshal_to_sock ?buf ?flags sock v =
         buf, length buf
     | Some buf -> buf, marshal_blit ?flags v buf
   in
-  really_send_no_sigpipe sock buf ~len
+  let f = Or_error.ok_exn really_send_no_sigpipe in
+  f sock buf ~len
+;;
 
 let unmarshal_from_sock ?buf sock =
   match buf with
@@ -110,5 +117,28 @@ let unmarshal_from_sock ?buf sock =
           "Bigstring.unmarshal_from_sock: buffer cannot hold header + data";
       really_recv sock ~pos:Marshal.header_size ~len:data_len buf;
       unsafe_unmarshal ~pos:0 ~len:all_len buf
+;;
+
+let marshal             = Ok marshal
+let marshal_blit        = Ok marshal_blit
+let marshal_data_size   = Ok marshal_data_size
+let marshal_to_sock     = Ok marshal_to_sock
+let skip                = Ok skip
+let unmarshal           = Ok unmarshal
+let unmarshal_from_sock = Ok unmarshal_from_sock
+let unmarshal_next      = Ok unmarshal_next
+
+ELSE
+
+open Std_internal
+
+let marshal             = unimplemented "Bigstring_marshal.marshal"
+let marshal_blit        = unimplemented "Bigstring_marshal.marshal_blit"
+let marshal_data_size   = unimplemented "Bigstring_marshal.marshal_data_size"
+let marshal_to_sock     = unimplemented "Bigstring_marshal.marshal_to_sock"
+let skip                = unimplemented "Bigstring_marshal.skip"
+let unmarshal           = unimplemented "Bigstring_marshal.unmarshal"
+let unmarshal_from_sock = unimplemented "Bigstring_marshal.unmarshal_from_sock"
+let unmarshal_next      = unimplemented "Bigstring_marshal.unmarshal_next"
 
 ENDIF

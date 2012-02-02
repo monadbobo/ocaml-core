@@ -180,6 +180,7 @@ Ocamlbuild_plugin.dispatch
 EOF
 
 cd $HERE
+rm -f setup.ml
 oasis setup
 enable_pack_in_setup_ml bin_prot
 

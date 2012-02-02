@@ -1,196 +1,131 @@
-
 open Sexplib
 
-module type Elt = sig
-  type t
-  include Sexpable.S with type t := t
+module type Elt = Comparator.Pre
 
-  val compare : t -> t -> int
+module type Accessors = sig
+  include Container.Generic_phantom
+  val mem : ('a, _) t -> 'a elt -> bool (* override [Container]'s [mem] *)
+  val add    : ('a, 'comparator) t -> 'a elt -> ('a, 'comparator) t
+  val remove : ('a, 'comparator) t -> 'a elt -> ('a, 'comparator) t
+  val union   : ('a, 'comparator) t -> ('a, 'comparator) t -> ('a, 'comparator) t
+  val inter   : ('a, 'comparator) t -> ('a, 'comparator) t -> ('a, 'comparator) t
+  val diff    : ('a, 'comparator) t -> ('a, 'comparator) t -> ('a, 'comparator) t
+  val compare : ('a, 'comparator) t -> ('a, 'comparator) t -> int
+  val equal   : ('a, 'comparator) t -> ('a, 'comparator) t -> bool
+  (* [subset x y] returns true iff [x] is a subset of [y]. *)
+  val subset : ('a, 'comparator) t -> ('a, 'comparator) t -> bool
+  val fold_until
+    :  ('a, _) t
+    -> init:'b
+    -> f:('b -> 'a elt -> [ `Continue of 'b | `Stop of 'b ])
+    -> 'b
+  val filter : ('a, 'comparator) t -> f:('a elt -> bool) -> ('a, 'comparator) t
+  (** if [res = partition_tf set ~f] then [fst res] are the elements on which [f]
+      produced [true], and [snd res] are the elements on which [f] produces [false] *)
+  val partition_tf
+    :  ('a, 'comparator) t
+    -> f:('a elt -> bool)
+    -> ('a, 'comparator) t * ('a, 'comparator) t
+
+  val elements : ('a, _) t -> 'a elt list
+
+  val min_elt     : ('a, _) t -> 'a elt option
+  val min_elt_exn : ('a, _) t -> 'a elt
+  val max_elt     : ('a, _) t -> 'a elt option
+  val max_elt_exn : ('a, _) t -> 'a elt
+
+  (* returns an arbitrary element, or None if the set is empty *)
+  val choose     : ('a, _) t -> 'a elt option
+  val choose_exn : ('a, _) t -> 'a elt
+
+  (** [split x set] produces a triple [triple] where [fst3 triple] is the set of elements
+      strictly less than [x], [snd3 triple] = [mem set x], and [trd3 triple] is the set of
+      elements strictly larger than [x]. *)
+  val split
+    :  ('a, 'comparator) t
+    -> 'a elt
+    -> ('a, 'comparator) t * bool * ('a, 'comparator) t
+
+  (** if [equiv] is an equivalence predicate, then [group_by set ~equiv] produces a list
+      of equivalence classes (i.e., a set-theoretic quotient).  E.g.,
+
+      [let chars = Set.of_list ['A'; 'a'; 'b'; 'c'] in
+      let equiv c c' = Char.equal (Char.uppercase c) (Char.uppercase c') in
+      group_by chars ~equiv]
+
+      produces
+
+      [Set.of_list['A';'a']; Set.singleton 'b'; Set.singleton 'c']
+
+      Runs in O(n^2) time. *)
+  val group_by
+    :  ('a, 'comparator) t
+    -> equiv:('a elt -> 'a elt -> bool)
+    -> ('a, 'comparator) t list
+
+  val find_exn : ('a, _) t -> f:('a elt -> bool) -> 'a elt
+  (* Returns the ith smallest element in the set in O(log n) time.  The smallest element
+     is element 0. *)
+  val find_index : ('a, _) t -> int -> 'a elt option
+  val remove_index : ('a, 'comparator) t -> int -> ('a, 'comparator) t
 end
 
-module type Types = sig
-  type +'e elt
-  type +'e t
-end
+type ('key, 'comparator, 'z) create_options_without_comparator =
+  ('key, 'comparator, 'z) Core_map_intf.create_options_without_comparator
 
-module Gen(T : Types) = struct
-  open T
-  module type S = sig
-    val empty: 'e t
-    val is_empty: 'e t -> bool
-    val mem: 'e t -> 'e elt -> bool
-    val add: 'e t -> 'e elt -> 'e t
-    val singleton: 'e elt -> 'e t
-    val remove: 'e t -> 'e elt -> 'e t
-    val union: 'e t -> 'e t -> 'e t
-    (* [equal x (union_list (List.map ~f:Set.singleton (elements x)))] *)
-    val union_list : 'e t list -> 'e t
-    val inter: 'e t -> 'e t -> 'e t
-    val diff: 'e t -> 'e t -> 'e t
-    val compare: 'e t -> 'e t -> int
-    val equal: 'e t -> 'e t -> bool
-    val subset: 'e t -> 'e t -> bool
-    val iter: 'e t -> f:('e elt -> unit) -> unit
-    val fold: 'e t -> init:'a -> f:('e elt -> 'a -> 'a) -> 'a
-    val fold_until: 'e t -> init:'a -> f:('e elt -> 'a -> [`Continue of 'a | `Stop of 'a]) -> 'a
-    val for_all: 'e t -> f:('e elt -> bool) -> bool
-    val exists: 'e t -> f:('e elt -> bool) -> bool
-    val filter: 'e t -> f:('e elt -> bool) -> 'e t
-    (** if [res = parition set ~f] then [fst res] are the elements on which [f] produced
-        [true], and [snd res] are the elements on which [f] produces [false] *)
-    val partition: 'e t -> f:('e elt -> bool) -> 'e t * 'e t
-    val length : _ t -> int
-    val elements: 'e t -> 'e elt list
+type ('key, 'comparator, 'z) create_options_with_comparator_required =
+  ('key, 'comparator, 'z) Core_map_intf.create_options_with_comparator_required
 
-    val min_elt: 'e t -> 'e elt option
-    val min_elt_exn: 'e t -> 'e elt
-    val max_elt: 'e t -> 'e elt option
-    val max_elt_exn: 'e t -> 'e elt
-    (* returns an arbitrary element, or None if the set is empty *)
-    val choose: 'e t -> 'e elt option
-    val choose_exn: 'e t -> 'e elt
+module type Creators = sig
+  type ('a, 'comparator) set
+  type ('a, 'comparator) t
+  type 'a elt
+  type ('a, 'comparator, 'z) create_options
 
-    val of_list: 'e elt list -> 'e t
-    val to_list: 'e t -> 'e elt list
-
-    val of_array: 'e elt array -> 'e t
-    val to_array: 'e t -> 'e elt array
-
-    (** [split x set] produces a triple [triple] where [fst3 triple] is the set of
-        elements strictly less than [x], [snd3 triple] = [mem set x], and [trd3 triple] is
-        the set of elements strictly larger than [x]. *)
-    val split: 'e elt -> 'e t -> 'e t * bool * 'e t
-
-    (** if [equiv] is an equivalence predicate, then [group_by set ~equiv] produces a list
-        of equivalence classes (i.e., a set-theoretic quotient).  E.g.,
-
-          [let chars = Set.of_list ['A'; 'a'; 'b'; 'c'] in
-           let equiv c c' = Char.equal (Char.uppercase c) (Char.uppercase c') in
-           group_by chars ~equiv]
-
-        produces
-
-          [Set.of_list['A';'a']; Set.singleton 'b'; Set.singleton 'c']
-    *)
-    val group_by: 'e t -> equiv:('e elt -> 'e elt -> bool) -> 'e t list
-
-    val find: 'e t -> f:('e elt -> bool) -> 'e elt option
-    val find_exn: 'e t -> f:('e elt -> bool) -> 'e elt
-    val find_map: 'e t -> f:('e elt -> 'a option) -> 'a option
-    (* Returns the ith smallest element in the set in O(log n) time.  The smallest
-       element is element 0. *)
-    val find_index : 'e t -> int -> 'e elt option
-    val remove_index : 'e t -> int -> 'e t
-    (* stable_dedup is here rather than in the List module because the implementation
-       relies crucially on sets, and because doing so allows one to avoid uses
-       of polymorphic comparison by instantiating the functor at a different
-       implementation of Comparable and using the resulting [stable_dedup_list]. *)
-    val stable_dedup_list : 'e elt list -> 'e elt list
-  end
+  (* [equal x (union_list (List.map ~f:Set.singleton (elements x)))] *)
+  val empty : ('a, 'comparator, ('a, 'comparator) t) create_options
+  val singleton : ('a, 'comparator, 'a elt -> ('a, 'comparator) t) create_options
+  val union_list
+    :  ('a, 'comparator,
+        ('a, 'comparator) t list -> ('a, 'comparator) t
+    ) create_options
+  val of_list  : ('a, 'comparator, 'a elt list  -> ('a, 'comparator) t) create_options
+  val of_array : ('a, 'comparator, 'a elt array -> ('a, 'comparator) t) create_options
+  (* [stable_dedup_list] is here rather than in the List module because the implementation
+     relies crucially on sets, and because doing so allows one to avoid uses of
+     polymorphic comparison by instantiating the functor at a different implementation of
+     Comparator and using the resulting [stable_dedup_list]. *)
+  val stable_dedup_list : ('a, _, 'a elt list -> 'a elt list) create_options
+  val map
+    : ('b, 'comparator,
+       ('a, _) set -> f:('a -> 'b elt) -> ('b, 'comparator) t
+    ) create_options
+  val filter_map
+    : ('b, 'comparator,
+       ('a, _) set -> f:('a -> 'b elt option) -> ('b, 'comparator) t
+    ) create_options
 end
 
 module type S = sig
-  type elt
-  type t
-  module T : Types with type 'a elt = elt with type 'e t = t
-  include Sexpable.S with type t := t
-  val empty: t
-  val is_empty: t -> bool
-  val mem: t -> elt -> bool
-  val add: t -> elt -> t
-  val singleton: elt -> t
-  val remove: t -> elt -> t
-  val union: t -> t -> t
-  val union_list : t list -> t
-  val inter: t -> t -> t
-  val diff: t -> t -> t
-  val compare: t -> t -> int
-  val equal: t -> t -> bool
-  val subset: t -> t -> bool
-  val iter: t -> f:(elt -> unit) -> unit
-  val fold: t -> init:'a -> f:(elt -> 'a -> 'a) -> 'a
-  val fold_until: t -> init:'a -> f:(elt -> 'a -> [`Continue of 'a | `Stop of 'a]) -> 'a
-  val for_all  : t -> f:(elt -> bool) -> bool
-  val exists   : t -> f:(elt -> bool) -> bool
-  val filter   : t -> f:(elt -> bool) -> t
-  val partition: t -> f:(elt -> bool) -> t * t
-  val length     : t -> int
-  val elements   : t -> elt list
-  val min_elt    : t -> elt option
-  val min_elt_exn: t -> elt
-  val max_elt    : t -> elt option
-  val max_elt_exn: t -> elt
-  val choose     : t -> elt option
-  val choose_exn : t -> elt
-  val of_list: elt list -> t
-  val to_list: t -> elt list
-  val of_array: elt array -> t
-  val to_array: t -> elt array
-  val split: elt -> t -> t * bool * t
-  val group_by: t -> equiv:(elt -> elt -> bool) -> t list
-  val find: t -> f:(elt -> bool) -> elt option
-  val find_exn: t -> f:(elt -> bool) -> elt
-  val find_map: t -> f:(elt -> 'a option) -> 'a option
-  val find_index : t -> int -> elt option
-  val remove_index : t -> int -> t
-  val setify : elt list -> elt list
-  val stable_dedup_list : elt list -> elt list
+  module Elt : Comparator.S
+
+  type ('a, 'comparator) set
+  type t = (Elt.t, Elt.comparator) set with sexp
+  type ('a, 'comparator) t_ = t
+  type 'a elt_ = Elt.t
+
+  include Creators
+    with type ('a, 'comparator) set := ('a, 'comparator) set
+    with type ('a, 'comparator) t := ('a, 'comparator) t_
+    with type 'a elt := 'a elt_
+    with type ('a, 'b, 'c) create_options := ('a, 'b, 'c) create_options_without_comparator
+
+  include Accessors
+    with type ('a, 'b) t := ('a, 'b) t_
+    with type 'a elt := 'a elt_
 end
 
-module type S1 = sig
-  type +'elt t
-  module T : Types with type 'a elt = 'a with type 'e t = 'e t
-  include Sexpable.S1 with type 'elt t := 'elt t
-  include Binable.S1 with type 'elt t := 'elt t
-  val empty: 'elt t
-  val is_empty: 'elt t -> bool
-  val mem: 'elt t -> 'elt -> bool
-  val add: 'elt t -> 'elt -> 'elt t
-  val singleton: 'elt -> 'elt t
-  val remove: 'elt t -> 'elt -> 'elt t
-  val union: 'elt t -> 'elt t -> 'elt t
-  val union_list : 'elt t list -> 'elt t
-  val inter: 'elt t -> 'elt t -> 'elt t
-  val diff: 'elt t -> 'elt t -> 'elt t
-  val compare: 'elt t -> 'elt t -> int
-  val equal: 'elt t -> 'elt t -> bool
-  val subset: 'elt t -> 'elt t -> bool
-  val iter: 'elt t -> f:('elt -> unit) -> unit
-  val fold: 'elt t -> init:'a -> f:('elt -> 'a -> 'a) -> 'a
-  val fold_until: 'elt t -> init:'a -> f:('elt -> 'a -> [`Continue of 'a | `Stop of 'a]) -> 'a
-  val for_all: 'elt t -> f:('elt -> bool) -> bool
-  val exists : 'elt t -> f:('elt -> bool) -> bool
-  val filter : 'elt t -> f:('elt -> bool) -> 'elt t
-  val filter_map: 'elt t -> f:('elt -> 'a option) -> 'a            t
-  val partition : 'elt t -> f:('elt -> bool     ) -> 'elt t * 'elt t
-  val length : _ t -> int
-  val elements: 'elt t -> 'elt list
-  val min_elt: 'elt t -> 'elt option
-  val min_elt_exn: 'elt t -> 'elt
-  val max_elt: 'elt t -> 'elt option
-  val max_elt_exn: 'elt t -> 'elt
-  val choose: 'elt t -> 'elt option
-  val choose_exn: 'elt t -> 'elt
-  val of_list: 'elt list -> 'elt t
-  val to_list: 'elt t -> 'elt list
-  val of_array: 'elt array -> 'elt t
-  val to_array: 'elt t -> 'elt array
-  val map: f:('a -> 'b) -> 'a t -> 'b t
-  val split: 'elt -> 'elt t -> 'elt t * bool * 'elt t
-  val group_by: 'elt t -> equiv:('elt -> 'elt -> bool) -> 'elt t list
-  val find: 'elt t -> f:('elt -> bool) -> 'elt option
-  val find_exn: 'elt t -> f:('elt -> bool) -> 'elt
-  val find_map: 'e t -> f:('e -> 'a option) -> 'a option
-  val find_index : 'elt t -> int -> 'elt option
-  val remove_index : 'elt t -> int -> 'elt t
-  val setify : 'elt list -> 'elt list
-  val stable_dedup_list : 'elt list -> 'elt list
+module type S_binable = sig
+  include S
+  include Binable.S with type t := t
 end
-
-module type Gen = sig
-  module T : Types
-  include Gen(T).S
-end
-
-module Check_S (M : S)   = (M : Gen(M.T).S)
-module Check_S1 (M : S1) = (M : Gen(M.T).S)

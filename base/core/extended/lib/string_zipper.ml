@@ -1,11 +1,13 @@
 open Core.Std
 
-type t = char Readline__list_zipper.t
+type t = char List_zipper.t
 
-open Readline__list_zipper
+open List_zipper
 
 let drop_before = drop_before
 let drop_after = drop_after
+let drop_all_before = drop_all_before
+let drop_all_after = drop_all_after
 let insert_before = insert_before
 let insert_after = insert_after
 let previous = previous
@@ -52,3 +54,6 @@ let create left right =
     l = String.to_list_rev left;
     r = String.to_list right
   }
+
+let replace_left z l = replace_left z (String.to_list_rev l)
+let replace_right z r = replace_right z (String.to_list r)

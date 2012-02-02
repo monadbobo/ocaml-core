@@ -21,6 +21,6 @@ let one name priority =
 
 let () = one "low" low
 let () = one "normal" normal
-let () = upon (Clock.after (Time.Span.of_sec 1.)) (fun () -> shutdown 0)
+let () = upon (Clock.after (sec 1.)) (fun () -> shutdown 0)
 
 let () = never_returns (Scheduler.go ())

@@ -154,7 +154,7 @@ let create_extension_map l =
             )
             ~init
     )
-    ~init:Map.empty
+    ~init:Map.Poly.empty
 
 let extension_cmp map h1 h2 =
   let lookup e =
