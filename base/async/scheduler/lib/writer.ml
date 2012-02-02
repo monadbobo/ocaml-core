@@ -592,7 +592,10 @@ let give_buf t desired =
     (t.buf, pos)
   end else begin
     (* Preallocated buffer too small; schedule buffered writes *)
-    if desired > buf_len then begin
+    (* We have to divide the buffer length by two in the following comparison
+       to avoid wasting buffer space on subsequent writes of slightly more
+       than half the buffer length. *)
+    if desired > buf_len / 2 then begin
       schedule_unscheduled t `Keep;
       (* Preallocation size too small; allocate dedicated buffer *)
       let buf = Bigstring.create desired in
