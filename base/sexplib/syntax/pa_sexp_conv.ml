@@ -408,7 +408,7 @@ module Generate_sexp_of = struct
       | <:ctyp@loc< $lid:name$ : $tp$ >> ->
           let patt = mk_rec_patt loc patt name in
           let vname = <:expr@loc< $lid:"v_" ^ name$ >> in
-          let cnv_expr = unroll_cnv_fp loc vname  (sexp_of_type tp) in
+          let cnv_expr = unroll_cnv_fp loc vname (sexp_of_type tp) in
           let expr =
             <:expr@loc<
               let arg = $cnv_expr$ in
@@ -989,7 +989,7 @@ module Generate_of_sexp = struct
             let fld = <:expr@loc< $lid:nm ^ "_field"$.val >> in
             let new_bi_lst, new_good_patts =
               match tp with
-              | <:ctyp@loc< sexp_bool >> |  <:ctyp@loc< mutable sexp_bool >>
+              | <:ctyp@loc< sexp_bool >> | <:ctyp@loc< mutable sexp_bool >>
               | <:ctyp@loc< sexp_option $_$ >>
               | <:ctyp@loc< mutable sexp_option $_$ >>
               | <:ctyp@loc< sexp_list $_$ >>
@@ -1313,7 +1313,7 @@ module Quotations = struct
     let body =
       match fp with
       | `Fun fun_expr -> <:expr@loc< $fun_expr$ sexp >>
-      | `Match matchings -> <:expr@loc< match sexp with [$matchings$]  >>
+      | `Match matchings -> <:expr@loc< match sexp with [$matchings$] >>
     in
     let full_type_name =
       sprintf "%s line %i: %s"
@@ -1329,10 +1329,10 @@ module Quotations = struct
     Syntax.Quotation.add "of_sexp" Syntax.Quotation.DynAst.expr_tag
       of_sexp_quote
 
- let sexp_of_quote loc _loc_name_opt cnt_str =
-   Pa_type_conv.set_conv_path_if_not_set loc;
-   let ctyp = Gram.parse_string Syntax.ctyp_quot loc cnt_str in
-   Generate_sexp_of.mk_cnv_expr ctyp
+  let sexp_of_quote loc _loc_name_opt cnt_str =
+    Pa_type_conv.set_conv_path_if_not_set loc;
+    let ctyp = Gram.parse_string Syntax.ctyp_quot loc cnt_str in
+    Generate_sexp_of.mk_cnv_expr ctyp
 
   let () =
     Syntax.Quotation.add "sexp_of" Syntax.Quotation.DynAst.expr_tag
