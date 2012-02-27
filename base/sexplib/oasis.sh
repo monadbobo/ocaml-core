@@ -61,9 +61,9 @@ Library pa_sexp_conv
 #  FindlibName:        top
 
 # TODO: figure out how to build tests without installing sexplib
-Flag tests
-  Description:        Build and run tests
-  Default:            false
+#Flag tests
+#  Description:        Build and run tests
+#  Default:            false
 
 Executable sexp_test
   Path:               lib_test

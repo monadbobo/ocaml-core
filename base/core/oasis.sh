@@ -97,9 +97,9 @@ Library core
                       unix,
                       threads
 
-Flag tests
-  Description:        Build and run tests
-  Default:            false
+#Flag tests
+#  Description:        Build and run tests
+#  Default:            false
 
 Executable test_runner
   Path:               lib_test
