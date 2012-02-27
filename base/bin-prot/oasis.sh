@@ -63,9 +63,7 @@ Library pa_bin_prot
   XMETARequires:      type-conv
   XMETADescription:   Syntax extension for binary protocol generator
 
-#Flag tests
-#  Description:        Build and run tests
-#  Default:            false
+$(declare_tests_flag)
 
 Executable test_runner
   Path:               lib_test
