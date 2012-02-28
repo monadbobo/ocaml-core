@@ -1,3 +1,6 @@
+2012-02-28:  Improved portability by better supporting the C99-standard and
+             non-GNU compilers.
+
 2011-11-10:  Improved portability to older glibc distributions.
 
 2011-09-15:  Fixes to improve package dependency resolution.
