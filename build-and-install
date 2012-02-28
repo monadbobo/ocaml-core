@@ -5,6 +5,7 @@ function usage {
     echo "usage: ${BASH_SOURCE[0]} [-j <JOBS>] [tree]"
     echo "         -h, --help       Display this help"
     echo "         -j N             Run at most N jobs in parallel"
+    echo "         -u               Don't install, uninstall"
 }
 
 configflags="
@@ -16,10 +17,10 @@ disable-posix-timers
 
 opts=
 if getopt -V | grep -q enhanced; then
-  opts=$(getopt -n ${BASH_SOURCE[0]} -o "j:h" \
+  opts=$(getopt -n ${BASH_SOURCE[0]} -o "j:uh" \
                 -l "jobs:,help,$(echo -n $configflags | tr ' ' ,)" -- "$@")
 else
-  opts=$(getopt "j:h" $*)
+  opts=$(getopt "j:uh" $*)
 fi
 
 if [[ $? != 0 ]]; then usage; exit 1; fi
@@ -31,10 +32,12 @@ linuxflag=
 timerflag=
 makeflags=""
 configopts=( )
+uninstall=false
 while true; do
     case "$1" in
         -h|--help) usage; exit 0;;
         -j|--jobs) makeflags="$makeflags -j $2";      shift 2;;
+        -u) uninstall=true; shift;;
         --enable-linux)  linuxflag="--enable-linux";  shift  ;;
         --disable-linux) linuxflag="--disable-linux"; shift  ;;
         --enable-posix-timers)  timerflag="--enable-posix-timers";  shift ;;
@@ -87,8 +90,13 @@ for dir in $libraries; do
           trap "rm -r '$dest'" EXIT
           ;;
   esac
-  ./oasis.sh $optflags "${configopts[@]:+${configopts[@]}}"
-  make build BUILDFLAGS="$makeflags"
-  make install || true
+  if $uninstall; then
+    make uninstall || true
+  else
+    ./oasis.sh $optflags "${configopts[@]:+${configopts[@]}}"
+    make build BUILDFLAGS="$makeflags"
+    make install || true
+  fi
   popd
+
 done

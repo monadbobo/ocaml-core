@@ -25,7 +25,7 @@ XStdFilesINSTALLFilename: INSTALL
 XStdFilesREADME: false
 
 
-PreBuildCommand: mkdir -p _build; cp lib/*.{mlh,h} _build/
+PreBuildCommand: mkdir -p _build; cp lib/*.mlh lib/*.h _build/
 
 Library bin_prot
   Path:               lib
@@ -64,9 +64,7 @@ Library pa_bin_prot
   XMETARequires:      type-conv,bin_prot
   XMETADescription:   Syntax extension for binary protocol generator
 
-Flag tests
-  Description:        Build and run tests
-  Default:            false
+$(declare_tests_flag)
 
 Executable test_runner
   Path:               lib_test

@@ -88,9 +88,7 @@ Library core_extended
                       unix,
                       threads
 
-Flag tests
-  Description:        Build and run tests
-  Default:            false
+$(declare_tests_flag)
 
 Executable core_extended_hello
   Path:               lib_test

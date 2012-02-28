@@ -172,4 +172,16 @@ function check_posix_timers_enabled {
     done
 }
 
+function declare_tests_flag {
+  # prior to oasis version 0.3.0, the "tests" flag is not built in
+  # and, the "version" argument is not supported.
+  if ! oasis version 2>/dev/null >/dev/null; then
+    cat <<EOF
+Flag tests
+  Description: Build and run tests
+  Default:     false
+EOF
+  fi
+}
+
 HERE=$(dirname "$0")
