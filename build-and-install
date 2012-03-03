@@ -74,7 +74,7 @@ async
 "
 
 if $uninstall; then
-  libraries=$(echo "$libraries" | tac)
+  libraries=$(echo "$libraries" | gtac)
 fi
 
 cd "$tree"
