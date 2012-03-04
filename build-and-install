@@ -73,15 +73,26 @@ async/extra
 async
 "
 
+if $uninstall; then
+  libraries=$(echo "$libraries" | gtac)
+fi
+
 cd "$tree"
 for dir in $libraries; do
   echo "------ base/$dir ------"
   pushd base/$dir
   optflags=
+  
+  if $uninstall; then
+    make uninstall || true
+    popd; continue
+  fi
+  
   case $dir in
       core|core/extended) optflags="$linuxflag $timerflag" ;;
       async/scheduler)    optflags="$linuxflag" ;;
       async) # horrible hack (avoids rebuilding async_{core,scheduler,extra})
+          src=$(pwd)
           dest=$(mktemp -d -t ocaml-core-async.XXXXXX)
           mkdir -p "$dest/base/async"
           cp -rp ../../build-common.sh "$dest/"
@@ -90,13 +101,15 @@ for dir in $libraries; do
           trap "rm -r '$dest'" EXIT
           ;;
   esac
-  if $uninstall; then
-    make uninstall || true
-  else
-    ./oasis.sh $optflags "${configopts[@]:+${configopts[@]}}"
-    make build BUILDFLAGS="$makeflags"
-    make install || true
-  fi
+  ./oasis.sh $optflags "${configopts[@]:+${configopts[@]}}"
+  make build BUILDFLAGS="$makeflags"
+  make install || true
+
+  case $dir in
+      async) # copy the generated setup.ml and setup.data back
+        cp -rp "$dest"/base/async/{Makefile,setup.ml,setup.data,myocamlbuild.ml} "$src"/
+      ;;
+  esac
   popd
 
 done
