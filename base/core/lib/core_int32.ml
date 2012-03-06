@@ -3,11 +3,8 @@ open Bin_prot.Std
 open Int32
 
 module T = struct
-  include Comparator.Make_binable (struct
-    type t = int32 with sexp, bin_io
-    let compare (x : t) y = compare x y
-  end)
-
+  type t = int32 with sexp, bin_io
+  let compare (x : t) y = compare x y
   let equal (x : t) y = x = y
   let hash (x : t) = Hashtbl.hash x
 
@@ -42,21 +39,25 @@ let compare = compare
 let to_float = to_float
 let of_float = of_float
 
-let ascending = compare
-let descending x y = compare y x
-let min (x : t) y = if x < y then x else y
-let max (x : t) y = if x > y then x else y
-let equal (x : t) y = x = y
-let ( >= ) (x : t) y = x >= y
-let ( <= ) (x : t) y = x <= y
-let ( = ) (x : t) y = x = y
-let ( > ) (x : t) y = x > y
-let ( < ) (x : t) y = x < y
-let ( <> ) (x : t) y = x <> y
+module Replace_polymorphic_compare = struct
+  let compare = compare
+  let ascending = compare
+  let descending x y = compare y x
+  let min (x : t) y = if x < y then x else y
+  let max (x : t) y = if x > y then x else y
+  let equal (x : t) y = x = y
+  let ( >= ) (x : t) y = x >= y
+  let ( <= ) (x : t) y = x <= y
+  let ( = ) (x : t) y = x = y
+  let ( > ) (x : t) y = x > y
+  let ( < ) (x : t) y = x < y
+  let ( <> ) (x : t) y = x <> y
+end
+
+include Replace_polymorphic_compare
 
 include Hashable.Make_binable (T)
-module Map = Core_map.Make_binable (T)
-module Set = Core_set.Make_binable (T)
+include Comparable.Map_and_set_binable (T)
 
 let ( / ) = div
 let ( * ) = mul

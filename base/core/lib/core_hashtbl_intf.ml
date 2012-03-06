@@ -197,7 +197,7 @@ type ('key, 'z) create_options_without_hashable =
   -> ?size:int (* initial size -- default 128 *)
   -> 'z
 
-type ('key, 'z) create_options_with_hashable_required =
+type ('key, 'z) create_options_with_hashable =
   ?growth_allowed:bool
   -> ?size:int (* initial size -- default 128 *)
   -> hashable:'key Hashable.t

@@ -129,12 +129,6 @@ val stable_sort : cmp:('a -> 'a -> int) -> 'a t -> unit
 
 val is_sorted : 'a t -> cmp:('a -> 'a -> int) -> bool
 
-(**
-   ----------------------------------------------------------------------
-   Extensions
-   ----------------------------------------------------------------------
-*)
-
 (* same as [List.concat_map] *)
 val concat_map : 'a t -> f:('a -> 'b array) -> 'b array
 

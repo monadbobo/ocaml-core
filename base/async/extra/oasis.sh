@@ -78,7 +78,7 @@ Library async_extra
                       pa_pipebang,
                       core,
                       async_core,
-                      async_scheduler,
+                      async_unix,
                       threads
 
 EOF

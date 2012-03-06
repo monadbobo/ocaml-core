@@ -1,21 +1,37 @@
 open Core.Std
-open Basic
+open Import
 
-module Ivar = Basic.Ivar
+module Deferred = Raw_deferred
+module Scheduler = Raw_scheduler
 
-include Basic.Deferred
+open Deferred
+
+module T = struct
+  include Raw_deferred.Scheduler_dependent (Scheduler)
+  let return = return
+end
+
+include T
+
+let create = create
+
+let peek = peek
+
+let is_determined = is_determined
+
+let debug_space_leaks = Raw_ivar.debug_space_leaks
 
 let never () = Ivar.read (Ivar.create ())
 
 let (>>>) = upon
 
-include (Monad.Make (Basic.Deferred))
+include (Monad.Make (T))
 
 (* We shadow [all] on-purpose here, since the default definition introduces a chain of
    binds as long as the list. *)
 let all = `Make_sure_to_define_all_elsewhere
 
-(* we shadow [map] from Monad with a more efficient implementation *)
+(* We shadow [map] from Monad with a more efficient implementation *)
 let map t ~f = create (fun i -> upon t (fun a -> Ivar.fill i (f a)))
 
 let unit = return ()
@@ -90,9 +106,7 @@ let choose choices =
   | Some f -> f ()
 ;;
 
-let choose_ident choices =
-  choose (List.map choices ~f:(fun t -> choice t ident))
-;;
+let choose_ident choices = choose (List.map choices ~f:(fun t -> choice t ident))
 
 let repeat_until_finished state f =
   create (fun finished ->
@@ -228,10 +242,10 @@ module Map = struct
 
   type ('a, 'b) t = ('a, 'b) Map.Poly.t
 
-  let filter_mapi ~f t =
+  let filter_mapi t ~f =
     List.fold (Map.to_alist t) ~init:Map.Poly.empty ~f:(fun map (key, data) ->
-      f ~key ~data >>= function
-      | Some data2 -> return (Map.add ~key ~data:data2 map)
-      | None -> return map)
-
+      f ~key ~data
+      >>| function
+      | Some data -> Map.add map ~key ~data
+      | None -> map)
 end

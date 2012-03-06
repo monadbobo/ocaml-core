@@ -212,15 +212,15 @@ val of_char : char -> t
 val of_char_list : char list -> t
 
 (** Operations for escaping and unescaping strings, with paramaterized escape and
-    escapeworthy characters. Escaping/unescaping using this module is more efficient than
-    using Pcre *)
+    escapeworthy characters.  Escaping/unescaping using this module is more efficient than
+    using Pcre. Benchmark code can be found in core/benchmarks/string_escaping.ml. *)
 module Escaping : sig
   (** [escape_gen_exn escapeworthy_map escape_char] returns a function that will escape a
       string [s] as follows: if [(c1,c2)] is in [escapeworthy_map], then all occurences of
       [c1] are replaced by [escape_char] concatenated to [c2].
 
-      Raises an exception if [escapeworthy_map] is not one-to-one. If [escape_char] is not
-      in [escapeworthy_map], then it will be escaped to itself.*)
+      Raises an exception if [escapeworthy_map] is not one-to-one.  If [escape_char] is
+      not in [escapeworthy_map], then it will be escaped to itself.*)
   val escape_gen_exn
     :  escapeworthy_map:(char * char) list
     -> escape_char:char
@@ -265,8 +265,7 @@ module Escaping : sig
       and 5 are escaped, and the rest are literal
 
       [is_char_escaping s ~escape_char pos] return true if the char at [pos] is escaping,
-      false otherwise.
-  *)
+      false otherwise. *)
   val is_char_escaping : string -> escape_char:char -> int -> bool
 
   (** [is_char_escaped s ~escape_char pos] return true if the char at [pos] is escaped,
@@ -302,18 +301,15 @@ module Escaping : sig
       strings in the result.  Splitting the empty string returns a list of the empty
       string, not the empty list.
 
-      e.g. split ~escape_char:'_' ~on:',' "foo,bar_,baz" = ["foo"; "bar_,baz"]
-  *)
+      e.g. split ~escape_char:'_' ~on:',' "foo,bar_,baz" = ["foo"; "bar_,baz"] *)
   val split : string -> on:char -> escape_char:char -> string list
 
-  (** [split_on_chars s ~on] @return a list of all substrings of [s]
-      that are separated by one of the literal chars from [on].  [on]
-      are not grouped.  So a grouping of [on] in the source string will
-      produce multiple empty string splits in the result.
+  (** [split_on_chars s ~on] @return a list of all substrings of [s] that are separated by
+      one of the literal chars from [on].  [on] are not grouped.  So a grouping of [on] in
+      the source string will produce multiple empty string splits in the result.
 
       e.g. split_on_chars ~escape_char:'_' ~on:[',';'|'] "foo_|bar,baz|0" ->
-      ["foo_|bar"; "baz"; "0"]
-  *)
+      ["foo_|bar"; "baz"; "0"] *)
   val split_on_chars : string -> on:char list -> escape_char:char -> string list
 
   (* [lsplit2 s on escape_char] splits s into a pair on the first literal instance

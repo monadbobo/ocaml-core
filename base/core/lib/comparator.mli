@@ -1,9 +1,8 @@
 (** A Comparator.t is a type-indexed value that allows you to compare (and for generating
-    error messages, serialize) values of the type in question.  One of the type paramaters
+    error messages, serialize) values of the type in question.  One of the type parameters
     is a phantom parameter used to distinguish comparators potentially built on different
     comparison functions.  In particular, we want to distinguish those using polymorphic
-    compare and those using a monomorphic compare.
-*)
+    compare and those using a monomorphic compare. *)
 
 open Sexplib
 
@@ -59,6 +58,6 @@ module S_to_S1 (S : S) : S1
 module Make1 (M : sig
   type 'a t
   val compare : 'a t -> 'a t -> int
-  val sexp_of_t : 'a t -> Sexp.t
+  val sexp_of_t : _ t -> Sexp.t (* not the usual type for [sexp_of_t] *)
 end) : S1 with type 'a t := 'a M.t
 

@@ -1,7 +1,6 @@
-(**
-   This module is here to ensure that we don't use the functions [Caml.Printexc]
-   inadvertently
-*)
+(** This module is here to ensure that we don't use the functions in [Caml.Printexc]
+    inadvertently *)
+
 val to_string : exn -> [`Deprecated_use_Exn_to_string_instead]
 val print : exn  -> [`Deprecated_use_Exn_to_string_instead]
 val catch : ('a -> _) -> 'a -> [`Deprecated_use_Exn_handle_uncaught_instead]

@@ -20,6 +20,7 @@
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
 #include <arpa/inet.h>
+#include <assert.h>
 
 #include <sys/sysinfo.h>
 
@@ -215,6 +216,14 @@ CAMLprim value linux_ext_gettid(value v_unit __unused)
   return Val_int(syscall(SYS_gettid));
 }
 
+static int close_durably(int fd)
+{
+  int ret;
+  do ret = close(fd);
+  while (ret == -1 && errno == EINTR);
+  return ret;
+}
+
 CAMLprim value linux_get_terminal_size(value __unused v_unit)
 {
   int fd;
@@ -225,18 +234,14 @@ CAMLprim value linux_get_terminal_size(value __unused v_unit)
   caml_enter_blocking_section();
 
   fd = open("/dev/tty", O_RDWR);
-
   if (fd == -1) {
     caml_leave_blocking_section();
     uerror("get_terminal_size__open", Nothing);
   }
-
   ret = ioctl(fd, TIOCGWINSZ, &ws);
-
   if (ret == -1) {
     int old_errno = errno;
-    do ret = close(fd);
-    while (ret == -1 && errno == EINTR);
+    (void)close_durably(fd);
     caml_leave_blocking_section();
     if (ret == -1) {
       errno = old_errno;
@@ -246,12 +251,8 @@ CAMLprim value linux_get_terminal_size(value __unused v_unit)
       uerror("get_terminal_size__ioctl", Nothing);
     }
   }
-
-  do ret = close(fd);
-  while (ret == -1 && errno == EINTR);
-
+  ret = close_durably(fd);
   caml_leave_blocking_section();
-
   if (ret == -1) uerror("get_terminal_size__close", Nothing);
 
   v_res = caml_alloc_small(2, 0);
@@ -265,18 +266,47 @@ CAMLprim value linux_get_ipv4_address_for_interface(value v_interface)
 {
   CAMLparam1(v_interface);
   struct ifreq ifr;
-  int fd = socket(AF_INET, SOCK_DGRAM, 0);
-  if (fd == -1)
-    uerror("linux_get_ipv4_address_for_interface: couldn't allocate socket", Nothing);
+  int fd = -1;
+  value res;
+  char* error = NULL;
 
+  memset(&ifr, 0, sizeof(ifr));
   ifr.ifr_addr.sa_family = AF_INET;
-  strncpy(ifr.ifr_name, String_val(v_interface), IFNAMSIZ-1);
-  if (ioctl(fd, SIOCGIFADDR, &ifr) < 0) {
-    close(fd);
-    uerror("linux_get_ipv4_address_for_interface: ioctl(fd, SIOCGIFADDR, ...) failed", Nothing);
-  }
-  close(fd);
-  CAMLreturn(caml_copy_string(inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr)));
-}
+  /* [ifr] is already initialized to zero, so it doesn't matter if the
+     incoming string is too long, and [strncpy] fails to add a \0. */
+  strncpy(ifr.ifr_name, String_val(v_interface), IFNAMSIZ - 1);
 
+  caml_enter_blocking_section();
+  fd = socket(AF_INET, SOCK_DGRAM, 0);
+
+  if (fd == -1)
+    error = "linux_get_ipv4_address_for_interface: couldn't allocate socket";
+  else {
+    if (ioctl(fd, SIOCGIFADDR, &ifr) < 0)
+      error = "linux_get_ipv4_address_for_interface: ioctl(fd, SIOCGIFADDR, ...) failed";
+
+    (void) close_durably(fd);
+  }
+
+  caml_leave_blocking_section();
+
+  if (error == NULL) {
+    /* This is weird but doing the usual casting causes errors when using
+     * the new gcc on CentOS 6.  This solution was picked up on Red Hat's
+     * bugzilla or something.  It also works to memcpy a sockaddr into
+     * a sockaddr_in.  This is faster hopefully.
+     */
+    union {
+      struct sockaddr sa;
+      struct sockaddr_in sain;
+    } u;
+    u.sa = ifr.ifr_addr;
+    res = caml_copy_string(inet_ntoa(u.sain.sin_addr));
+    CAMLreturn(res);
+  }
+
+  uerror(error, Nothing);
+  assert(0);  /* [uerror] should never return. */
+}
+ 
 #endif /* JSC_LINUX_EXT */

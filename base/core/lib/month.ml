@@ -79,14 +79,19 @@ let get t = all_variants.(t)
 let to_string t = all_strings.(t)
 
 let of_string =
-  let module T = String.Table in
-  let table = T.create ~size:num_months () in
-  Array.iteri all_strings ~f:(fun t s ->
-    Hashtbl.replace table ~key:(String.uppercase s) ~data:t);
+  let table = lazy (
+    let module T = String.Table in
+    let table = T.create ~size:num_months () in
+    Array.iteri all_strings ~f:(fun t s ->
+      Hashtbl.replace table ~key:s ~data:t;
+      Hashtbl.replace table ~key:(String.lowercase s) ~data:t;
+      Hashtbl.replace table ~key:(String.uppercase s) ~data:t);
+    table)
+  in
   fun str ->
-    match Hashtbl.find table (String.uppercase str) with
-    | None -> failwithf "Invalid month: %s" str ()
+    match Hashtbl.find (Lazy.force table) str with
     | Some x -> x
+    | None   -> failwithf "Invalid month: %s" str ()
 ;;
 
 include (Sexpable.Of_stringable (struct

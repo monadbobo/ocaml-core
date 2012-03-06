@@ -56,7 +56,7 @@ Library async
   Pack:               true
   Modules:$(list_mods lib | sort -u | my_join)
   BuildDepends:       async_core,
-                      async_scheduler,
+                      async_unix,
                       async_extra,
                       threads
 

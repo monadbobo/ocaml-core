@@ -63,4 +63,4 @@ CAMLprim value bigstring_unmarshal_stub(value v_pos, value v_len, value v_bstr)
   CAMLreturn(v_res);
 }
 
-#endif /* LINUX_EXT */
+#endif /* JSC_LINUX_EXT */

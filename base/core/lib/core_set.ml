@@ -33,6 +33,7 @@ let (>=) (x : int) y = Polymorphic_compare.(>=) x y
 
 
 module type Elt = Elt
+module type Elt_binable = Elt_binable
 
 module Tree = struct
   type 'a t =
@@ -433,8 +434,8 @@ module Tree = struct
   let rec fold_right s ~init:accu ~f =
     match s with
     | Empty -> accu
-    | Leaf v -> f accu v
-    | Node(l, v, r, _, _) -> fold_right ~f l ~init:(f (fold_right ~f r ~init:accu) v)
+    | Leaf v -> f v accu
+    | Node(l, v, r, _, _) -> fold_right ~f l ~init:(f v (fold_right ~f r ~init:accu))
   ;;
 
   let rec for_all t ~f:p = match t with
@@ -642,7 +643,7 @@ module Tree = struct
   ;;
 
   let sexp_of_t sexp_of_a t =
-    Type.List (fold_right t ~init:[] ~f:(fun acc el -> sexp_of_a el :: acc))
+    Type.List (fold_right t ~init:[] ~f:(fun el acc -> sexp_of_a el :: acc))
   ;;
 end
 
@@ -653,17 +654,15 @@ type ('a, 'comparator) t =
 
 type ('a, 'comparator) set = ('a, 'comparator) t
 
+type ('a, 'comparator) tree = 'a Tree.t
+
 let like { tree = _; comparator } tree = { tree; comparator }
 
 let compare_elt t = t.comparator.Comparator.compare
 
-let ensure_same_comparator ~name t1 t2 =
-  if not (Pervasives.(==) t1.comparator t2.comparator) then
-    failwith (Printf.sprintf
-                "Bug: Core.Set.%s was supplied sets with different comparators" name)
-;;
 
 module Accessors = struct
+  let to_tree t = t.tree
   let length      t = Tree.length      t.tree
   let is_empty    t = Tree.is_empty    t.tree
   let elements    t = Tree.elements    t.tree
@@ -677,6 +676,7 @@ module Accessors = struct
   let to_array    t = Tree.to_array    t.tree
   let fold       t ~init ~f = Tree.fold       t.tree ~init ~f
   let fold_until t ~init ~f = Tree.fold_until t.tree ~init ~f
+  let fold_right t ~init ~f = Tree.fold_right t.tree ~init ~f
   let iter     t ~f = Tree.iter     t.tree ~f
   let exists   t ~f = Tree.exists   t.tree ~f
   let for_all  t ~f = Tree.for_all  t.tree ~f
@@ -688,30 +688,12 @@ module Accessors = struct
   let filter     t ~f = like t (Tree.filter     t.tree ~f ~compare_elt:(compare_elt t))
   let add    t a = like t (Tree.add    t.tree a ~compare_elt:(compare_elt t))
   let remove t a = like t (Tree.remove t.tree a ~compare_elt:(compare_elt t))
-  let union t1 t2 =
-    ensure_same_comparator ~name:"Set.union" t1 t2;
-    like t1 (Tree.union t1.tree t2.tree ~compare_elt:(compare_elt t1));
-  ;;
-  let inter t1 t2 =
-    ensure_same_comparator ~name:"Set.inter" t1 t2;
-    like t1 (Tree.inter t1.tree t2.tree ~compare_elt:(compare_elt t1));
-  ;;
-  let diff  t1 t2 =
-    ensure_same_comparator ~name:"Set.diff" t1 t2;
-    like t1 (Tree.diff  t1.tree t2.tree ~compare_elt:(compare_elt t1));
-  ;;
-  let compare t1 t2 =
-    ensure_same_comparator ~name:"Set.compare" t1 t2;
-    Tree.compare t1.tree t2.tree ~compare_elt:(compare_elt t1);
-  ;;
-  let equal t1 t2 =
-    ensure_same_comparator ~name:"Set.equal" t1 t2;
-    Tree.equal t1.tree t2.tree ~compare_elt:(compare_elt t1);
-  ;;
-  let subset t1 t2 =
-    ensure_same_comparator ~name:"Set.subset" t1 t2;
-    Tree.subset  t1.tree t2.tree ~compare_elt:(compare_elt t1);
-  ;;
+  let union t1 t2 = like t1 (Tree.union t1.tree t2.tree ~compare_elt:(compare_elt t1))
+  let inter t1 t2 = like t1 (Tree.inter t1.tree t2.tree ~compare_elt:(compare_elt t1))
+  let diff  t1 t2 = like t1 (Tree.diff  t1.tree t2.tree ~compare_elt:(compare_elt t1))
+  let compare t1 t2 = Tree.compare t1.tree t2.tree ~compare_elt:(compare_elt t1)
+  let equal t1 t2 = Tree.equal t1.tree t2.tree ~compare_elt:(compare_elt t1)
+  let subset t1 t2 = Tree.subset  t1.tree t2.tree ~compare_elt:(compare_elt t1)
   let partition_tf t ~f =
     let (tree_t, tree_f) = Tree.partition_tf t.tree ~f ~compare_elt:(compare_elt t) in
     like t tree_t, like t tree_f
@@ -727,6 +709,8 @@ module Accessors = struct
   let remove_index t i = like t (Tree.remove_index t.tree i ~compare_elt:(compare_elt t))
   let sexp_of_t sexp_of_a t = Tree.sexp_of_t sexp_of_a t.tree
 end
+
+let of_tree ~comparator tree = { comparator; tree }
 
 let empty ~comparator = { comparator; tree = Tree.empty }
 
@@ -766,6 +750,7 @@ include Accessors
 module Creators (Elt : Comparator.S1) : sig
 
   type ('a, 'comparator) t_ = ('a Elt.t, Elt.comparator) set
+  type ('a, 'b) tree = 'a Tree.t
   type 'a elt_ = 'a Elt.t
 
   val t_of_sexp : (Sexp.t -> 'a Elt.t) -> Sexp.t -> ('a, 'comparator) t_
@@ -773,6 +758,7 @@ module Creators (Elt : Comparator.S1) : sig
   include Creators
     with type ('a, 'b) set := ('a, 'b) set
     with type ('a, 'b) t := ('a, 'b) t_
+    with type ('a, 'b) tree := ('a, 'b) tree
     with type 'a elt := 'a elt_
     with type ('a, 'b, 'c) create_options := ('a, 'b, 'c) create_options_without_comparator
 
@@ -780,11 +766,15 @@ end = struct
 
   type ('a, 'comparator) t_ = ('a Elt.t, Elt.comparator) set
 
+  type ('a, 'b) tree = 'a Tree.t
+
   type 'a elt_ = 'a Elt.t
 
   let comparator = Elt.comparator
 
   let compare_elt = comparator.Comparator.compare
+
+  let of_tree tree = of_tree ~comparator tree
 
   let empty = { comparator; tree = Tree.empty }
 
@@ -802,9 +792,7 @@ end = struct
 
   let filter_map t ~f = filter_map ~comparator t ~f
 
-  let t_of_sexp a_of_sexp sexp =
-    { comparator; tree = Tree.t_of_sexp a_of_sexp sexp ~compare_elt }
-  ;;
+  let t_of_sexp a_of_sexp sexp = of_tree (Tree.t_of_sexp a_of_sexp sexp ~compare_elt)
 
 end
 

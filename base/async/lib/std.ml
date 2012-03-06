@@ -1,5 +1,5 @@
 include Async_core.Std
-include Async_scheduler.Std
+include Async_unix.Std
 include Async_extra.Std
 
 (* Check that no Async library code accidentally created the scheduler. *)

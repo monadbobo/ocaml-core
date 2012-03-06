@@ -3,7 +3,11 @@
 open Hash_set_intf
 open T
 
-type 'a t
+type 'a t with sexp_of
+(* We use [with sexp_of] but not [with sexp] because we want people to be explicit
+   about the hash and comparison functions used when creating hashtables.  One can
+   use [Hash_set.Poly.t], which does have [with sexp], to use polymorphic comparison and
+   hashing. *)
 
 include Creators
   with type 'a t := 'a t

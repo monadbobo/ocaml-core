@@ -31,7 +31,7 @@ let invariant t =
       end;
       assert (not (is_ready t event)));
   with
-  | exn -> fail "invariant failed" (exn, t) <:sexp_of< exn * a t >>
+  | exn -> failwiths "invariant failed" (exn, t) <:sexp_of< exn * a t >>
 ;;
 
 let create ~now =

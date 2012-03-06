@@ -10,17 +10,17 @@ module Priority = struct
 end
 
 module Jobs_at_priority : sig
-  type t with sexp_of
+  type 'job t with sexp_of
 
-  val create : unit -> t
-  val add : t -> Job.t -> unit
-  val start_cycle : t -> max_num_jobs:int -> unit
-  val is_empty : t -> bool
-  val get : t -> Job.t list
-  val length : t -> int
+  val create : unit -> _ t
+  val add : 'job t -> 'job -> unit
+  val start_cycle : _ t -> max_num_jobs:int -> unit
+  val is_empty : _ t -> bool
+  val get : 'job t -> 'job list
+  val length : _ t -> int
 end = struct
-  type t =
-    { jobs : Job.t Queue.t;
+  type 'job t =
+    { jobs : 'job Queue.t;
       mutable jobs_left_this_cycle : int;
     }
   with sexp_of
@@ -56,9 +56,9 @@ end = struct
   ;;
 end
 
-type t =
-  { normal : Jobs_at_priority.t;
-    low : Jobs_at_priority.t;
+type 'job t =
+  { normal : 'job Jobs_at_priority.t;
+    low : 'job Jobs_at_priority.t;
   }
 with sexp_of
 

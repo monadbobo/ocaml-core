@@ -155,4 +155,3 @@ module Extended_passwd = struct
 
   let of_passwd_file f = Option.try_with (fun () -> of_passwd_file_exn f) ;;
 end
-

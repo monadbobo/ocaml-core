@@ -122,8 +122,12 @@ let daemonize_wait ?(redirect_stdout=`Dev_null) ?(redirect_stderr=`Dev_null)
         if wait_result = 0 then begin
           match Caml.Unix.select [read_end] [] [] 0.1 with
           | [read_end], [], [] ->
-            (* select will return a ready file descriptor (but with zero bytes to
-               read) when the child closes it. *)
+            (* If the child process exits before detaching and the middle process
+               happens to be in this call to select, the pipe will be closed and select
+               will return a ready file descriptor, but with zero bytes to read.
+               In this case, we want to loop back again and call waitpid to obtain
+               the correct exit status to propagate on to the outermost parent
+               (otherwise we might incorrectly return a success). *)
             if Unix.read read_end ~buf:(String.create len) ~pos:0 ~len > 0 then
               exit 0
             else

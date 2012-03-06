@@ -35,10 +35,12 @@ val unlock : t -> unit
 
 val am_holding_mutex : t -> bool
 
+(* [critical_section t ~f] locks [t], runs [f], unlocks [t], and returns the result of
+   [f] (or raises if [f] raised). *)
 val critical_section : t -> f:(unit -> 'a) -> 'a
 
-(* [sychronize f] returns a new function that is identical except that at most one thread
-   can execute in it at a time. *)
+(** [synchronize f] creates a mutex and returns a new function that is identical to [f]
+    except that the mutex is held during its execution. *)
 val synchronize : ('a -> 'b) -> ('a -> 'b)
 
 (** [update_signal mtx cnd ~f] updates some state within a critical

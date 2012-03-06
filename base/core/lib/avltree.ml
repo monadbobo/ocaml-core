@@ -241,7 +241,7 @@ let set_right node tree =
    @post: result is balanced, with new node inserted
    @post: !added = true iff the shape of the input tree changed.  *)
 let add =
-  let rec add t added compare k v =
+  let rec add t replace added compare k v =
     match t with
     | Empty ->
       added := true;
@@ -253,7 +253,7 @@ let add =
          round, that way we only allocate one node. *)
       if c = 0 then begin
         added := false;
-        Update.leaf_val t v;
+        if replace then Update.leaf_val t v;
         t
       end else begin
         added := true;
@@ -266,54 +266,19 @@ let add =
       let c = compare k k' in
       if c = 0 then begin
         added := false;
-        Update.node_val t v;
+        if replace then Update.node_val t v;
       end else if c < 0 then
-          set_left t (add left added compare k v)
+          set_left t (add left replace added compare k v)
         else
-          set_right t (add right added compare k v);
+          set_right t (add right replace added compare k v);
       t
   in
-  fun t ~compare ~added ~key ~data -> balance (add t added compare key data)
+  fun ?(replace=true) t ~compare ~added ~key ~data ->
+    let t = add t replace added compare key data in
+    if !added then balance t else t
 ;;
 
-let add_if_not_exists =
-  let rec add_if_not_exists t added compare k v =
-    match t with
-    | Empty ->
-      added := true;
-      Leaf (k, v)
-    | Leaf (k', _) ->
-      let c = compare k' k in
-      (* This compare is reversed on purpose, we are pretending
-         that the leaf was just inserted instead of the other way
-         round, that way we only allocate one node. *)
-      if c = 0 then begin
-        added := false;
-        t
-      end else begin
-        added := true;
-        if c < 0 then
-          Node(t, k, v, 2, Empty)
-        else
-          Node(Empty, k, v, 2, t)
-      end
-    | Node (left, k', _, _, right) ->
-      let c = compare k k' in
-      if c = 0 then begin
-        added := false;
-      end else if c < 0 then begin
-          let x = add_if_not_exists left added compare k v in
-          if !added then set_left t x;
-        end else begin
-          let x = add_if_not_exists right added compare k v in
-          if !added then set_right t x;
-        end;
-      t
-  in
-  fun t ~compare ~added ~key ~data ->
-    let x = add_if_not_exists t added compare key data in
-    if !added then balance x else
-      t
+
 
 let rec find t ~compare k =
   (* A little manual unrolling of the recursion.

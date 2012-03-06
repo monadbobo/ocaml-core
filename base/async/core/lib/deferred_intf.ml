@@ -1,6 +1,8 @@
 open Core.Std
 
-module Deferred = Basic.Deferred
+module Deferred = struct
+  type 'a t = ('a, Execution_context.t) Raw_deferred.t
+end
 
 type how = [ `Parallel | `Sequential ]
 
@@ -23,9 +25,9 @@ module type Deferred_map = sig
 
   type ('k, 'v) t
 
-  val filter_mapi:
-    f:(key:'k -> data:'v1 -> 'v2 option Deferred.t)
-    -> ('k, 'v1) t
+  val filter_mapi
+    :  ('k, 'v1) t
+    -> f:(key:'k -> data:'v1 -> 'v2 option Deferred.t)
     -> ('k, 'v2) t Deferred.t
 
 end

@@ -194,25 +194,29 @@ let rec lock t =
     t.id_of_thread_holding_lock <- current_thread_id;
     (* END ATOMIC *)
     Result.ok_unit
-  end else if current_thread_id = t.id_of_thread_holding_lock then
-      Error (recursive_lock_error t)
-    else begin
-      with_blocker t (fun blocker -> if is_locked t then Blocker.wait blocker);
-      lock t
-    end;
+  end
+  (* The outcome of the next conditional is independent of whether
+     [t.id_of_thread_holding_lock] has changed between when we tested it above and when we
+     test it in the next line.  That this is so follows from the fact that no other thread
+     can unlock the [Nano_mutex] on our behalf. *)
+  else if current_thread_id = t.id_of_thread_holding_lock then
+    Error (recursive_lock_error t)
+  else begin
+    with_blocker t (fun blocker -> if is_locked t then Blocker.wait blocker);
+    lock t
+  end;
 ;;
 
 let lock_exn t = ok_exn (lock t)
 
-let unlock ?(allow_from_any_thread = Bool.False_.default) t =
-  let allow_from_any_thread = (allow_from_any_thread :> bool) in
+let unlock t =
   let current_thread_id = current_thread_id () in
   (* We need the following test-and-set to be atomic so that there is a definitive
      winner in a race between multiple unlockers, so that one unlock succeeds and the
      rest fail. *)
   (* BEGIN ATOMIC *)
   if t.id_of_thread_holding_lock <> bogus_thread_id then begin
-    if allow_from_any_thread || t.id_of_thread_holding_lock = current_thread_id then begin
+    if t.id_of_thread_holding_lock = current_thread_id then begin
       t.id_of_thread_holding_lock <- bogus_thread_id;
       (* END ATOMIC *)
       if Option.is_some t.blocker then with_blocker t Blocker.signal;
@@ -225,7 +229,12 @@ let unlock ?(allow_from_any_thread = Bool.False_.default) t =
            (current_thread_id, t) <:sexp_of< int * t >>);
 ;;
 
-let unlock_exn ?allow_from_any_thread t = ok_exn (unlock ?allow_from_any_thread t)
+let unlock_exn t = ok_exn (unlock t)
+
+let critical_section t ~f =
+  lock_exn t;
+  protect ~f ~finally:(fun () -> unlock_exn t);
+;;
 
 TEST_UNIT =
   let l = create () in

@@ -39,8 +39,7 @@
 
    For more discussion, see:
 
-   http://ocaml.janestreet.com/?q=node/96
-*)
+   http://ocaml.janestreet.com/?q=node/96 *)
 
 type ('real, 'phantom) t = private 'real
 

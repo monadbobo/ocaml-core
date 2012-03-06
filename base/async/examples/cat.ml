@@ -19,12 +19,12 @@ let cat ~input ~output =
         begin
           match r with
           | `Eof -> upon (Writer.flushed writer) (fun _ ->
-            never_returns (shutdown_and_raise 0))
+            never_returns (Shutdown.shutdown_and_raise 0))
           | `Ok len ->
               Writer.write_substring writer (Substring.create buf ~pos:0 ~len);
               loop ()
         end
-      | `Epipe -> never_returns (shutdown_and_raise 0))
+      | `Epipe -> never_returns (Shutdown.shutdown_and_raise 0))
   in
   loop ()
 ;;

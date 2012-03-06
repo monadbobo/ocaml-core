@@ -300,31 +300,34 @@ module Server = struct
   let open_file ?(append=false) ?(dos_format = false) filename =
     let filename = canonicalize filename in
     match String.Table.find State.global.State.files filename with
-    | None ->
-      let file lines_already_on_disk =
-        File_writer.create filename ~append >>| fun writer ->
-        let line_ending = if dos_format then `Dos else `Unix in
-        let file =
-          { File.
-            filename;
-            writer = `Writer writer;
-            tail = Tail.create ();
-            line_ending;
-            num_lines_on_disk_after_flushing_writer = lines_already_on_disk;
-            closed = false;
-          }
-        in
-        String.Table.replace State.global.State.files ~key:filename ~data:file;
-        file
-      in
-      if append then
-        count_lines filename >>= file
-      else
-        file 0
     | Some _ -> raise (File_is_already_open_in_tcp_file filename)
+    | None   ->
+      let num_lines_already_on_disk =
+        if append
+        then count_lines filename
+        else return 0
+      in
+      num_lines_already_on_disk
+      >>= fun num_lines_already_on_disk ->
+      File_writer.create filename ~append
+      >>| fun writer ->
+      let file =
+        { File.
+          filename;
+          writer      = `Writer writer;
+          tail        = Tail.create ();
+          line_ending = if dos_format then `Dos else `Unix;
+          num_lines_on_disk_after_flushing_writer = num_lines_already_on_disk;
+          closed = false;
+        }
+      in
+      String.Table.replace State.global.State.files ~key:filename ~data:file;
+      file
+  ;;
 
   let stop_serving_internal t =
     String.Table.remove State.global.State.files t.File.filename
+  ;;
 
   let stop_serving = stop_serving_internal
 
@@ -366,16 +369,23 @@ module Server = struct
 
   let write_sexp =
     (* We use strings for Sexps whose string representations can fit on the minor heap and
-       Bigstring.t's for those that can't.  As of late 2011, the max size for something on
-       the minor heap is 128 words.  I think there may be a header, so we reduce the 1024
-       chars by a few to account for the possibility of a header. *)
-    let use_bigstring_if_longer_than = 1024 - 64 in
+       Bigstring.t's for those that can't. *)
+    let max_num_words_allocatable_on_minor_heap = 256 in
+    let bytes_per_word = 8 in
     let buf = Bigbuffer.create 1024 in
     fun t sexp ->
       Bigbuffer.clear buf;
       Sexp.to_buffer_gen sexp ~buf ~add_char:Bigbuffer.add_char
         ~add_string:Bigbuffer.add_string;
-      if Bigbuffer.length buf <= use_bigstring_if_longer_than then
+      let buf_size_in_words =
+        (* This is the same calculation that the runtime uses.
+
+           Remember that space is left in the Caml value for a NULL terminator.
+           So if the word size is 8 bytes and the string is 8 bytes long, we
+           need two words, for example. *)
+        (Bigbuffer.length buf + bytes_per_word) / bytes_per_word
+      in
+      if buf_size_in_words <= max_num_words_allocatable_on_minor_heap then
         write_message t (Bigbuffer.contents buf)
       else
         schedule_message t (Bigbuffer.big_contents buf);
@@ -434,7 +444,7 @@ module Client = struct
       t
       (Protocol.Open_file.Query.Open (filename, Protocol.Open_file.Mode.Read))
     >>| fun (pipe_r, id) ->
-    Pipe.close_called pipe_r >>> (fun () ->
+    Pipe.closed pipe_r >>> (fun () ->
       Rpc.Pipe_rpc.abort Protocol.Open_file.rpc t id);
     pipe_r
 
@@ -445,7 +455,7 @@ module Client = struct
       t
       (Protocol.Open_file.Query.Open (filename, Protocol.Open_file.Mode.Tail))
     >>| fun (pipe_r, id) ->
-    Pipe.close_called pipe_r >>> (fun () ->
+    Pipe.closed pipe_r >>> (fun () ->
       Rpc.Pipe_rpc.abort Protocol.Open_file.rpc t id);
     pipe_r
 

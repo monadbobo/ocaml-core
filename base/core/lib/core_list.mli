@@ -247,13 +247,14 @@ val exn_if_dup :
     predicate [f].  *)
 val count : 'a t -> f:('a -> bool) -> int
 
-(** [range ?stride start stop] is the list of integers from [start] to [stop], stepping by
-    [stride].  If [stride] < 0 then we need [start] > [stop] for the result to be nonempty
-    (or [start] = [stop] in the case where both bounds are inclusive). *)
-val range :
-  ?stride:int                               (* default = 1 *)
-  -> ?start_inc_exc:[`inclusive|`exclusive] (* default = `inclusive *)
-  -> ?stop_inc_exc:[`inclusive|`exclusive]  (* default = `exclusive *)
+(** [range ?stride ?start ?stop start_i stop_i] is the list of integers from [start_i] to
+    [stop_i], stepping by [stride].  If [stride] < 0 then we need [start_i] > [stop_i] for
+    the result to be nonempty (or [start_i] = [stop_i] in the case where both bounds are
+    inclusive). *)
+val range
+  :  ?stride:int                            (* default = 1 *)
+  -> ?start:[`inclusive|`exclusive]         (* default = `inclusive *)
+  -> ?stop:[`inclusive|`exclusive]          (* default = `exclusive *)
   -> int
   -> int
   -> int t

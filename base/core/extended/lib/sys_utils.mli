@@ -35,6 +35,14 @@ val with_tmp : pre:string -> suf:string -> (string -> 'a) -> 'a
     empty string. *)
 val diff : ?options : string list -> string -> string -> string
 
+(** [get_ip_from_hostname ()] returns the IP of the current host by resolving the
+    hostname. *)
+val getbyname_ip : unit -> string
+
+(** [ifconfig_ips ()] returns IPs of all active interfaces on the host by parsing ifconfig
+    output. Note that this will include 127.0.0.1, assuming lo is up. *)
+val ifconfig_ips : unit -> String.Set.t
+
 (**
    [checked_edit ~check file]
 

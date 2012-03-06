@@ -43,11 +43,14 @@ module String_selector = struct
   module Regexp : sig
     type t with sexp
 
+    val of_regexp : string -> t
     val to_string : t -> string
     val matches : t -> string -> bool
     val to_regexp : t -> Pcre.regexp
   end = struct
     type t = string * Pcre.regexp
+
+    let of_regexp s = s, Pcre.regexp s
 
     let t_of_sexp sexp =
       let fail () = of_sexp_error "expected string bounded with / on both sides" sexp in
@@ -57,7 +60,7 @@ module String_selector = struct
         if String.length s < 2 then fail ()
         else if s.[0] = '/' && s.[String.length s - 1] = '/' then
           let s = String.sub s ~pos:1 ~len:(String.length s - 2) in
-          s, Pcre.regexp s
+          of_regexp s
         else fail ()
 
     let sexp_of_t (s, _) = Sexp.Atom ("/" ^ s ^ "/")

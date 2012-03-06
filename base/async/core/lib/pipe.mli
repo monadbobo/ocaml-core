@@ -14,6 +14,9 @@
     as values are written, if a reader is available to consume them, the values will be
     handed to the reader.
 
+    One can use [flushed] to get notified by a pipe when all prior writes have been
+    consumed by a reader.
+
     There are distinct [Reader] and [Writer] modules and types, but all of the operations
     on readers and writers are available directly from the [Pipe] module. *)
 open Core.Std
@@ -64,14 +67,21 @@ val of_list : 'a list -> 'a Reader.t
 
     Close is idempotent.
 
-    [close_read t] closes both the read and write ends of the pipe.  In addition to
-    [close], after [close_read]:
+    [close_read t] closes both the read and write ends of the pipe.  It does everything
+    [close] does, and in addition:
 
-    - all pending flushes will become determined with [`Reader_closed].
-    - the pipe buffer will be cleared.
-    - all subsequent reads will get [`Eof]. *)
+    - all pending flushes become determined with [`Reader_closed].
+    - the pipe buffer is cleared.
+    - all subsequent reads will get [`Eof] *)
 val close       : _ Writer.t -> unit
 val close_read  : _ Reader.t -> unit
+
+(** [is_closed t] returns [true] iff [close t] or [close_read t] has been called. *)
+val is_closed : (_, _) t -> bool
+
+(** [closed t] returns a deferred that becomes determined when [close t] or [close_read t]
+    is called. *)
+val closed : (_, _) t -> unit Deferred.t
 
 (** {1 Generic pipe operations} *)
 (******************************************************************************)
@@ -86,30 +96,20 @@ val flushed : (_, _) t -> [ `Ok | `Reader_closed ] Deferred.t
 (** [length t] returns the number of elements currently queued in [t] *)
 val length : (_, _) t -> int
 
-(** [is_closed t] returns [true] iff [close t] has been called. *)
-val is_closed : (_, _) t -> bool
-
-(** [close_called t] returns a deferred that becomes determined after [close t] has been
-    called. *)
-val close_called : (_, _) t -> unit Deferred.t
-
 (** {1 Writing} *)
 (******************************************************************************)
-(** One significant difference between Async's buffered pipes and Unix's buffered pipes is
-    that, if the pipe is open, a write to an Async pipe {e always succeeds immediately}.
-    The pipe's "pushback" machinery is really just advisory: a producer task can dump
-    arbitrary amounts of data into a pipe even if there is no consumer draining the pipe.
-
-    Every write operation returns a deferred value that is determined when either (1) all
-    the written data fits into the pipe's size budget, or (2) the pipe has been
-    closed.  This deferred is the data-producer's interface to the pushback protocol: it
-    tells when the task should proceed after doing a write -- proceed either to produce
-    and write more data down the pipe, or to abandon production entirely.
+(** The write operations return a deferred value that is determined when either (1) it is
+    OK to write again to the pipe or (2) the pipe has been closed.  This deferred is the
+    data-producer's interface to the pipe pushback mechanism: it tells the producer when
+    it should proceed after doing a write -- either to produce and write more data to the
+    pipe, or to abandon production entirely.  The pushback mechansim is just advisory: a
+    producer task can, but typically should not, dump arbitrary amounts of data into a
+    pipe even if there is no consumer draining the pipe.
 
     Producers that write a sequence of values to a pipe should be aware that the consumers
-    who read from the pipe can choose to close the pipe early -- that is, before the
-    producer has finished doing all of its writes.  If this happens, further writes will
-    raise an exception.  To avoid these errors, all writes must be atomically guarded by
+    who read from the pipe can close the pipe early -- that is, before the producer has
+    finished doing all of its writes.  If this happens, further writes will raise an
+    exception.  To avoid these errors, all writes must be atomically guarded by
     [is_closed] tests.  Thus, a typical writer loop should look like this:
 
     {[
@@ -132,17 +132,17 @@ val close_called : (_, _) t -> unit Deferred.t
 val pushback : 'a Writer.t -> unit Deferred.t
 
 (** [write' writer q] transfers the elements from [q] into the pipe, leaving [q] empty.
-    [write'] returns a pushback-protocol deferred, as described above.  Writing to a
-    closed pipe raises.
+    [write'] returns a pushback deferred, as described above.  Writing to a closed pipe
+    raises.
 
     [write writer v] is equivalent to [write' writer (Queue.singleton v)]. *)
 val write' : 'a Writer.t -> 'a Queue.t -> unit Deferred.t
 val write  : 'a Writer.t -> 'a         -> unit Deferred.t
 
 (** [with_write writer ~f] waits until there is space available in the pipe, and then
-    calls [f write], where [write] enqueues a single value into the pipe.  [with_write]
-    guarantees that the pipe is open when it calls [f], and hence that the writes will
-    succeed, unless [f] itself closes the pipe. *)
+    calls [f write], where [write] can be used by [f] to write a single value into the
+    pipe at a time.  [with_write] guarantees that the pipe is open when it calls [f], and
+    hence that the writes will succeed, unless [f] itself closes the pipe. *)
 val with_write :
   'a Writer.t
   -> f:(('a -> unit) -> 'b)
@@ -150,16 +150,14 @@ val with_write :
 
 (** {1 Reading} *)
 (******************************************************************************)
-(**
-
-    With two special exceptions, all read procedures have a best-effort/forward-progress
+(** With two special exceptions, all read procedures have a best-effort/forward-progress
     semantics:
 
     - Best effort: When you do a read, you get what's available {e right now}, which might
     be less than you requested.
 
     - Forward progress: However, if {e nothing is available}, you block until some data
-    comes in. (Unless you're at EOF, in which case there's obviously no point in waiting.)
+    comes in (unless you're at EOF, in which case there's obviously no point in waiting).
     So the only time you ever get an empty, 0-item read is when you're at EOF.
 
     The best-effort semantics allows you to program in a style that processes data in big
@@ -173,7 +171,7 @@ val with_write :
     The two exceptions to best-effort/forward-progress semantics are [read_now], which
     polls for data, thus abandoning the forward-progress guarantee, and [read_exactly],
     which loops until it has read the entire amount requested (or encountered EOF), thus
-    abandoning the best-effort guarantee of timeliness.*)
+    abandoning the best-effort guarantee of timeliness. *)
 
 (** [read' pipe] reads all of the values available in the pipe, as soon as any value
     becomes available.  The resulting queue will satisfy [Q.length q > 0]. *)
@@ -183,9 +181,8 @@ val read' : 'a Reader.t -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
 val read : 'a Reader.t -> [ `Eof | `Ok of 'a ] Deferred.t
 
 (** [read_at_most r ~num_values] reads up to [num_values] values from the pipe's currently
-    available data, blocking if the pipe is empty.  The resulting queue will satisfy [0 <=
-    Queue.length q <= num_values].  And, if [num_values > 0] then the resulting queue will
-    satisfy [Queue.length q > 0].  [read_at_most] raises if [num_values < 0]. *)
+    available data, blocking if the pipe is empty.  The resulting queue will satisfy [0 <
+    Queue.length q <= num_values].  [read_at_most] raises if [num_values <= 0]. *)
 val read_at_most : 'a Reader.t -> num_values:int -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
 
 (** [read_exactly r ~num_values] reads exactly [num_values] items, unless EOF is
@@ -194,21 +191,23 @@ val read_at_most : 'a Reader.t -> num_values:int -> [ `Eof | `Ok of 'a Queue.t ]
     segment of the written stream of values -- other readers might pick off elements
     in-between [read_exactly]'s atomic reads.  [read_exactly] raises if [num_values <= 0].
 *)
-val read_exactly :
-  'a Reader.t
+val read_exactly
+  :  'a Reader.t
   -> num_values:int
   -> [ `Eof
-     | `Fewer of 'a Queue.t   (* 0 <= Q.length q < num_values *)
+     | `Fewer of 'a Queue.t   (* 0 < Q.length q < num_values *)
      | `Exactly of 'a Queue.t (* Q.length q = num_values *)
      ] Deferred.t
 
 (** [read_now reader] reads all of the values from [reader] that are immediately
-    available.  The resulting queue will satisfy [Q.length q > 0].  If [reader] is empty,
-    [read_now] returns [`Eof].  [read_now] has the danger of permitting the computation to
+    available.  The resulting queue will satisfy [Q.length q > 0].  If [reader] is closed,
+    [read_now] returns [`Eof].  If [reader] is empty, [read_now] returns
+    [`Nothing_available].  [read_now] has the danger of permitting the computation to
     "spin" doing empty reads; it is only useful in exotic circumstances. *)
 val read_now : 'a Reader.t -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
 
-(** [clear reader] removes all of the values from [reader]. *)
+(** [clear reader] consumes all of the values currently in [reader], and all blocked
+    flushes become determined with [`Ok]. *)
 val clear : 'a Reader.t -> unit
 
 (** [read_all reader] reads all the values from the pipe until it is closed.  An
@@ -216,8 +215,11 @@ val clear : 'a Reader.t -> unit
 val read_all : 'a Reader.t -> 'a Queue.t Deferred.t
 
 (** [values_available reader] returns a deferred that becomes determined when there are
-    values in the pipe.  Of course, there is no guarantee that some reader hasn't taken
-    them out by the time something waiting upon the result of [values_available] runs.
+    values in the pipe.  If there are multiple readers (a rare situation), there is no
+    guarantee, that some other reader hasn't become active because of ordinary async
+    scheduling and removed some or all of the values between the time the result of
+    [values_available] becomes determined and the time something waiting [upon] that
+    result runs.
 
     [values_available] is useful when one wants to [choose] on values being available in a
     pipe, so that one can be sure and not remove values and drop them on the floor.
@@ -278,60 +280,56 @@ val iter_without_pushback
           : 'a Reader.t -> f:('a         -> unit           ) -> unit Deferred.t
 
 
-(** [transfer' input outputr ~f] repeatedly reads a batch of elements from [input],
+(** [transfer' input output ~f ?stop] repeatedly reads a batch of elements from [input],
     applies [f] to the batch, writes the result as a batch to [output], and then waits on
-    [pushback] in [output] before continuing.  [transfer'] finishes if either [input] or
-    [output] is closed.  If [output] is closed, then [transfer'] closes [input].
+    [pushback] in [output] before continuing.  [transfer'] finishes if [input] is closed,
+    or [output] is closed, or [stop] is determined.  If [output] is closed, then
+    [transfer'] closes [input].
 
     [transfer] is a specialization of [transfer'] that uses [Queue.map ~f].
 
     [transfer_id] is a specialization of [transfer'] wifh [f = Fn.id]. *)
-val transfer' :
-  'a Reader.t -> 'b Writer.t -> f:('a Queue.t -> 'b Queue.t Deferred.t) -> unit Deferred.t
-val transfer    :
-  'a Reader.t -> 'b Writer.t -> f:('a         -> 'b                   ) -> unit Deferred.t
-val transfer_id :
-  'a Reader.t -> 'a Writer.t                                            -> unit Deferred.t
+val transfer'
+  : 'a Reader.t -> 'b Writer.t -> f:('a Queue.t -> 'b Queue.t Deferred.t) -> unit Deferred.t
+val transfer
+  : 'a Reader.t -> 'b Writer.t -> f:('a         -> 'b                   ) -> unit Deferred.t
+val transfer_id
+  : 'a Reader.t -> 'a Writer.t                                            -> unit Deferred.t
 
-(** [map' reader ~f] returns a reader, [output], and repeatedly applies [f] to batches of
-    elements from [reader], with the results appearing in [output].  If values are not
+(** [map' input ~f] returns a reader, [output], and repeatedly applies [f] to batches of
+    elements from [input], with the results appearing in [output].  If values are not
     being consumed from [output], [map'] will pushback and stop consuming values from
-    [reader].
+    [input].
 
-    If [output] is closed, then [map'] will close [reader].
+    If [output] is closed, then [map'] will close [input].
 
     [map] is a specialization of [map'] that uses [Queue.map ~f]. *)
 val map' : 'a Reader.t -> f:('a Queue.t -> 'b Queue.t Deferred.t) -> 'b Reader.t
 val map  : 'a Reader.t -> f:('a         -> 'b                   ) -> 'b Reader.t
 
-(** [filter_map' reader ~f] returns a reader, [output], and repeatedly applies [f] to
-    elements from [reader], with the results that aren't [None] appearing in [output].  If
+(** [filter_map' input ~f] returns a reader, [output], and repeatedly applies [f] to
+    elements from [input], with the results that aren't [None] appearing in [output].  If
     values are not being consumed from [output], [filter_map'] will pushback and stop
-    consuming values from [reader].
+    consuming values from [input].
 
-    If [output] is closed, then [filter_map'] will close [reader].
+    If [output] is closed, then [filter_map'] will close [input].
 
     [filter_map] is a specialized version of [filter_map']. *)
 val filter_map' : 'a Reader.t -> f:('a -> 'b option Deferred.t) -> 'b Reader.t
 val filter_map  : 'a Reader.t -> f:('a -> 'b option           ) -> 'b Reader.t
-(** Batch-processing variant of [filter_map]. *)
 
-(** [filter input ~f] returns a reader, [output], and copies each element from the
-    [input] that satisfies the predicate [f] to [output].  If [output] is closed, then
-    [filter] closes [input]. *)
+(** [filter input ~f] returns a reader, [output], and copies to [output] each element from
+    [input] that satisfies the predicate [f].  If [output] is closed, then [filter] closes
+    [input]. *)
 val filter : 'a Reader.t -> f:('a -> bool) -> 'a Reader.t
-
-(** [take_until r d] returns a pipe [r'] that has the same elements as [r] up until [d]
-    becomes determined. *)
-val take_until : 'a Reader.t -> unit Deferred.t -> 'a Reader.t
 
 (** [interleave inputs] returns a reader [output], and, for each input, transfers batches
     of values from that input to [output], using [transfer_id].  Each input is transferred
     to [output] independently.  So, batches of values from different inputs can be in
-    flight to [output] simultaneously, but at most one batch from each input.  The
-    operation is complete when either all the [inputs] produce EOF, or when [output] is
-    closed by the downstream consumer (in which case [interleave] closes all the
-    [inputs]). *)
+    flight to [output] simultaneously, but at most one batch at a time from any particular
+    input.  The operation is complete when either all the [inputs] produce EOF, or when
+    [output] is closed by the downstream consumer (in which case [interleave] closes all
+    the [inputs]). *)
 val interleave : 'a Reader.t list -> 'a Reader.t
 
 (** [concat inputs] return a reader, [output], with the values from each pipe in [inputs]
@@ -353,9 +351,18 @@ val of_stream : 'a Async_stream.t -> 'a Reader.t
 val drain           : 'a Reader.t -> unit Deferred.t
 val drain_and_count : 'a Reader.t ->  int Deferred.t
 
-(** [to_list r] reads everything written to the writer end of [r]; on EOF, it produces the
-    accumulated list of these values. *)
+(** [to_list input] reads everything from [input]; on EOF, it produces the accumulated
+    list of these values. *)
 val to_list : 'a Reader.t -> 'a list Deferred.t
+
+(** {1 Miscellaneous} *)
+(******************************************************************************)
+
+(** [hash] a hash function suitable for pipes *)
+val hash : (_, _) t -> int
+
+(** [equal] on pipes is physical equality. *)
+val equal : ('a, 'b) t -> ('a, 'b) t -> bool
 
 (** {1 Size budget} *)
 (******************************************************************************)
@@ -365,10 +372,11 @@ val to_list : 'a Reader.t -> 'a list Deferred.t
     Whenver the length is less than or equal to the size budget, writers will be notified
     to continue.
 
-    Every pipe's initial size budget is zero.
+    Every pipe's initial size budget is zero. *)
+val size_budget: (_, _) t -> int
 
-    [set_size_budget] changes the size budget.  Any nonnegative value is allowed. *)
-val     size_budget: (_, _) t -> int
+(** [set_size_budget t i] changes the size budget of [t] to [i].  Any nonnegative value is
+    allowed. *)
 val set_size_budget: (_, _) t -> int -> unit
 
 (** {1 Debugging} *)
@@ -378,12 +386,6 @@ val set_size_budget: (_, _) t -> int -> unit
     operation, showing the pipe and other arguments. *)
 val show_debug_messages : bool ref
 
-(** [check_invariant], if true will cause the pipes invariants to be checked at the start
-    of each operation. *)
+(** [check_invariant], if true, will cause pipes' invariants to be checked at the start of
+    each operation. *)
 val check_invariant : bool ref
-
-(** [hash] a hash function suitable for Pipes *)
-val hash : (_, _) t -> int
-
-(** [equal] an equality function suitable for Pipes *)
-val equal : ('a, 'b) t -> ('a, 'b) t -> bool

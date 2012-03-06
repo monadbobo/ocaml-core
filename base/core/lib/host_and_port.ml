@@ -25,6 +25,11 @@ let of_string s =
     host, port
   | _ -> failwithf "Host_and_port.of_string: %s" s ()
 
+let t_of_sexp = function
+  | Sexp.Atom s as sexp ->
+    (try of_string s with Failure err -> of_sexp_error err sexp)
+  | sexp -> t_of_sexp sexp
+
 let pp ppf t = Format.fprintf ppf "%s" (to_string t)
 let () = Pretty_printer.register "Core.Host_and_port.pp"
 

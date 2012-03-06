@@ -1,6 +1,6 @@
 type ('real, 'phantom) t = 'real
 
-let override x = x
+let override = Fn.id
 
 module type S = sig
   type phantom

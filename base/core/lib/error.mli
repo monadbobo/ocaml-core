@@ -45,9 +45,10 @@ val of_string : string -> t
 val of_lazy  : string Lazy.t    -> t
 val of_thunk : (unit -> string) -> t
 
-(** For [create_sexp z sexp_of_z] or [create msg z sexp_of_z], be careful to use only
-    immutable values for z. *)
-val create      : string -> 'a -> ('a -> Sexp.t) -> t
+(** For [create msg z sexp_of_z], be careful to use only immutable values for z, or be
+    aware that [z] will be lazily converted to a sexp at a later point in time, which will
+    pick up the then-current state of [z]. *)
+val create : string -> 'a -> ('a -> Sexp.t) -> t
 
 (** Functions for transforming errors *)
 
@@ -60,17 +61,17 @@ val tag_arg : t -> string -> 'a -> ('a -> Sexp.t) -> t
 (* Combine multiple errors into one *)
 val of_list : ?trunc_after:int -> t list -> t
 
-val of_exn : exn -> t
+val of_exn : ?backtrace:[ `Get | `This of string ] -> exn -> t
 val to_exn : t -> exn
 
 (* Note that the exception holds onto the [t]. *)
 val raise : t -> _
 
-(** [failwiths message value sexp_of_value] raises an exception with the supplied [message]
-    and [value], by constructing an [Error.t] and using [Error.raise].  As usual,
-    the [sexp_of_value] is only applied when the value is converted to a sexp or a
-    string. So, if you mutate [value] in between the time you call [failwiths] and the time
-    the error is displayed, those mutations will be reflected in the error message.
+(** [failwiths message value sexp_of_value] raises an exception with the supplied
+    [message] and [value], by constructing an [Error.t] and using [Error.raise].  As
+    usual, the [sexp_of_value] is only applied when the value is converted to a sexp or a
+    string.  So, if you mutate [value] in between the time you call [failwiths] and the
+    time the error is displayed, those mutations will be reflected in the error message.
 
     [failwiths s a f] = [Error.raise (Error.create s a f)] *)
 val failwiths : string -> 'a -> ('a -> Sexp.t) -> _

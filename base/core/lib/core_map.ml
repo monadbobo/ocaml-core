@@ -71,7 +71,9 @@ module Tree = struct
           | Node(rll, rlv, rld, rlr, _) ->
             create (create l x d rll) rlv rld (create rlr rv rd rr)
         end
-    end else if hl = 0 && hr = 0 then
+    end
+    (* Inline expansion of [create] to save extracting the heights again. *)
+    else if hl = 0 && hr = 0 then
         Leaf(x, d)
       else
         Node(l, x, d, r, (if hl >= hr then hl + 1 else hr + 1))
@@ -83,7 +85,7 @@ module Tree = struct
 
   let rec add t ~key:x ~data ~compare_key =
     match t with
-    | Empty -> Node(Empty, x, data, Empty, 1)
+    | Empty -> Leaf (x, data)
     | Leaf(v, d) ->
       let c = compare_key x v in
       if c = 0 then
@@ -166,7 +168,7 @@ module Tree = struct
     match t with
     | Empty -> init
     | Leaf (k, d) ->
-      if compare_key k min = (-1) || compare_key k max = 1 then
+      if compare_key k min < 0 || compare_key k max > 0 then
         (* k < min || k > max *)
         init
       else
@@ -446,7 +448,7 @@ module Tree = struct
     match t with
     | Empty -> None
     | Leaf (k', v') ->
-      if compare_key k' k = 1 then
+      if compare_key k' k > 0 then
         Some (k', v')
       else
         None
@@ -464,7 +466,7 @@ module Tree = struct
     match t with
     | Empty -> None
     | Leaf (k', v') ->
-      if compare_key k' k = (-1) then
+      if compare_key k' k < 0 then
         Some (k', v')
       else
         None
@@ -507,19 +509,17 @@ type ('k, 'v, 'comparator) t =
     comparator : ('k, 'comparator) Comparator.t;
   }
 
+type ('k, 'v, 'comparator) tree = ('k, 'v) Tree.t
+
 let compare_key t = t.comparator.Comparator.compare
 
 type ('a, 'b, 'c) map = ('a, 'b, 'c) t
 
+
 let like { tree = _; comparator } tree = { tree; comparator }
 
-let ensure_same_comparator ~name t1 t2 =
-  if not (Pervasives.(==) t1.comparator t2.comparator) then
-    failwith (Printf.sprintf
-                "Core.Map.%s was supplied maps with different key comparators" name)
-;;
-
 module Accessors = struct
+  let to_tree t = t.tree
   let is_empty t = Tree.is_empty t.tree
   let length t = Tree.length t.tree
   let add t ~key ~data = like t (Tree.add t.tree ~key ~data ~compare_key:(compare_key t))
@@ -535,23 +535,16 @@ module Accessors = struct
   let map t ~f = like t (Tree.map t.tree ~f)
   let mapi t ~f = like t (Tree.mapi t.tree ~f)
   let fold t ~init ~f = Tree.fold t.tree ~f ~init
-  let fold_right t ~init ~f = Tree.fold t.tree ~f ~init
+  let fold_right t ~init ~f = Tree.fold_right t.tree ~f ~init
   let filter t ~f = like t (Tree.filter t.tree ~f ~compare_key:(compare_key t))
   let filter_map t ~f = like t (Tree.filter_map t.tree ~f ~compare_key:(compare_key t))
   let filter_mapi t ~f = like t (Tree.filter_mapi t.tree ~f ~compare_key:(compare_key t))
-  let compare f t1 t2 =
-    ensure_same_comparator ~name:"compare" t1 t2;
-    Tree.compare f t1.tree t2.tree ~compare_key:(compare_key t1);
-  ;;
-  let equal f t1 t2 =
-    ensure_same_comparator ~name:"equal" t1 t2;
-    Tree.equal f t1.tree t2.tree ~compare_key:(compare_key t1);
-  ;;
+  let compare f t1 t2 = Tree.compare f t1.tree t2.tree ~compare_key:(compare_key t1)
+  let equal f t1 t2 = Tree.equal f t1.tree t2.tree ~compare_key:(compare_key t1)
   let keys t = Tree.keys t.tree
   let data t = Tree.data t.tree
   let to_alist t = Tree.to_alist t.tree
   let merge t1 t2 ~f =
-    ensure_same_comparator ~name:"merge" t1 t2;
     like t1 (Tree.merge t1.tree t2.tree ~f ~compare_key:(compare_key t1));
   ;;
   let min_elt t = Tree.min_elt t.tree
@@ -571,6 +564,10 @@ module Accessors = struct
   let rank t key = Tree.rank t.tree key ~compare_key:(compare_key t)
   let sexp_of_t sexp_of_k sexp_of_v t = Tree.sexp_of_t sexp_of_k sexp_of_v t.tree
 end
+
+type ('a, 'b, 'c) create_options = ('a, 'b, 'c) create_options_with_comparator
+
+let of_tree ~comparator tree = { tree; comparator }
 
 let empty ~comparator = { tree = Tree.empty; comparator }
 
@@ -605,21 +602,30 @@ let t_of_sexp ~comparator k_of_sexp v_of_sexp sexp =
 module Creators (Key : Comparator.S1) : sig
 
   type ('a, 'b, 'c) t_ = ('a Key.t, 'b, Key.comparator) t
+  type ('a, 'b, 'c) tree = ('a, 'b) Tree.t
+  type ('a, 'b, 'c) create_options = ('a, 'b, 'c) create_options_without_comparator
 
   val t_of_sexp : (Sexp.t -> 'a Key.t) -> (Sexp.t -> 'b) -> Sexp.t -> ('a, 'b, _) t_
 
   include Creators
     with type ('a, 'b, 'c) t := ('a, 'b, 'c) t_
+    with type ('a, 'b, 'c) tree := ('a, 'b, 'c) tree
     with type 'a key := 'a Key.t
-    with type ('a, 'b, 'c) create_options := ('a, 'b, 'c) create_options_without_comparator
+    with type ('a, 'b, 'c) create_options := ('a, 'b, 'c) create_options
 
 end = struct
+
+  type ('a, 'b, 'c) create_options = ('a, 'b, 'c) create_options_without_comparator
 
   let comparator = Key.comparator
 
   type ('a, 'b, 'c) t_ = ('a Key.t, 'b, Key.comparator) t
 
+  type ('a, 'b, 'c) tree = ('a, 'b) Tree.t
+
   let empty = { tree = Tree.empty; comparator }
+
+  let of_tree tree = of_tree ~comparator tree
 
   let singleton k v = singleton ~comparator k v
 
@@ -639,12 +645,13 @@ type 'a key = 'a
 
 include Accessors
 
+module Poly_creators = Creators (Comparator.Poly)
+
 module Poly = struct
-  include Creators (Comparator.Poly)
+  include Poly_creators
 
   type ('k, 'v) t = ('k, 'v, Comparator.Poly.comparator) map
   type 'a key = 'a
-  type ('a, 'b, 'c) create_options = ('a, 'b, 'c) create_options_without_comparator
 
   include Accessors
 
@@ -669,9 +676,15 @@ module Poly = struct
 end
 
 module type Key = Key
+module type Key_binable = Key_binable
 
-module type S         = S         with type ('a, 'b, 'c) map := ('a, 'b, 'c) t
-module type S_binable = S_binable with type ('a, 'b, 'c) map := ('a, 'b, 'c) t
+module type S = S
+   with type ('a, 'b, 'c) map := ('a, 'b, 'c) t
+   with type ('a, 'b, 'c) tree := ('a, 'b, 'c) tree
+
+module type S_binable = S_binable
+   with type ('a, 'b, 'c) map := ('a, 'b, 'c) t
+   with type ('a, 'b, 'c) tree := ('a, 'b, 'c) tree
 
 module Make_using_comparator (Key : Comparator.S) = struct
 
@@ -696,7 +709,7 @@ module Make (Key : Comparator.Pre) = Make_using_comparator (Comparator.Make (Key
 
 module Make_binable_using_comparator (Key' : Comparator.S_binable) = struct
 
-  include Make (Key')
+  include Make_using_comparator (Key')
 
   include Bin_prot.Utils.Make_iterable_binable1 (struct
     type 'v acc = 'v t

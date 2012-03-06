@@ -1,14 +1,15 @@
-(** A stream is an immutable sequence of values, with a possibly incomplete tail that may
+(** For most applications one should use [Pipe] instead of Stream.
+
+    A stream is an immutable sequence of values, with a possibly incomplete tail that may
     be extended asynchronously.
 
     The basic primitive operation for getting the next element out of stream is
     Stream.next, which (asynchronously) returns the element and the rest of the stream. *)
 open Core.Std
-open Basic
 
-type 'a t = 'a Basic.Stream.t with sexp_of
+type 'a t = ('a, Execution_context.t) Raw_stream.t with sexp_of
 (** [sexp_of_t t f] returns a sexp of all of the elements currently available in the
-    stream. It is just for display purposes.  There is no [t_of_sexp]. *)
+    stream.  It is just for display purposes.  There is no [t_of_sexp]. *)
 
 (** [create f] returns a stream [t] and calls [f tail], where the elements of the stream
     are determined as the tail is extended, and the end of the stream is reached when the
@@ -16,9 +17,10 @@ type 'a t = 'a Basic.Stream.t with sexp_of
 val create : ('a Tail.t -> unit) -> 'a t
 
 (** [next t] returns a deferred that will become determined when the next part of the
-    stream is determined.  This is [Const (v, t')], where v is the next element of the
+    stream is determined.  This is [Cons (v, t')], where v is the next element of the
     stream and t' is the rest of the stream, or with Nil at the end of the stream. *)
-type 'a next = Nil | Cons of 'a * 'a t
+type ('a, 'execution_context) next_ = Nil | Cons of 'a * ('a, 'execution_context) Raw_stream.t
+type 'a next = ('a, Execution_context.t) next_
 val next : 'a t -> 'a next Deferred.t
 
 (** [first_exn t] returns a deferred that becomes determined with the first element of
@@ -114,16 +116,14 @@ val take_until : 'a t -> unit Deferred.t -> 'a t
 (** [iter_durably' t ~f] is like [iter' t ~f], except if [f] raises an exception it
     continues with the next element of the stream *and* reraises the exception (to the
     monitor in scope when iter_durably was called). *)
-val iter_durably' : 'a t -> f:('a -> unit Deferred.t) -> unit Deferred.t
-
 (** [iter_durably t ~f] is like [iter t ~f], except if [f] raises an exception it
     continues with the next element of the stream *and* reraises the exception (to the
     monitor in scope when iter_durably was called). *)
-val iter_durably : 'a t -> f:('a -> unit) -> unit
-
 (** [iter_durably_report_end t ~f] is equivalent to [iter_durably' t ~f:(fun x -> return
     (f x))] but it is more efficient *)
-val iter_durably_report_end : 'a t -> f:('a -> unit) -> unit Deferred.t
+val iter_durably'           : 'a t -> f:('a -> unit Deferred.t) -> unit Deferred.t
+val iter_durably            : 'a t -> f:('a -> unit           ) -> unit
+val iter_durably_report_end : 'a t -> f:('a -> unit           ) -> unit Deferred.t
 
 (** [length s] returns a deferred that is determined when the end of s is reached, taking
     the value of the number of elements in s *)

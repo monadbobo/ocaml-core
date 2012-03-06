@@ -21,6 +21,10 @@ module Time = struct
 
     let of_time time = Time.to_local_date time
     let today () = of_time (Time.now ())
+    let yesterday () = Date.add_days (today ()) (-1)
+    let format date pat =
+      let time = Time.of_local_date_ofday date Ofday.start_of_day in
+      Time.format time pat
   end
 
   include Time
@@ -51,9 +55,10 @@ module Binable = struct
   let to_string m t = Bigstring.to_string (to_bigstring m t)
 end
 
-
+IFDEF LINUX_EXT THEN
 module Linux_ext = Linux_ext
 module Bigstring_marshal = Bigstring_marshal
+ENDIF
 module Binary_packing = Binary_packing
 module Blang = Blang
 module Bounded_int_table = Bounded_int_table

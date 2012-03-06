@@ -28,7 +28,8 @@ let utc_mktime ~year ~month ~day ~hour ~min ~sec ~ms ~us =
 include Time_internal
 
 let string_and_sexp_format : [
-  | `Old | `Force_old
+  | `Old
+  | `Force_old
   | `Write_new_read_both
   | `Write_new_read_only_new
 ] ref = ref `Old
@@ -117,7 +118,7 @@ let of_epoch_internal zone time (* shifted epoch for the time zone for conversio
 let of_epoch =
   let cache = ref (fst (of_epoch_internal Zone.utc (to_epoch (T.now ())))) in
   (fun zone unshifted ->
-    let time   = Zone.shift_epoch_time zone `UTC unshifted in
+    let time = Zone.shift_epoch_time zone `UTC unshifted in
     let {Epoch_cache.zone = z; day_start = s; day_end = e; date = date} = !cache in
     if phys_equal zone z && time >= s && time < e then (
       (date, Ofday.of_span_since_start_of_day (Span.of_sec (time -. s))))
@@ -252,8 +253,8 @@ let pause_for span =
     Unix.nanosleep (Span.to_sec span)
   in
   if time_remaining > 0.0
-  then `Remaining (Span.of_sec time_remaining)
-  else `Ok
+    then `Remaining (Span.of_sec time_remaining)
+    else `Ok
 ;;
 
 (** Pause and don't allow events to interrupt. *)
@@ -278,12 +279,12 @@ let ofday_occurrence t zone ofday before_or_after =
   match before_or_after with
   | `right_before ->
       if T.(<) first_guess t
-      then first_guess
-      else T.sub first_guess Span.day
+        then first_guess
+        else T.sub first_guess Span.day
   | `right_after ->
       if T.(>) first_guess t
-      then first_guess
-      else T.add first_guess Span.day
+        then first_guess
+        else T.add first_guess Span.day
 ;;
 
 let epoch = T.of_float 0.0

@@ -26,9 +26,3 @@ val ensure_at_exit : unit -> unit
 
 (** [get_ppids pid] returns the list of parent pids, up to init (1) for pid. *)
 val get_ppids : Pid.t -> Pid.t list option
-
-(** [ip_of_hostname host] returns the IP as a string. *)
-val ip_of_hostname : string -> string
-
-(** [get_ip ()] returns the ip of the current host. *)
-val get_ip : unit -> string

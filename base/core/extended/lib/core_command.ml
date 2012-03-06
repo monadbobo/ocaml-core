@@ -8,6 +8,8 @@ exception Failed_to_parse_command_line of string
 
 let die fmt = Printf.ksprintf (fun msg () -> raise (Failed_to_parse_command_line msg)) fmt
 
+let flag_with_dash s = if String.is_prefix ~prefix:"-" s then s else "-" ^ s
+
 let help_screen_compare a b =
   match (a, b) with
   | (_, "help") -> -1
@@ -108,6 +110,24 @@ module Flag = struct
     check_available_if_required : unit -> unit;
   }
 
+  module Deprecated = struct
+    (* flag help in the format of the old command. used for injection *)
+    let help {name; doc; aliases; _}  =
+      if String.is_prefix doc ~prefix:" " then
+        (name, String.lstrip doc) ::
+        List.map aliases ~f:(fun x ->
+          (x, sprintf "same as \"%s\"" name))
+      else
+        let (arg, doc) =
+          match String.lsplit2 doc ~on:' ' with
+          | None -> (doc, "")
+          | Some pair -> pair
+        in
+        (name ^ " " ^ arg, String.lstrip doc) ::
+          List.map aliases ~f:(fun x ->
+            (x ^ " " ^ arg, sprintf "same as \"%s\"" name))
+  end
+
   let align {name; doc; aliases; action = _} =
     let (name, doc) =
       match String.lsplit2 doc ~on:' ' with
@@ -166,7 +186,7 @@ module Flag = struct
       let write arg = write_option name v arg in
       arg_flag name arg_type read write
 
-    let no_arg_general ~key name =
+    let no_arg_general ~deprecated_hook ~key name =
       let v = ref false in
       let read () = !v in
       let write () =
@@ -180,11 +200,18 @@ module Flag = struct
         write ();
         env
       in
-      { read; action = No_arg action}
+      let action =
+        match deprecated_hook with
+        | None -> action
+        | Some f -> (fun x -> f (); action x)
+      in
+      { read; action = No_arg action }
 
-    let no_arg name = no_arg_general ~key:None name
+    let no_arg name =
+      no_arg_general ~deprecated_hook:None ~key:None name
 
-    let no_arg_register ~key name = no_arg_general ~key:(Some key) name
+    let no_arg_register ~key name =
+      no_arg_general ~deprecated_hook:None ~key:(Some key) name
 
     let listed arg_type name =
       let v = ref [] in
@@ -192,11 +219,25 @@ module Flag = struct
       let write arg = v := arg :: !v in
       arg_flag name arg_type read write
 
-    let escape _name =
+    let escape_general ~deprecated_hook _name =
       let cell = ref None in
-      let action = Rest (fun cmd_line -> cell := Some cmd_line) in
+      let action = (fun cmd_line -> cell := Some cmd_line) in
       let read () = !cell in
-      { action; read }
+      let action =
+        match deprecated_hook with
+        | None -> action
+        | Some f -> fun x -> f x; action x
+      in
+      { action = Rest action; read }
+
+    let escape name = escape_general ~deprecated_hook:None name
+
+    module Deprecated = struct
+
+      let no_arg ~hook name = no_arg_general ~deprecated_hook:(Some hook) ~key:None name
+      let escape ~hook      = escape_general ~deprecated_hook:(Some hook)
+
+    end
 
   end
 
@@ -242,6 +283,7 @@ module Anon = struct
     val maybe : t -> t
     val concat : t list -> t
     val usage : t -> string
+    val ad_hoc : usage:string -> t
   end = struct
 
     type s = {usage : string; number : [`Fixed | `Variable] }
@@ -285,6 +327,7 @@ module Anon = struct
       | [] -> zero
       | t :: ts -> concat2 t (concat ts)
 
+    let ad_hoc ~usage = Some { usage ; number = `Variable }
   end
 
   module Parser : sig
@@ -438,6 +481,10 @@ module Anon = struct
       grammar = Grammar.many name;
     }
 
+    let ad_hoc ~usage_arg = {
+      p = Parser.sequence ~name:"THIS WILL NEVER BE PRINTED" Arg_type.string;
+      grammar = Grammar.ad_hoc ~usage:usage_arg
+    }
   end
 
 end
@@ -475,6 +522,17 @@ let lookup_expand map prefix key_type =
       die "%s %s is an ambiguous prefix: %s"
         (Key_type.to_string key_type) prefix (String.concat ~sep:", " matching_keys) ()
 
+let lookup_expand_with_aliases map prefix key_type =
+  let map =
+    String.Map.of_alist
+      (List.concat_map (String.Map.data map) ~f:(fun flag ->
+        let {Flag.name; aliases; _} = flag in
+        (name, flag) :: List.map aliases ~f:(fun alias -> (alias, flag))))
+  in
+  match map with
+  | `Ok map -> lookup_expand map prefix key_type
+  | `Duplicate_key flag -> failwithf "multiple flags named %s" flag ()
+
 module Base = struct
 
   type t = {
@@ -484,6 +542,19 @@ module Base = struct
     anons : Env.t -> (unit -> unit) Anon.Parser.t;
     usage : Anon.Grammar.t;
   }
+
+  module Deprecated = struct
+    let subcommand_cmp_fst (a, _) (c, _) =
+      help_screen_compare a c
+
+    let flags_help ?(display_help_flags = true) t =
+      let flags = String.Map.data t.flags in
+      let flags =
+        if display_help_flags then flags else
+          List.filter flags ~f:(fun f -> f.Flag.name <> "-help")
+      in
+      List.concat_map ~f:Flag.Deprecated.help flags
+  end
 
   let summary t = t.summary
 
@@ -518,7 +589,7 @@ module Base = struct
         if String.is_prefix arg ~prefix:"-" then begin
           let flag = arg in
           let (flag, {Flag.action; _}) =
-            lookup_expand t.flags flag Key_type.Flag
+            lookup_expand_with_aliases t.flags flag Key_type.Flag
           in
           match action with
           | Flag.No_arg f ->
@@ -557,6 +628,7 @@ module Base = struct
       match exn with
       | Failed_to_parse_command_line msg -> prerr_endline msg; exit 1
       | _ -> raise exn
+
 
   module Spec = struct
 
@@ -614,6 +686,8 @@ module Base = struct
       let t3 = t3
       let t4 = t4
 
+      let ad_hoc = ad_hoc
+
       let anon spec = {
         f = (fun _env ->
           spec.p >>= fun v ->
@@ -630,6 +704,7 @@ module Base = struct
       let escape = escape
       let listed = listed
       let no_arg = no_arg
+      module Deprecated = Deprecated
       let no_arg_register = no_arg_register
       let optional = optional
       let optional_with_default = optional_with_default
@@ -651,7 +726,13 @@ end
 
 type t =
   | Base of Base.t
-  | Group of string * t String.Map.t (* summary, subcommands *)
+  | Group of group
+
+and group = {
+  summary : string;
+  readme : (unit -> string) option;
+  subcommands : t String.Map.t
+}
 
 let assert_no_underscores flag_or_subcommand =
   if String.exists flag_or_subcommand ~f:(fun c -> c = '_') then
@@ -659,7 +740,7 @@ let assert_no_underscores flag_or_subcommand =
 
 let get_summary = function
   | Base base -> Base.summary base
-  | Group (summary, _) -> summary
+  | Group {summary; _} -> summary
 
 let command_menu subs =
   let subs = String.Map.to_alist subs in
@@ -671,12 +752,13 @@ let command_menu subs =
           {Format.name; aliases = []; doc = summary})))
   ]
 
-let group_help ~path ~summary subs =
-  unparagraphs [
-    summary;
-    String.concat ["  "; Path.to_string path; " SUBCOMMAND"];
-    command_menu subs;
-  ]
+let group_help ~path ~summary ~readme subs =
+  unparagraphs (List.filter_opt [
+    Some summary;
+    Some (String.concat ["  "; Path.to_string path; " SUBCOMMAND"]);
+    Option.map readme ~f:(fun f -> f ());
+    Some (command_menu subs);
+  ])
 
 let extend_map_exn map key_type ~key data =
   if String.Map.mem map key then
@@ -704,22 +786,28 @@ let basic ~summary ?readme {Base.Spec.usage; flags; f} main =
   let flags =
     match
       String.Map.of_alist
-        (List.map flags ~f:(fun ({Flag.name; _} as flag) ->
+        (List.map flags ~f:(fun ({Flag.name; Flag.aliases; _} as flag) ->
           assert_no_underscores name;
-          (name, flag)))
+          let name = flag_with_dash name in
+          let aliases = List.map aliases ~f:(fun s ->
+            assert_no_underscores s;
+            flag_with_dash s)
+          in
+          (name, { flag with Flag.aliases; Flag.name })))
     with
     | `Duplicate_key flag -> failwithf "multiple flags named %s" flag ()
     | `Ok map -> map
   in
   let base = {Base.summary; readme; usage; flags; anons} in
   let base =
-    Bailout_dump_flag.add base ~name:"-help" ~aliases:[]
+    Bailout_dump_flag.add base ~name:"-help" ~aliases:["-?"]
       ~text_summary:"this help text"
       ~text:(fun env -> Lazy.force (Option.value_exn (Env.find env Base.help_key)))
   in
   Base base
 
-let rec help_subcommand ~summary subs =
+
+let help_subcommand ~summary ~readme subs =
   basic ~summary:"explain a given subcommand (perhaps recursively)"
     Base.Spec.(
       flag "-recursive" no_arg ~doc:" show subcommands of subcommands, etc."
@@ -746,13 +834,16 @@ let rec help_subcommand ~summary subs =
           if recursive then gather path acc t else acc)
       and
         gather path acc = function
-          | Group (_, subs) -> gather_group path acc subs
+          | Group {subcommands; _} -> gather_group path acc subcommands
           | Base base ->
             if show_flags then begin
-              List.fold (Base.formatted_flags base) ~init:acc ~f:(fun acc fmt ->
-                let path = Path.add path ~subcommand:fmt.Format.name in
-                let fmt = {fmt with Format.name = string_of_path path} in
-                Fqueue.enqueue acc fmt)
+              List.fold
+                (List.filter (Base.formatted_flags base) ~f:(fun fmt ->
+                  fmt.Format.name <> "-help"))
+                ~init:acc ~f:(fun acc fmt ->
+                  let path = Path.add path ~subcommand:fmt.Format.name in
+                  let fmt = {fmt with Format.name = string_of_path path} in
+                  Fqueue.enqueue acc fmt)
             end else
               acc
       in
@@ -760,8 +851,14 @@ let rec help_subcommand ~summary subs =
         let q = Fqueue.empty in
         let q =
           match cmd_opt with
-          | None -> gather_group path q subs
+          | None ->
+            Fqueue.enqueue (gather_group path q subs)
+            { Format.name = "help [-r]";
+              doc = "explain a given subcommand (perhaps recursively)";
+              aliases = [] }
           | Some cmd ->
+            if cmd = "help" then (* this is "help help" *) q
+            else (* can special case help help if we want *)
             match String.Map.find subs cmd with
             | None ->
               die "unknown subcommand %s for command %s" cmd (Path.to_string path) ()
@@ -770,27 +867,24 @@ let rec help_subcommand ~summary subs =
         Fqueue.to_list q
       in
       let text =
-        unparagraphs [
-          summary;
-          String.concat ["  "; Path.to_string path_minus_help; " SUBCOMMAND"];
-          (if show_flags then "=== subcommands and flags ===" else "=== subcommands ===");
-          Format.to_string menu;
-        ]
+        unparagraphs (List.filter_opt [
+          Some summary;
+          Some (String.concat ["  "; Path.to_string path_minus_help; " SUBCOMMAND"]);
+          Option.map readme ~f:(fun f -> f ());
+          Some (if show_flags then "=== subcommands and flags ===" else "=== subcommands ===");
+          Some (Format.to_string menu);
+        ])
       in
       print_endline text)
 
-let group ~summary alist =
+let group ~summary ?readme alist =
   List.iter alist ~f:(fun (name, _) -> assert_no_underscores name);
-  let subs =
+  let subcommands =
     match String.Map.of_alist alist with
     | `Ok subs -> subs
     | `Duplicate_key name -> failwithf "multiple subcommands named %s" name ()
   in
-  let subs =
-    extend_map_exn subs Key_type.Subcommand ~key:"help"
-      (help_subcommand ~summary subs)
-  in
-  Group (summary, subs)
+  Group {summary; readme; subcommands}
 
 INCLUDE "version_defaults.mlh"
 module Version_info = struct
@@ -829,12 +923,12 @@ module Version_info = struct
           ~text_summary:"info about this build" ~text:(Fn.const build_info)
       in
       Base base
-    | Group (summary, subs) ->
-      let subs =
-        extend_map_exn subs Key_type.Subcommand ~key:"version"
+    | Group group ->
+      let subcommands =
+        extend_map_exn group.subcommands Key_type.Subcommand ~key:"version"
           (command ~version ~build_info)
       in
-      Group (summary, subs)
+      Group {group with subcommands}
 
 end
 
@@ -856,8 +950,7 @@ let dump_autocomplete_function () =
 complete -F %s %s
 %!" fname Sys.argv.(0) fname Sys.argv.(0)
 
-let args () =
-  match Array.to_list Sys.argv with
+let args_of_list = function
   | [] -> failwith "missing executable name"
   | _cmd :: args ->
     match getenv_and_clear "COMMAND_OUTPUT_INSTALLATION_BASH" with
@@ -877,10 +970,12 @@ let args () =
           | Nil -> Complete arg
           | _ -> Cons (arg, args))
 
-let rec dispatch t ~path ~args =
+let get_args () = Array.to_list Sys.argv |! args_of_list
+
+ let rec dispatch t ~path ~args =
   match t with
   | Base base -> Base.run base ~path ~args
-  | Group (summary, subs) ->
+  | Group {summary; readme; subcommands = subs} ->
     match args with
     | Nil ->
       let subs = String.Map.map subs ~f:get_summary in
@@ -891,7 +986,8 @@ let rec dispatch t ~path ~args =
         match (sub, rest) with
         | ("-help", Nil) ->
           let subs = String.Map.map subs ~f:get_summary in
-          print_endline (group_help ~path ~summary subs); exit 0
+          print_endline (group_help ~path ~summary ~readme subs);
+          exit 0
         | ("-help", Cons (sub, rest)) -> (sub, Cons ("-help", rest))
         | _ -> (sub, rest)
       in
@@ -902,13 +998,93 @@ let rec dispatch t ~path ~args =
         if String.is_prefix name ~prefix:part then print_endline name);
       exit 0
 
-let rec run ?version ?build_info t =
+let rec run ?version ?build_info ?argv t =
   let t = Version_info.add t ?version ?build_info in
-  try dispatch t ~path:Path.root ~args:(args ())
-  with Failed_to_parse_command_line msg -> prerr_endline msg; exit 1
+  let t = match t with
+  | Base _ -> t
+  | Group {summary; readme; subcommands} ->
+    let subcommands =
+      extend_map_exn subcommands Key_type.Subcommand ~key:"help"
+        (help_subcommand ~summary ~readme subcommands)
+    in
+    Group {summary; readme; subcommands}
+  in
+  try
+    let args =
+      match argv with
+      | Some x -> args_of_list x
+      | None -> get_args ()
+    in
+    dispatch t ~path:Path.root ~args
+  with
+  | Failed_to_parse_command_line msg ->
+    prerr_endline msg;
+    exit 1
 
 module Spec = struct
   include Base.Spec
   let path () = step (fun m path -> m (Path.commands path)) ++ path
+end
+
+module Deprecated = struct
+
+  module Spec = Spec.Deprecated
+
+  let rec args_of_list = function
+  | [] -> Nil
+  | f :: r -> Cons (f, args_of_list r)
+
+  let summary = get_summary
+
+  let get_flag_names = function
+    | Base base -> base.Base.flags |! String.Map.keys
+    | Group _ -> assert false
+
+  let help_recursive ~cmd ~with_flags ~expand_dots t s =
+    let rec help_recursive_rec ~cmd t s =
+      let new_s = s ^ (if expand_dots then cmd else ".") ^ " " in
+      match t with
+      | Base base ->
+        let base_help = s ^ cmd, summary (Base base) in
+        if with_flags then
+          base_help ::
+            List.map ~f:(fun (flag, h) -> (new_s ^ flag, h))
+              (List.sort ~cmp:Base.Deprecated.subcommand_cmp_fst
+                (Base.Deprecated.flags_help ~display_help_flags:false base))
+        else
+          [base_help]
+      | Group {summary; subcommands; _ } -> (s ^ cmd, summary) :: (List.concat
+        (List.map
+          (List.sort ~cmp:Base.Deprecated.subcommand_cmp_fst (String.Map.to_alist subcommands))
+          ~f:(fun (cmd', t) -> help_recursive_rec ~cmd:cmd' t new_s)))
+    in
+    help_recursive_rec ~cmd t s
+
+  let run t ~cmd ~args ~is_help ~is_help_rec ~is_help_rec_flags ~is_expand_dots =
+    let path_strings = String.split cmd ~on: ' ' in
+    let path = List.fold path_strings ~init:Path.empty
+      ~f:(fun p subcommand -> Path.add p ~subcommand)
+    in
+    let args = if is_expand_dots then "-expand-dots" :: args else args in
+    let args = if is_help_rec_flags then "-flags" :: args else args in
+    let args = if is_help_rec then "-r" :: args else args in
+    let args = if is_help then "help" :: args else args in
+    let args = args_of_list args in
+    let t = match t with
+    | Base _ -> t
+    | Group {summary; readme; subcommands} ->
+      let subcommands =
+        extend_map_exn subcommands Key_type.Subcommand ~key:"help"
+          (help_subcommand ~summary ~readme subcommands)
+      in
+      Group {summary; readme; subcommands}
+    in
+    dispatch t ~path ~args
+
+(*
+  let autocomplete _ = None
+  let autocomplete_of_extended_autocomplete f _ ~part:_ = f (list_of_args (get_args ()))
+*)
+
 end
 
