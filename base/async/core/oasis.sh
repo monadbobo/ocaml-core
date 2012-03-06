@@ -39,6 +39,7 @@ Library async_core
   Modules:            ${MODULES}
   BuildDepends:       sexplib.syntax,
                       sexplib,
+                      pa_ounit,
                       fieldslib.syntax,
                       fieldslib,
                       bin_prot,
