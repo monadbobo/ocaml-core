@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+set -u -o pipefail
+
+function usage {
+    echo "usage: ${BASH_SOURCE[0]} [-j <JOBS>] [tree]"
+    echo "         -h, --help       Display this help"
+    echo "         -j N             Run at most N jobs in parallel"
+    echo "         -u               Don't install, uninstall"
+}
+
+configflags="
+ enable-linux
+disable-linux
+ enable-posix-timers
+disable-posix-timers
+"
+
+opts=
+if getopt -V | grep -q enhanced; then
+  opts=$(getopt -n ${BASH_SOURCE[0]} -o "j:uh" \
+                -l "jobs:,help,$(echo -n $configflags | tr ' ' ,)" -- "$@")
+else
+  opts=$(getopt "j:uh" $*)
+fi
+
+if [[ $? != 0 ]]; then usage; exit 1; fi
+
+set -e
+eval set -- "$opts"
+
+linuxflag=
+timerflag=
+makeflags=""
+configopts=( )
+uninstall=false
+while true; do
+    case "$1" in
+        -h|--help) usage; exit 0;;
+        -j|--jobs) makeflags="$makeflags -j $2";      shift 2;;
+        -u) uninstall=true; shift;;
+        --enable-linux)  linuxflag="--enable-linux";  shift  ;;
+        --disable-linux) linuxflag="--disable-linux"; shift  ;;
+        --enable-posix-timers)  timerflag="--enable-posix-timers";  shift ;;
+        --disable-posix-timers) timerflag="--disable-posix-timers"; shift ;;
+        --) shift; break ;;
+         *) configopts+=( "$1" )
+    esac
+done
+
+tree=""
+case $# in
+    0) tree="."  ;;
+    1) tree="$1" ;;
+    *) echo "too many anonymous arguments: $@"; exit 1 ;;
+esac
+
+# in dependency topological order
+libraries="
+type-conv
+pipebang
+compare
+typehash
+fieldslib
+variantslib
+pa_ounit
+bin-prot
+sexplib
+core
+core/extended
+async/core
+async/unix
+async/extra
+async
+"
+
+if $uninstall; then
+  libraries=$(echo "$libraries" | tac)
+fi
+
+cd "$tree"
+for dir in $libraries; do
+  echo "------ base/$dir ------"
+  pushd base/$dir
+  optflags=
+  
+  if $uninstall; then
+    make uninstall || true
+    popd; continue
+  fi
+  
+  case $dir in
+      core|core/extended) optflags="$linuxflag $timerflag" ;;
+      async/scheduler)    optflags="$linuxflag" ;;
+      async) # horrible hack (avoids rebuilding async_{core,scheduler,extra})
+          src=$(pwd)
+          dest=$(mktemp -d -t ocaml-core-async.XXXXXX)
+          mkdir -p "$dest/base/async"
+          cp -rp ../../build-common.sh "$dest/"
+          cp -rp lib oasis.sh "$dest/base/async/"
+          cd $dest/base/async
+          trap "rm -r '$dest'" EXIT
+          ;;
+  esac
+  ./oasis.sh $optflags "${configopts[@]:+${configopts[@]}}"
+  make build BUILDFLAGS="$makeflags"
+  make install || true
+
+  case $dir in
+      async) # copy the generated setup.ml and setup.data back
+        cp -rp "$dest"/base/async/{Makefile,setup.ml,setup.data,myocamlbuild.ml} "$src"/
+      ;;
+  esac
+  popd
+
+done
