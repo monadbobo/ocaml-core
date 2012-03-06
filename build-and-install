@@ -73,6 +73,9 @@ async/extra
 async
 "
 
+# tac is non-standard
+function tac { cat -n | sort -nr | cut -f2; }
+
 if $uninstall; then
   libraries=$(echo "$libraries" | tac)
 fi
