@@ -5,6 +5,6 @@
    frames, but [to_string] does not. *)
 type t with sexp_of
 
-val get : (unit -> string) Or_error.t
+val get : (unit -> t) Or_error.t
 
 val to_string : t -> string

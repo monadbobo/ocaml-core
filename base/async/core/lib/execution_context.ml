@@ -28,8 +28,12 @@ let create_like ?block_group ?monitor ?priority t =
   }
 ;;
 
-let record_backtrace t =
-  { t with
-    backtrace_history = Backtrace.get () :: t.backtrace_history;
-  }
+let record_backtrace =
+  match Backtrace.get with
+  | Ok get ->
+    fun t ->
+      { t with
+        backtrace_history = get () :: t.backtrace_history;
+      }
+  | Error _ -> Fn.id
 ;;
