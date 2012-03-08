@@ -6,7 +6,10 @@ let debug = is_some (Sys.getenv "DEBUG_ASYNC")
     everytime it schedules a job, and will include the backtrace history in any exceptions
     raised to monitors, and in particular, in an unhandled exception that reaches the main
     monitor. *)
-let record_backtraces = is_some (Sys.getenv "RECORD_ASYNC_BACKTRACES")
+let record_backtraces =
+  match Backtrace.get with
+  | Ok _ -> is_some (Sys.getenv "RECORD_ASYNC_BACKTRACES")
+  | Error _ -> (* unimplemented *) false
 
 (* Calls to [Debug.log] should look like [if Debug.debug then Debug.log ...]. *)
 

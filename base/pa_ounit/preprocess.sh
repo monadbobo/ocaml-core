@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e -u
 LIB=pa_ounit
 [[ "$#" != 1 ]] && { echo "usage: $0  FILE_TO_PREPROCESS" >&2; exit 1; }

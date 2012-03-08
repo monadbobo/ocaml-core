@@ -1,8 +1,6 @@
 (* We list the modules we want to export here and follow the convention of opening
    Core.Std instead of Core. *)
 
-INCLUDE "config.mlh"
-
 include Std_internal
 
 module Time = struct
@@ -55,10 +53,8 @@ module Binable = struct
   let to_string m t = Bigstring.to_string (to_bigstring m t)
 end
 
-IFDEF LINUX_EXT THEN
 module Linux_ext = Linux_ext
 module Bigstring_marshal = Bigstring_marshal
-ENDIF
 module Binary_packing = Binary_packing
 module Blang = Blang
 module Bounded_int_table = Bounded_int_table
