@@ -51,7 +51,7 @@ val current : unit -> t
 
 (** [errors t] returns a stream of all subsequent errors that monitor [t]
     sees. *)
-val errors : t -> exn Async_stream.t
+val errors : t -> exn Raw_async_stream.t
 
 (** [error t] returns a deferred that becomes defined if the monitor ever
     sees an error.  Calling [error t] does not count as "listening for errors",
@@ -104,7 +104,7 @@ val handle_errors
 
 (** [catch_stream ?name f] runs [f ()] inside a new monitor [m] and returns the stream of
     errors raised to [m]. *)
-val catch_stream : ?name:string -> (unit -> unit) -> exn Async_stream.t
+val catch_stream : ?name:string -> (unit -> unit) -> exn Raw_async_stream.t
 
 (** [catch ?name f] runs [f ()] inside a new monitor [m] and returns the first error
     raised to [m]. *)

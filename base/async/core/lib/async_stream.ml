@@ -2,20 +2,7 @@ open Core.Std
 open Import
 open Deferred_std
 
-type ('a, 'execution_context) next_ = ('a, 'execution_context) Raw_stream.next =
-  Nil | Cons of 'a * ('a, 'execution_context) Raw_stream.t
-
-type 'a next = ('a, Execution_context.t) next_
-
-type 'a t = ('a, Execution_context.t) Raw_stream.t with sexp_of
-
-let next = Raw_stream.next
-
-(* This line is needed in to avoid a dependency cycle when building with ocamlbuild, which
-   considers both the '.ml' and the '.mli' as part of a single compilation unit. Without
-   this line, async_stream.ml would depend on Monitor (while monitor.mli depends on
-   Async_stream). *)
-(* module Monitor = Raw_monitor *)
+include Raw_async_stream
 
 let first_exn t =
   next t
