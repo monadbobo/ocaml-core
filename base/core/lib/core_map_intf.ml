@@ -1,6 +1,8 @@
 open Sexplib
 
+module List = Core_list
 module type Key = Comparator.Pre
+module type Key_binable = Comparator.Pre_binable
 
 module type Accessors = sig
   type ('a, 'b, 'comparator) t
@@ -32,14 +34,16 @@ module type Accessors = sig
       to produce a new map where the integer stored under key [k] is
       incremented by one (treating an unknown key as zero) *)
   val change
-    : ('k, 'v, 'comparator) t -> 'k key -> ('v option -> 'v option) -> ('k, 'v, 'comparator) t
+    : ('k, 'v, 'comparator) t
+    -> 'k key
+    -> ('v option -> 'v option)
+    -> ('k, 'v, 'comparator) t
 
 
   (** returns the value bound to the given key, raising [Not_found] if none
       such exists *)
+  val find     : ('k, 'v, _) t -> 'k key -> 'v option
   val find_exn : ('k, 'v, _) t -> 'k key -> 'v
-
-  val find : ('k, 'v, _) t -> 'k key -> 'v option
 
   (** returns a new map with any binding for the key in question removed *)
   val remove : ('k, 'v, 'comparator) t -> 'k key -> ('k, 'v, 'comparator) t
@@ -55,7 +59,9 @@ module type Accessors = sig
 
   (** like [map], but function takes both key and data as arguments *)
   val mapi
-    : ('k, 'v1, 'comparator) t -> f:(key:'k key -> data:'v1 -> 'v2) -> ('k, 'v2, 'comparator) t
+    :  ('k, 'v1, 'comparator) t
+    -> f:(key:'k key -> data:'v1 -> 'v2)
+    -> ('k, 'v2, 'comparator) t
 
   (** folds over keys and data in map *)
   val fold : ('k, 'v, _) t -> init:'a -> f:(key:'k key -> data:'v -> 'a -> 'a) -> 'a
@@ -69,7 +75,10 @@ module type Accessors = sig
     -> ('k, 'v, 'comparator) t
 
   (** returns new map with bound values filtered by f applied to the bound values *)
-  val filter_map: ('k, 'v1, 'comparator) t -> f:('v1 -> 'v2 option) -> ('k, 'v2, 'comparator) t
+  val filter_map
+    :  ('k, 'v1, 'comparator) t
+    -> f:('v1 -> 'v2 option)
+    -> ('k, 'v2, 'comparator) t
 
   (** like [filter_map], but function takes both key and data as arguments*)
   val filter_mapi
@@ -77,15 +86,22 @@ module type Accessors = sig
     -> f:(key:'k key -> data:'v1 -> 'v2 option)
     -> ('k, 'v2, 'comparator) t
 
-  (** Total ordering between maps.  The first argument is a total ordering
-      used to compare data associated with equal keys in the two maps. *)
-  val compare : ('v -> 'v -> int) -> ('k, 'v, 'comparator) t -> ('k, 'v, 'comparator) t -> int
+  (** Total ordering between maps.  The first argument is a total ordering used to compare
+      data associated with equal keys in the two maps. *)
+  val compare
+    :  ('v -> 'v -> int)
+    -> ('k, 'v, 'comparator) t
+    -> ('k, 'v, 'comparator) t
+    -> int
 
-  (** [equal cmp m1 m2] tests whether the maps [m1] and [m2] are
-      equal, that is, contain equal keys and associate them with
-      equal data.  [cmp] is the equality predicate used to compare
-      the data associated with the keys. *)
-  val equal : ('v -> 'v -> bool) -> ('k, 'v, 'comparator) t -> ('k, 'v, 'comparator) t -> bool
+  (** [equal cmp m1 m2] tests whether the maps [m1] and [m2] are equal, that is, contain
+      equal keys and associate them with equal data.  [cmp] is the equality predicate used
+      to compare the data associated with the keys. *)
+  val equal
+    :  ('v -> 'v -> bool)
+    -> ('k, 'v, 'comparator) t
+    -> ('k, 'v, 'comparator) t
+    -> bool
 
   (** returns list of keys in map *)
   val keys : ('k, _, _) t -> 'k key list
@@ -107,21 +123,15 @@ module type Accessors = sig
           -> 'v3 option)
     -> ('k, 'v3, 'comparator) t
 
-  (** [min_elt map] @return Some [(key, data)] pair corresponding to the
-      minimum key in [map], None if empty. *)
-  val min_elt : ('k, 'v, _) t -> ('k key * 'v) option
+  (** [min_elt map] @return Some [(key, data)] pair corresponding to the minimum key in
+      [map], None if empty. *)
+  val min_elt     : ('k, 'v, _) t -> ('k key * 'v) option
+  val min_elt_exn : ('k, 'v, _) t ->  'k key * 'v
 
-  (** [min_elt_exn map] @return the [(key, data)] pair corresponding to the minimum key
-      in [map], and raises if [map] is empty. *)
-  val min_elt_exn : ('k, 'v, _) t -> 'k key * 'v
-
-  (** [max_elt map] @return Some [(key, data)] pair corresponding to the
-      maximum key in [map], and None if [map] is empty. *)
-  val max_elt : ('k, 'v, _) t -> ('k key * 'v) option
-
-  (** [max_elt_exn map] @return the [(key, data)] pair corresponding to the
-      maximum key in [map], raises an exception if [map] is empty. *)
-  val max_elt_exn : ('k, 'v, _) t -> 'k key * 'v
+  (** [max_elt map] @return Some [(key, data)] pair corresponding to the maximum key in
+      [map], and None if [map] is empty. *)
+  val max_elt     : ('k, 'v, _) t -> ('k key * 'v) option
+  val max_elt_exn : ('k, 'v, _) t ->  'k key * 'v
 
   (** same semantics as similar functions in List *)
   val for_all : ('k, 'v, _) t -> f:('v -> bool) -> bool
@@ -150,16 +160,24 @@ module type Accessors = sig
   (** [rank t k] if k is in t, returns the number of keys strictly less than k in t,
       otherwise None *)
   val rank : ('k, _, _) t -> 'k key -> int option
+
+  (** [tree t] returns the underlying binary tree that represents the map.  This is useful
+      if you want to marshal a map between processes.  Since the set contains a closure,
+      it cannot be marshalled between processes that use different executables; however,
+      the underlying tree can, so long as the tree type hasn't changed. *)
+  type ('a, 'b, 'comparator) tree
+  val to_tree : ('k, 'v, 'comparator) t -> ('k key, 'v, 'comparator) tree
 end
 
 type ('a, 'comparator, 'z) create_options_without_comparator = 'z
 
-type ('a, 'comparator, 'z) create_options_with_comparator_required =
+type ('a, 'comparator, 'z) create_options_with_comparator =
   comparator:('a, 'comparator) Comparator.t
   -> 'z
 
 module type Creators = sig
   type ('k, 'v, 'comparator) t
+  type ('k, 'v, 'comparator) tree
   type 'k key
   type ('a, 'comparator, 'z) create_options
 
@@ -173,13 +191,10 @@ module type Creators = sig
   val of_alist:
     ('k,
      'comparator,
-     ('k key * 'v) list
-     -> [ `Ok of ('k, 'v, 'comparator) t
-        | `Duplicate_key of 'k key
-        ]
+     ('k key * 'v) list -> [ `Ok of ('k, 'v, 'comparator) t | `Duplicate_key of 'k key ]
     ) create_options
 
-  (** creates map from association list with unique keys.  Raises Failure if
+  (** creates map from association list with unique keys.  Raises an exception if
       duplicate 'a keys are found. *)
   val of_alist_exn
     : ('k, 'comparator, ('k key * 'v) list -> ('k, 'v, 'comparator) t) create_options
@@ -188,8 +203,8 @@ module type Creators = sig
   val of_alist_multi
     : ('k, 'comparator, ('k key * 'v) list -> ('k, 'v list, 'comparator) t) create_options
 
-  (** combines an association list into a map, folding together the bound values (for
-      experts only) *)
+  (** combines an association list into a map, folding together bound values with common
+      keys *)
   val of_alist_fold
     : ('k, 'comparator,
        ('k key * 'v1) list
@@ -198,6 +213,10 @@ module type Creators = sig
        -> ('k, 'v2, 'comparator) t
     ) create_options
 
+  val of_tree
+    : ('k, 'comparator,
+       ('k key, 'v, 'comparator) tree -> ('k, 'v, 'comparator) t
+    ) create_options
 end
 
 module type S = sig
@@ -206,15 +225,19 @@ module type S = sig
   type ('k, +'v, 'comparator) map
   type +'v t = (Key.t, 'v, Key.comparator) map with sexp
   type ('k, 'v, 'comparator) t_ = 'v t
+  type ('k, 'v, 'comparator) tree
   type 'a key_ = Key.t
+  type ('a, 'b, 'c) create_options = ('a, 'b, 'c) create_options_without_comparator
 
   include Creators
     with type ('a, 'b, 'c) t := ('a, 'b, 'c) t_
+    with type ('a, 'b, 'c) tree := ('a, 'b, 'c) tree
     with type 'a key := 'a key_
-    with type ('a, 'b, 'c) create_options := ('a, 'b, 'c) create_options_without_comparator
+    with type ('a, 'b, 'c) create_options := ('a, 'b, 'c) create_options
 
   include Accessors
     with type ('a, 'b, 'c) t := ('a, 'b, 'c) t_
+    with type ('a, 'b, 'c) tree := ('a, 'b, 'c) tree
     with type 'a key := 'a key_
 end
 

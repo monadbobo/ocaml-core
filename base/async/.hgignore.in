@@ -4,6 +4,7 @@ myocamlbuild.ml
 configure
 lib/async.mlpack
 lib/async.odocl
+scheduler
 setup.ml
 setup.log
 setup.data

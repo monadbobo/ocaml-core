@@ -104,13 +104,13 @@ module Flag : sig
   (* The [name] must not contain any underscores: dashes should be used instead.  Whether
      or not underscores should be interpreted as dashes on the command line can be
      controlled by the [allow_underscores_and_dashes] argument to [run]. *)
-  val create :
-    ?aliases:string list
-    -> ?full_flag_required:bool
-    -> name:string
-    -> doc:string
-    -> 'a Action.t
-    -> 'a t
+val create :
+  ?aliases:string list
+  -> ?full_flag_required:bool
+  -> name:string
+  -> doc:string
+  -> 'a Action.t
+  -> 'a t
 
   (** [lift t ~project] transforms a flag with accumulator type ['a]
       into a flag with a more informative accumulator type ['b]
@@ -237,15 +237,16 @@ end
         {li [main] the main function, parameterized by the argument structure }
     }
 *)
-val create :
-  ?autocomplete : Autocomplete.t
-  -> ?readme : (unit -> string)
-  -> summary : string
-  -> usage_arg : string
-  -> init : (unit -> 'accum)
-  -> flags : ('accum Flag.t list)
-  -> final : ('accum -> string list -> 'args)
-  -> ('args -> unit)
+
+val create : 
+  ?autocomplete:Autocomplete.t
+  -> ?readme:(unit -> string) 
+  -> summary:string
+  -> usage_arg:string
+  -> init:(unit -> 'accum)
+  -> flags:'accum Flag.t list
+  -> final:('accum -> string list -> 'argv)
+  -> ('argv -> unit)
   -> t
 
 val create0 :
@@ -498,8 +499,10 @@ module Flags_ext : sig
     -> (string list option, unit Flag.t) t
 end
 
-
 module Helpers : sig
   exception Found_anonymous_arguments
   val no_anons : 'a -> string list -> 'a
 end
+
+val of_core_command : Core_command.t -> t
+

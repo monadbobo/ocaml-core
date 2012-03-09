@@ -247,43 +247,39 @@ end = struct
         Option.iter (Hashtbl.find open_streaming_responses query.Query.id)
           ~f:(fun i -> Ivar.fill_if_empty i ());
       | Ok (`Query data) ->
-        begin
-          let user_aborted = Ivar.create () in
-          Hashtbl.replace open_streaming_responses ~key:query.Query.id ~data:user_aborted;
-          let aborted = Deferred.choose_ident [
-            Ivar.read user_aborted;
-            aborted;
-          ]
-          in
-          let data = Rpc_result.try_with (fun () -> defer_result (
-            f connection_state data ~aborted
-          )) ~location:"server-side pipe_rpc computation"
-          in
-          data >>> fun data ->
-          begin
-            let remove_streaming_response () =
-              Hashtbl.remove open_streaming_responses query.Query.id
-            in
-            match data with
-            | Error err ->
-              remove_streaming_response ();
-              write_response (Error err)
-            | Ok (Error err) ->
-              remove_streaming_response ();
-              write_response (Ok err)
-            | Ok (Ok (initial, pipe_r)) ->
-              write_response (Ok initial);
-              Writer.attach_pipe ~close_on_eof:false writer pipe_r (fun x ->
-                write_response
-                  (Ok (to_bigstring Stream_response_data.bin_t (`Ok x))));
-              Pipe.close_called pipe_r >>> fun () ->
-              Pipe.flushed pipe_r
-              >>> function
-                | `Ok | `Reader_closed ->
-                  write_response (Ok (to_bigstring Stream_response_data.bin_t `Eof));
-                  remove_streaming_response ()
-          end
-        end
+        let user_aborted = Ivar.create () in
+        Hashtbl.replace open_streaming_responses ~key:query.Query.id ~data:user_aborted;
+        let aborted = Deferred.choose_ident [
+          Ivar.read user_aborted;
+          aborted;
+        ]
+        in
+        let data = Rpc_result.try_with (fun () -> defer_result (
+          f connection_state data ~aborted
+        )) ~location:"server-side pipe_rpc computation"
+        in
+        data >>> fun data ->
+        let remove_streaming_response () =
+          Hashtbl.remove open_streaming_responses query.Query.id
+        in
+        match data with
+        | Error err ->
+          remove_streaming_response ();
+          write_response (Error err)
+        | Ok (Error err) ->
+          remove_streaming_response ();
+          write_response (Ok err)
+        | Ok (Ok (initial, pipe_r)) ->
+          write_response (Ok initial);
+          Writer.attach_pipe ~close_on_eof:false writer pipe_r (fun x ->
+            write_response
+              (Ok (to_bigstring Stream_response_data.bin_t (`Ok x))));
+          Pipe.closed pipe_r >>> fun () ->
+          Pipe.flushed pipe_r
+          >>> function
+          | `Ok | `Reader_closed ->
+            write_response (Ok (to_bigstring Stream_response_data.bin_t `Eof));
+            remove_streaming_response ()
 
   let create ~implementations:i's ~on_unknown_rpc =
     let module I = Implementation in

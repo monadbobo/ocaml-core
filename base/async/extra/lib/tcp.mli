@@ -6,9 +6,13 @@ open Import
     connects, then calls [f] passing in a reader and a writer for the connected socket.
     When the deferred returned by [f] is determined, or any exception is thrown, the
     socket (and reader and writer) are closed.  The return deferred is fulfilled after f
-    has finished processing and the file descriptor for the socket is closed. *)
+    has finished processing and the file descriptor for the socket is closed.  If
+    [interrupt] is supplied then the connection attempt will be aborted if interrupt is
+    fulfilled before the connection has been established.  Similarly, all connection
+    attempts have a timeout (default 30s), that can be overridden with [timeout]. *)
 val with_connection
   :  ?interrupt: unit Deferred.t
+  -> ?timeout: Time.Span.t
   -> ?max_buffer_age:Time.Span.t
   -> host:string
   -> port:int
@@ -37,6 +41,7 @@ val connect_sock_unix
 val connect
   :  ?max_buffer_age:Time.Span.t
   -> ?interrupt:unit Deferred.t
+  -> ?timeout: Time.Span.t
   -> ?reader_buffer_size:int
   -> host:string
   -> port:int
@@ -46,6 +51,7 @@ val connect
 val connect_unix
   :  ?max_buffer_age:Time.Span.t
   -> ?interrupt:unit Deferred.t
+  -> ?timeout: Time.Span.t
   -> ?reader_buffer_size:int
   -> file:string
   -> unit

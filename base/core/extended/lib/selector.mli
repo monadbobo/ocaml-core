@@ -1,8 +1,8 @@
 open Core.Std
 
-(* Implements types to be used in selection languages using Blang.  
-   The many nested types serve partially as documentation, but mostly 
-   to ease the creation of custom sexp parsers to reduce the amount 
+(* Implements types to be used in selection languages using Blang.
+   The many nested types serve partially as documentation, but mostly
+   to ease the creation of custom sexp parsers to reduce the amount
    of noise in config files.  While any amount of magic may be embedded
    in the sexp parsers exposed below, the following magic will be available:
    - constructors that take lists can be written as atoms for singletons
@@ -14,7 +14,7 @@ open Core.Std
 *)
 
 module type Selector = sig
-  type selector 
+  type selector
   type value
 
   val eval : selector -> value -> bool
@@ -48,6 +48,7 @@ module String_selector : sig
   module Regexp : sig
     type t with sexp
 
+    val of_regexp : string -> t
     val matches : t -> string -> bool
     val to_string : t -> string
     val to_regexp : t -> Pcre.regexp
@@ -65,5 +66,5 @@ end
 module String_list_selector : sig
   type t = string list with sexp
 
-  include Selector with type selector = t and type value = string 
+  include Selector with type selector = t and type value = string
 end

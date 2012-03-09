@@ -194,7 +194,7 @@ TEST_MODULE = struct
   let () = debug := true
 
   TEST_UNIT =
-    (* Check that [add] replaces the key. *)
+    (* Check that [set] replaces the key. *)
     let t = create ~num_keys:1 ~key_to_int:(fun _ -> 0) () in
     set t ~key:13 ~data:();
     set t ~key:14 ~data:();

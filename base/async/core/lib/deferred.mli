@@ -5,17 +5,17 @@ open Deferred_intf
     "undetermined" or "determined".  A deferred that is undetermined may at some point
     become determined with value v, and will henceforth always be determined with value
     v. *)
-type +'a t = 'a Basic.Deferred.t
+type +'a t = ('a, Execution_context.t) Raw_deferred.t with sexp_of
+type 'a detailed = 'a t with sexp_of
 
 (** [sexp_of_t t f] returns a sexp of the deferred's value, if it is determined, or an
     informative string otherwise.
 
     This is just for display purposes.  There is no [t_of_sexp]. *)
-val sexp_of_t : ('a -> Sexp.t) -> 'a t -> Sexp.t
 
 (** [create f] calls [f i], where [i] is empty ivar.  [create] returns a deferred that
     becomes determined when [f] fills [i]. *)
-val create : ('a Basic.Ivar.t -> unit) -> 'a t
+val create : ('a Ivar.t -> unit) -> 'a t
 
 (** [upon t f] will run [f v] at some point after [t] becomes determined with value
     [v]. *)
@@ -57,8 +57,7 @@ val is_determined : 'a t -> bool
 
     In general, for deferreds that are allocated by [>>=] to be garbage collected quickly,
     it is sufficient that the allocating bind be executed in tail-call position of the
-    right-hand side of an outer bind.  A rigorous statement of this property and a proof
-    can be found in the [raw_deferred.mli]. *)
+    right-hand side of an outer bind. *)
 include Monad with type 'a t := 'a t
 
 module Infix : sig

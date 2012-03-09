@@ -17,18 +17,18 @@
 
    Here are some benchmarks comparing various mutexes available in OCaml:
 
-   |------------------------------------------------------------------------|
-   |                       Name | Run time | S. dev. | Allocated | Warnings |
-   |----------------------------+----------+---------+-----------+----------|
-   |          Caml.Mutex create |   247 ns |    0 ns |         3 |       Mc |
-   |     Caml.Mutex lock/unlock |    49 ns |    0 ns |         0 |       Mc |
-   |          Core.Mutex create |   698 ns |    0 ns |         3 |       Mc |
-   |     Core.Mutex lock/unlock |    49 ns |    0 ns |         0 |       Mc |
-   |      Agnostic_mutex create |   534 ns |    0 ns |        10 |       Mc |
-   | Agnostic_mutex lock/unlock |   188 ns |    0 ns |        16 |       Mc |
-   |          Nano_mutex create |    10 ns |    0 ns |         4 |      mMc |
-   |     Nano_mutex lock/unlock |    28 ns |    0 ns |         0 |        c |
-   |------------------------------------------------------------------------|
+   |-------------------------------------------------------------|
+   |                       Name | Run time | S. dev. | Allocated |
+   |----------------------------+----------+---------+-----------+
+   |          Caml.Mutex create |   247 ns |    0 ns |         3 |
+   |     Caml.Mutex lock/unlock |    49 ns |    0 ns |         0 |
+   |          Core.Mutex create |   698 ns |    0 ns |         3 |
+   |     Core.Mutex lock/unlock |    49 ns |    0 ns |         0 |
+   |      Agnostic_mutex create |   534 ns |    0 ns |        10 |
+   | Agnostic_mutex lock/unlock |   188 ns |    0 ns |        16 |
+   |          Nano_mutex create |    10 ns |    0 ns |         4 |
+   |     Nano_mutex lock/unlock |    28 ns |    0 ns |         0 |
+   |-------------------------------------------------------------|
 
    The benchmark code is in core/extended/lib_test/bench_nano_mutex.ml.
 
@@ -65,9 +65,6 @@ val create : unit -> t
 (** [equal] is [phys_equal] *)
 val equal : t -> t -> bool
 
-(** [is_locked t] returns [true] iff [t] is currently locked *)
-val is_locked : t -> bool
-
 (** [current_thread_has_lock t] returns [true] iff the current thread has [t] locked. *)
 val current_thread_has_lock : t -> bool
 
@@ -83,8 +80,8 @@ val try_lock     : t -> [ `Acquired | `Not_acquired ] Or_error.t
 val try_lock_exn : t -> [ `Acquired | `Not_acquired ]
 
 (** [unlock t] unlocks [t], if the current thread holds it.  [unlock] returns [Error] if
-    the lock is not locked.  Additionally, with [allow_from_any_thread = false], [unlock]
-    returns [Error] if the current thread does not hold the lock. *)
-val unlock     : ?allow_from_any_thread:Bool.False_.default -> t -> unit Or_error.t
-val unlock_exn : ?allow_from_any_thread:Bool.False_.default -> t -> unit
+    the lock is not held by the calling thread. *)
+val unlock     : t -> unit Or_error.t
+val unlock_exn : t -> unit
 
+val critical_section : t -> f:(unit -> 'a) -> 'a

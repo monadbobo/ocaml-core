@@ -2,20 +2,13 @@ open Core.Std
 open Import
 open Deferred_std
 
-include Basic.Stream
-
-(* This line is needed in to avoid a dependency cycle when building with
-   ocamlbuild, which considers both the '.ml' and the '.mli' as part of
-   a single compilation unit. Without this line, async_stream.ml would depend
-   on Monitor (while monitor.mli depends on Async_stream). *)
-module Monitor = Raw_monitor
-
-let next d = d
+include Raw_async_stream
 
 let first_exn t =
-  next t >>| function
-    | Nil -> failwith "Stream.first of empty stream"
-    | Cons (x, _) -> x
+  next t
+  >>| function
+  | Nil -> failwith "Stream.first of empty stream"
+  | Cons (x, _) -> x
 ;;
 
 let fold' t ~init ~f =
@@ -23,8 +16,8 @@ let fold' t ~init ~f =
     (fun result ->
       let rec loop t b =
         upon (next t) (function
-          | Nil -> Ivar.fill result b
-          | Cons (v, t) -> upon (f b v) (loop t))
+        | Nil -> Ivar.fill result b
+        | Cons (v, t) -> upon (f b v) (loop t))
       in
       loop t init)
 ;;
@@ -98,7 +91,8 @@ let concat t =
 let filter' t ~f =
   create (fun tail ->
     upon (iter' t ~f:(fun v ->
-      f v >>| (function false -> () | true -> Tail.extend tail v)))
+      f v
+      >>| (function false -> () | true -> Tail.extend tail v)))
       (fun () -> Tail.close_exn tail))
 ;;
 
@@ -234,7 +228,11 @@ let iter_durably_report_end t ~f =
       next t
       >>> function
         | Nil -> Ivar.fill result ()
-        | Cons (x, t) -> loop t; f x
+        | Cons (x, t) ->
+          (* We immediately call [loop], thus making the iter durable.  Any exceptions
+             raised by [f] will not prevent the loop from continuing, and will go to the
+             monitor of whomever called [iter_durably_report_end]. *)
+          loop t; f x
     in
     loop t)
 ;;

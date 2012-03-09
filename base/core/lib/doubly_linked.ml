@@ -38,7 +38,7 @@ end = struct
   let with_iteration t f =
     let s = Union_find.get t in
     s.pending_iterations <- s.pending_iterations + 1;
-    let res = try Result.Ok (f ()) with e -> Result.Error e in
+    let res = Result.try_with f in
     s.pending_iterations <- s.pending_iterations - 1;
     match res with
     | Result.Ok v -> v
@@ -204,14 +204,13 @@ let fold_elt t ~init ~f =
       in
       loop init first)
 
+open With_return
+
 let find_elt (type a) t ~f =
-  let module M = struct exception Found of a Elt.t end in
-  try
+  with_return (fun r ->
     fold_elt t ~init:() ~f:(fun () elt ->
-      if f (Elt.value elt) then raise (M.Found elt));
-    None
-  with
-    M.Found elt -> Some elt
+      if f (Elt.value elt) then r.return (Some elt));
+    None)
 
 include Container.Make (struct
   type 'a t_ = 'a t
@@ -228,7 +227,7 @@ let fold_right t ~init ~f =
     Header.with_iteration (Elt.header first) (fun () ->
       let rec loop acc elt =
         let prev = Elt.prev elt in
-        let acc = f acc (Elt.value prev) in
+        let acc = f (Elt.value prev) acc in
         if phys_equal prev first
         then acc
         else loop acc prev
@@ -236,7 +235,7 @@ let fold_right t ~init ~f =
       loop init first
     )
 
-let to_list t = fold_right t ~init:[] ~f:(fun tl x -> x :: tl)
+let to_list t = fold_right t ~init:[] ~f:(fun x tl -> x :: tl)
 
 let length t =
   match !t with
@@ -400,6 +399,25 @@ let remove t elt =
     else
       raise Elt_does_not_belong_to_list
 
+TEST =
+  let t1 = create () in
+  let t2 = create () in
+  let elt = insert_first t1 15 in
+  try
+    remove t2 elt; false
+  with
+    Elt_does_not_belong_to_list -> true
+
+TEST =
+  let t1 = create () in
+  let t2 = create () in
+  let elt = insert_first t1 14 in
+  let _   = insert_first t2 13 in
+  try
+    remove t2 elt; false
+  with
+    Elt_does_not_belong_to_list -> true
+
 let invariant t =
   match !t with
   | None -> ()
@@ -415,4 +433,3 @@ let invariant t =
     in
     let len = loop 1 head in
     assert (len = Header.length header)
-

@@ -10,10 +10,6 @@ module Hashable = Core_hashtbl_intf.Hashable
 let hash_param = Hashable.hash_param
 let hash       = Hashable.hash
 
-(* We would like to include the key here, but since this is not a functor we don't know if
-   it's sexpable or not. *)
-exception Add_key_already_present
-
 (* A few small things copied from other parts of core because they depend on us, so we
    can't use them. *)
 module Int = struct
@@ -62,24 +58,42 @@ let slot t key =
   hash mod Array.length t.table
 ;;
 
-let add_worker added_or_removed should_replace t ~key ~data =
+let add_worker added replace t ~key ~data =
   let i = slot t key in
   let root = t.table.(i) in
-  let new_root =
-    (* The avl tree might replace (Avltree.add) or do nothing (Avltree.add_if_not_exists)
-       to the entry, in that case the table did not get bigger, so we should not increment
-       length, we pass in the bool ref t.added so that it can tell us whether it added or
-       replaced. We do it this way to avoid extra allocation. Since the bool is an
-       immediate it does not go through the write barrier. *)
-    (if should_replace then Avltree.add else Avltree.add_if_not_exists) root
-      ~compare:(compare_key t) ~added:added_or_removed ~key ~data
-  in
-  if !added_or_removed then
+  (* These cases should be quite common, so we manually inline them. *)
+  match root with
+  | Avltree.Empty ->
+    t.table.(i) <- Avltree.Leaf (key, data);
     t.length <- t.length + 1;
-  (* This little optimization saves a caml_modify when the tree
-     hasn't been rebalanced. *)
-  if not (phys_equal new_root root) then
-    t.table.(i) <- new_root
+    added := true
+  | Avltree.Leaf (k, _) ->
+    let c = compare_key t k key in
+    if c = 0 then begin
+      if replace then t.table.(i) <- Avltree.Leaf (key, data);
+      added := false
+    end else begin
+      added := true;
+      t.length <- t.length + 1;
+      t.table.(i) <-
+        if c < 0 then Avltree.Node(root, key, data, 2, Avltree.Empty)
+        else Avltree.Node(Avltree.Empty, key, data, 2, root)
+    end
+  | root ->
+    let new_root =
+      (* The avl tree might replace the value [replace=true] or do nothing [replace=false]
+         to the entry, in that case the table did not get bigger, so we should not
+         increment length, we pass in the bool ref t.added so that it can tell us whether
+         it added or replaced. We do it this way to avoid extra allocation. Since the bool
+         is an immediate it does not go through the write barrier. *)
+      Avltree.add ~replace root ~compare:(compare_key t) ~added ~key ~data
+    in
+    if !added then
+      t.length <- t.length + 1;
+    (* This little optimization saves a caml_modify when the tree
+       hasn't been rebalanced. *)
+    if not (phys_equal new_root root) then
+      t.table.(i) <- new_root
 ;;
 
 let maybe_resize_table t =
@@ -107,8 +121,8 @@ let set t ~key ~data =
   add_worker (ref false) true t ~key ~data;
   maybe_resize_table t
 ;;
+
 let replace = set
-;;
 
 let add t ~key ~data =
   let added_or_removed = ref false in
@@ -120,10 +134,17 @@ let add t ~key ~data =
     `Duplicate
 ;;
 
-let add_exn t ~key ~data =
+let add_exn (type k) t ~key ~data =
   match add t ~key ~data with
   | `Ok -> ()
-  | `Duplicate -> raise Add_key_already_present
+  | `Duplicate ->
+    let module T = struct
+      type key = k
+      let sexp_of_key = sexp_of_key t
+      exception Add_key_already_present of key with sexp
+    end
+    in
+    raise (T.Add_key_already_present key)
 ;;
 
 let clear t =
@@ -133,9 +154,24 @@ let clear t =
   t.length <- 0
 ;;
 
-let find t key = Avltree.find t.table.(slot t key) ~compare:(compare_key t) key
+let find t key =
+  (* with a good hash function these first two cases will be the overwhelming majority,
+     and Avltree.find is recursive, so it can't be inlined, so doing this avoids a
+     function call in most cases. *)
+  match t.table.(slot t key) with
+  | Avltree.Empty -> None
+  | Avltree.Leaf (k, v) ->
+    if compare_key t k key = 0 then Some v
+    else None
+  | tree -> Avltree.find tree ~compare:(compare_key t) key
+;;
 
-let mem t key = Avltree.mem t.table.(slot t key) ~compare:(compare_key t) key
+let mem t key =
+  match t.table.(slot t key) with
+  | Avltree.Empty -> false
+  | Avltree.Leaf (k, _) -> compare_key t k key = 0
+  | tree -> Avltree.mem tree ~compare:(compare_key t) key
+;;
 
 let remove t key =
   let i = slot t key in
@@ -168,6 +204,11 @@ let fold t ~init ~f =
     done;
     !acc
   end
+;;
+
+let sexp_of_t sexp_of_k sexp_of_d t =
+  let coll ~key:k ~data:v acc = Sexp.List [sexp_of_k k; sexp_of_d v] :: acc in
+  Sexp.List (fold ~f:coll t ~init:[])
 ;;
 
 let iter t ~f =
@@ -344,7 +385,7 @@ let create_mapped ?growth_allowed ?size ~hashable ~get_key ~get_data rows =
       replace res ~key ~data);
   match !dupes with
   | [] -> `Ok res
-  | keys -> `Duplicate_keys (List.dedup keys)
+  | keys -> `Duplicate_keys (List.dedup ~compare:hashable.Hashable.compare keys)
 ;;
 
 let create_mapped_exn ?growth_allowed ?size ~hashable ~get_key ~get_data rows =
@@ -611,10 +652,7 @@ module Poly = struct
 
   include Accessors
 
-  let sexp_of_t sexp_of_k sexp_of_d t =
-    let coll ~key:k ~data:v acc = Sexp.List [sexp_of_k k; sexp_of_d v] :: acc in
-    Sexp.List (fold ~f:coll t ~init:[])
-  ;;
+  let sexp_of_t = sexp_of_t
 
   include Bin_prot.Utils.Make_iterable_binable2 (struct
     type ('a, 'b) z = ('a, 'b) t

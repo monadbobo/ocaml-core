@@ -1,5 +1,7 @@
 open Core.Std
 
-let sexp_of_phantom _ = assert false
-
-let fail message a sexp_of_a = Error.raise (Error.create message a sexp_of_a)
+module type Basic_scheduler = sig
+  module Execution_context : sig type t with sexp_of end
+  val current_execution_context : unit -> Execution_context.t
+  val add_job : Execution_context.t Job.t -> unit
+end

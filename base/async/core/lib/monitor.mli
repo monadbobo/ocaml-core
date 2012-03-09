@@ -1,46 +1,43 @@
 (** A monitor is a context that determines what to do when there is an unhandled
-    exception.  Every Async computation runs within the context of some monitor,
-    which, when the computation is running, is referred to as the "current"
-    monitor.  Monitors are arranged in a tree -- when a new monitor is created,
-    it is a child of the current monitor.
+    exception.  Every Async computation runs within the context of some monitor, which,
+    when the computation is running, is referred to as the "current" monitor.  Monitors
+    are arranged in a tree -- when a new monitor is created, it is a child of the current
+    monitor.
 
-    One can listen to a monitor using Monitor.errors to learn when the monitor
-    sees an error.
+    One can listen to a monitor using Monitor.errors to learn when the monitor sees an
+    error.
 
-    If a computation raises an unhandled exception, the current monitor does one
-    of two things.  If anyone is listening to the monitor (i.e. Monitor.errors
-    has been called on the monitor), then the error stream is extended, and the
-    listeners are responsible for doing something.  If no one is "listening" to
-    the monitor, then the exception is raised to monitor's parent.  The initial
-    monitor, i.e. the root of the monitor tree, prints an unhandled-exception
-    message and calls exit 1.
+    If a computation raises an unhandled exception, the current monitor does one of two
+    things.  If anyone is listening to the monitor (i.e. Monitor.errors has been called on
+    the monitor), then the error stream is extended, and the listeners are responsible for
+    doing something.  If no one is "listening" to the monitor, then the exception is
+    raised to monitor's parent.  The initial monitor, i.e. the root of the monitor tree,
+    prints an unhandled-exception message and calls exit 1.
 
     **************** NOTE ABOUT THE TOPLEVEL MONITOR ****************
 
-    It is important to note that in the toplevel monitor, exceptions will only
-    be caught in the async part of a computation. For example, in
+    It is important to note that in the toplevel monitor, exceptions will only be caught
+    in the async part of a computation.  For example, in
 
-      upon (f ()) g
+    upon (f ()) g
 
-    if [f] raises, the exception will not go to a monitor; it will go to the next
-    caml exception handler on the stack.  Any exceptions raised by [g] will be
-    caught by the scheduler and propagated to the toplevel monitor.  Because of
-    this it is advised to always use [Scheduler.schedule] or
-    [Scheduler.within].  For example,
+    if [f] raises, the exception will not go to a monitor; it will go to the next caml
+    exception handler on the stack.  Any exceptions raised by [g] will be caught by the
+    scheduler and propagated to the toplevel monitor.  Because of this it is advised to
+    always use [Scheduler.schedule] or [Scheduler.within].  For example,
 
-      Scheduler.within (fun () -> upon (f ()) g)
+    Scheduler.within (fun () -> upon (f ()) g)
 
-    This code will catch an exception in either [f] or [g], and propagate it to
-    the monitor.
+    This code will catch an exception in either [f] or [g], and propagate it to the
+    monitor.
 
-    This is only relevent to the toplevel monitor because if you create another
-    monitor and you wish to run code within it you have no choice but to use
-    [Scheduler.within].  [try_with] creates its own monitor and uses
-    [Scheduler.within], so it does not have this problem.
-*)
+    This is only relevent to the toplevel monitor because if you create another monitor
+    and you wish to run code within it you have no choice but to use [Scheduler.within].
+    [try_with] creates its own monitor and uses [Scheduler.within], so it does not have
+    this problem. *)
 open Core.Std
 
-type t = Basic.Monitor.t
+type t = Execution_context.t Raw_monitor.t with sexp_of
 
 (** [create ()] returns a new monitor whose parent is the current monitor *)
 val create : ?name:string -> unit -> t
@@ -49,18 +46,12 @@ val create : ?name:string -> unit -> t
     supplied to [create]. *)
 val name : t -> string
 
-(** [main] is the main monitor, the root of the monitor tree. *)
-(*val main : unit -> t *)
-
 (** [current ()] returns the current monitor *)
 val current : unit -> t
 
-(** [sexp_of_t t] returns the monitor tree rooted at t *)
-val sexp_of_t : t -> Sexp.t
-
 (** [errors t] returns a stream of all subsequent errors that monitor [t]
     sees. *)
-val errors : t -> exn Async_stream.t
+val errors : t -> exn Raw_async_stream.t
 
 (** [error t] returns a deferred that becomes defined if the monitor ever
     sees an error.  Calling [error t] does not count as "listening for errors",
@@ -89,15 +80,15 @@ val send_exn : t -> ?backtrace:[ `Get | `This of string ] -> exn -> unit
 
     The [name] argument is used to give a name to the monitor the computation will be
     running in.  This name will appear when printing errors. *)
-val try_with :
-  ?name : string
+val try_with
+  :  ?name : string
   -> (unit -> 'a Deferred.t)
   -> ('a, exn) Result.t Deferred.t
 
 (** [try_with_raise_rest f] is the same as [try_with f], except that subsequent errors
     raised by [f ()] are reraised to the monitor that called [try_with_raise_rest]. *)
-val try_with_raise_rest :
-  ?name : string
+val try_with_raise_rest
+  :  ?name : string
   -> (unit -> 'a Deferred.t)
   -> ('a, exn) Result.t Deferred.t
 
@@ -105,15 +96,15 @@ val try_with_raise_rest :
     supplied name, and calls [handler error] on every error raised to that monitor.  Any
     error raised by [handler] goes to the monitor in effect when [handle_errors] was
     called. *)
-val handle_errors :
-  ?name:string
+val handle_errors
+  :  ?name:string
   -> (unit -> 'a Deferred.t)
   -> (exn -> unit)
   -> 'a Deferred.t
 
 (** [catch_stream ?name f] runs [f ()] inside a new monitor [m] and returns the stream of
     errors raised to [m]. *)
-val catch_stream : ?name:string -> (unit -> unit) -> exn Async_stream.t
+val catch_stream : ?name:string -> (unit -> unit) -> exn Raw_async_stream.t
 
 (** [catch ?name f] runs [f ()] inside a new monitor [m] and returns the first error
     raised to [m]. *)
@@ -125,7 +116,24 @@ val catch : ?name:string -> (unit -> unit) -> exn Deferred.t
 
     The [name] argument is used to give a name to the monitor the computation
     will be running in. This name will appear when printing the errors. *)
-val protect :
-  ?name : string
+val protect
+  :  ?name : string
   -> (unit -> 'a Deferred.t)
   -> finally:(unit -> unit Deferred.t) -> 'a Deferred.t
+
+val main : t
+
+module Exported_for_scheduler : sig
+  type 'a with_options =
+    ?block_group:Block_group.t
+    -> ?monitor:t
+    -> ?priority:Priority.t
+    -> 'a
+  val within'   : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
+  val within    : ((unit -> unit         ) -> unit         ) with_options
+  val within_v  : ((unit -> 'a           ) -> 'a option    ) with_options
+  val schedule' : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
+  val schedule  : ((unit -> unit         ) -> unit         ) with_options
+
+  val within_context : Execution_context.t -> (unit -> 'a) -> ('a, unit) Result.t
+end

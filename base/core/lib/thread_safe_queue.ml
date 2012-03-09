@@ -69,7 +69,10 @@ let dequeue t =
 let rec dequeue_until_empty t f =
   match dequeue t with
   | None -> ()
-  | Some x -> f x; dequeue_until_empty t f
+  | Some x -> (
+    f x;
+    dequeue_until_empty t f
+  )
 ;;
 
 let create' () =

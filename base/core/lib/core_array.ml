@@ -51,11 +51,10 @@ let is_empty t = length t = 0
 
 let is_sorted t ~cmp =
   let rec loop i =
-    if i < 1 then true
+    if i < 1 then
+      true
     else
-      if cmp t.(i-1) t.(i) <= 0
-      then loop (i - 1)
-      else false
+      cmp t.(i - 1) t.(i) <= 0 && loop (i - 1)
   in
   loop (length t - 1)
 
@@ -342,7 +341,8 @@ let sorted_copy t ~cmp =
 
 let partitioni_tf t ~f =
   let (trues, falses) =
-    mapi t ~f:(fun i x -> if f i x then (Some x, None) else (None, Some x)) |! split in
+    mapi t ~f:(fun i x -> if f i x then (Some x, None) else (None, Some x)) |! split
+  in
   (filter_opt trues, filter_opt falses)
 
 let partition_tf t ~f =
@@ -375,11 +375,3 @@ let cartesian_product t1 t2 =
     t
 ;;
 
-let sum t =
-  fold t ~init:0. ~f:(+.)
-
-let sum_sq t =
-  sum (map t ~f:(fun x -> x ** 2.))
-
-let sum_product_exn s t =
-  sum (map2 s t ~f:( *. ))

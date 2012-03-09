@@ -5,11 +5,8 @@ module String = Core_string
 open Core_printf
 
 module T = struct
-  include Comparator.Make_binable (struct
-    type t = float with sexp, bin_io
-    let compare (x : t) y = compare x y
-  end)
-
+  type t = float with sexp, bin_io
+  let compare (x : t) y = compare x y
   let equal (x : t) y = x = y
   let hash (x : t) = Hashtbl.hash_param 1 1 x
 end
@@ -148,6 +145,7 @@ let scale = ( *. )
 let min (x : t) y =
   if is_nan x || is_nan y then nan
   else if x < y then x else y
+
 let max (x : t) y =
   if is_nan x || is_nan y then nan
   else if x > y then x else y
@@ -204,23 +202,29 @@ let classify t =
   | FP_nan -> C.Nan
 ;;
 
-let compare (x : t) y = compare x y
-let ascending = compare
-let descending x y = compare y x
-let ( >= ) (x : t) y = x >= y
-let ( <= ) (x : t) y = x <= y
-let ( = ) (x : t) y = x = y
-let ( > ) (x : t) y = x > y
-let ( < ) (x : t) y = x < y
-let ( <> ) (x : t) y = x <> y
+module Replace_polymorphic_compare = struct
+  let equal = equal
+  let compare (x : t) y = compare x y
+  let ascending = compare
+  let descending x y = compare y x
+  let min = min
+  let max = max
+  let ( >= ) (x : t) y = x >= y
+  let ( <= ) (x : t) y = x <= y
+  let ( = ) (x : t) y = x = y
+  let ( > ) (x : t) y = x > y
+  let ( < ) (x : t) y = x < y
+  let ( <> ) (x : t) y = x <> y
+end
+
+include Replace_polymorphic_compare
 
 let (+) t t' = t +. t'
 let (-) t t' = t -. t'
 let ( * ) t t' = t *. t'
 let (/) t t' = t /. t'
 
-module Set = Core_set.Make_binable (T)
-module Map = Core_map.Make_binable (T)
+include Comparable.Map_and_set_binable (T)
 
 module Sign = struct
   type t = Neg | Zero | Pos with sexp

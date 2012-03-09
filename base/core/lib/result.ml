@@ -88,7 +88,7 @@ let ok_exn = function
   | Ok x -> x
   | Error exn -> raise exn
 
-let failwith_error = function
+let ok_or_failwith = function
   | Ok x -> x
   | Error str -> failwith str
 

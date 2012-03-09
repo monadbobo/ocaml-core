@@ -209,14 +209,15 @@ let error t e =
    [t.most_recent_file_len_increase]. *)
 let stat t ~initial_call =
   try_with (fun () ->
-    (* We use [with_file_read t.file ~f:fstat], which does [open; fstat; close], rather
+    (* We use [with_file t.file ~f:fstat], which does [open; fstat; close], rather
        than just [stat t.file] because [File_tail] is often used over NFS and this
        leverages open-to-close cache consistency to get a fresh answer from [stat]
        regardless of the metadata caching options on the underlying mount.  The downside
        is that this adds two more system calls per for every [stat], and in the case where
        the file has grown "wastes" the open file descriptor since we are just going to
        re-open it. *)
-    Global_throttle.enqueue (fun () -> Unix.with_file_read t.file ~f:Unix.fstat))
+    Global_throttle.enqueue (fun () ->
+      Unix.with_file t.file ~mode:[`Rdonly] ~f:Unix.fstat))
   >>| fun result ->
   let error e = error t e; Error () in
   match result with
@@ -243,7 +244,7 @@ let stat t ~initial_call =
 ;;
 
 let start_eof_latency_check t =
-  Clock.every t.eof_latency_tolerance ~stop:(Pipe.close_called t.pipe_w) (fun () ->
+  Clock.every t.eof_latency_tolerance ~stop:(Pipe.closed t.pipe_w) (fun () ->
     if need_to_read t then begin
       let now = Time.now () in
       let eof_delay = Time.diff now t.most_recent_file_len_increase in
@@ -258,10 +259,9 @@ let read_once t =
   Global_throttle.enqueue (fun () ->
     In_thread.run (fun () ->
       let module U = Core.Std.Unix in
-      U.with_file_read t.file
-        ~f:(fun fd ->
-          ignore (U.lseek fd t.file_pos ~mode:U.SEEK_SET);
-          U.read fd ~buf:t.read_buf)))
+      U.with_file t.file ~mode:[U.O_RDONLY] ~f:(fun fd ->
+        ignore (U.lseek fd t.file_pos ~mode:U.SEEK_SET);
+        U.read fd ~buf:t.read_buf)))
 ;;
 
 (* [read t] repeatedly does [read_once] until the data read doesn't contain nulls, unless
@@ -282,10 +282,11 @@ let read t =
              the most recent [stat].  Since we're at EOF before reading up to
              [t.file_len], the file must have shrunk. *)
           error t Error.File_shrank
-        end else if (t.retry_null_reads
-                     && String.contains t.read_buf ~len '\000') then begin
+        end
+        else if t.retry_null_reads && String.contains t.read_buf ~len '\000'
+        then begin
           let delayed_for = Time.(diff (now ()) started) in
-          if Time.Span.(delayed_for >= t.null_read_tolerance) then
+          if Time.Span.(>=) delayed_for t.null_read_tolerance then
             warning t (Warning.Delayed_due_to_null_reads_for delayed_for);
           have_warned_about_null_delay := true;
           after (sec 0.2)

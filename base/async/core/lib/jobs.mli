@@ -9,22 +9,22 @@ module Priority : sig
 end
 
 (* type of the jobs *)
-type t with sexp_of
+type 'job t with sexp_of
 
-val create : unit -> t
+val create : unit -> _ t
 
 (** [length t] returns the number of waiting jobs *)
-val length : t -> int
+val length : _ t -> int
 
 (** [is_empty t] returns true if there are no waiting jobs. *)
-val is_empty : t -> bool
+val is_empty : _ t -> bool
 
-val add : t -> Priority.t -> Job.t -> unit
+val add : 'job t -> Priority.t -> 'job -> unit
 
 (** [start_cycle t ~max_num_jobs_per_priority] enables subsequent calls of [get] to
     return up to [max_num_jobs_per_priority] jobs of each priority level. *)
-val start_cycle : t -> max_num_jobs_per_priority:int -> unit
+val start_cycle : _ t -> max_num_jobs_per_priority:int -> unit
 
 (** [get t] gets all the jobs with the highest priority currently available, subject to
     [max_num_jobs_per_priority].  The obtained jobs are removed from [t]. *)
-val get : t -> Job.t list
+val get : 'job t -> 'job list

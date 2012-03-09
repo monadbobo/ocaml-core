@@ -1,3 +1,13 @@
+(* Functions for parsing time zone database files (zic files).
+
+   A time zone file consists (conceptually - the representation is more compact) of an
+   ordered list of (float * [local_time_type]) that mark the boundaries (marked from the
+   epoch) at which various time adjustment regimes are in effect.  This can also be
+   thought of as breaking down all time past the epoch into ranges with a
+   [local_time_type] that describes the offset from GMT to apply to each range to get
+   local time.
+*)
+
 open Std_internal
 module Hashtbl = Core_hashtbl
 module Unix = Core_unix
@@ -456,6 +466,7 @@ let map_office_to_zone office =
   | `hkg -> "Asia/Hong_Kong"
   | `ldn -> "Europe/London"
   | `nyc -> "America/New_York"
+  | `tot -> "America/New_York"
 ;;
 
 let find zone =
@@ -465,6 +476,7 @@ let find zone =
     | "nyc"         -> map_office_to_zone `nyc
     | "hkg"         -> map_office_to_zone `hkg
     | "lon" | "ldn" -> map_office_to_zone `ldn
+    | "tot"         -> map_office_to_zone `tot
     (* legacy/deprecated *)
     | "tyo"         -> "Asia/Tokyo"
     | _             -> zone
@@ -544,12 +556,10 @@ let machine_zone =
     | None ->
       let t =
         match Core_sys.getenv "TZ" with
-        | None ->
-          Zone_file.input_tz_file
-            ~zonename:"/etc/localtime"
-            ~filename:"/etc/localtime"
         | Some zone_name ->
           find_exn zone_name
+        | None ->
+          Zone_file.input_tz_file ~zonename:"/etc/localtime" ~filename:"/etc/localtime"
       in
       zone := Some t;
       t)

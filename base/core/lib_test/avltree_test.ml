@@ -42,7 +42,7 @@ let test_add t s test_data =
 
 let do_add_if_not_exists ~set ~t ~present ~i ~added =
   added := present;
-  let res = Avltree.add_if_not_exists !t ~compare ~added ~key:i
+  let res = Avltree.add !t ~replace:false ~compare ~added ~key:i
     ~data:(if present then i+1 else i) in
   if present
   then assert (not !added)

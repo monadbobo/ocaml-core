@@ -5,6 +5,7 @@ module List = Core_list
 module Stack = Core_stack
 open Sexplib.Std
 open Bin_prot.Std
+open Result.Export
 open Staged
 
 let phys_equal = Caml.(==)
@@ -14,10 +15,8 @@ let invalid_argf = Core_printf.invalid_argf
 let failwiths = Error.failwiths
 
 module T = struct
-  include Comparator.Make_binable (struct
-    type t = string with sexp, bin_io
-    let compare = String.compare
-  end)
+  type t = string with sexp, bin_io
+  let compare = String.compare
 
   (* = on two strings avoids calling compare_val, which is what happens
      with String.compare *)
@@ -429,9 +428,9 @@ end
 include (Hashable.Make_binable (struct
   include T
   let hash = hash
-end):Hashable.S_binable with type t := t)
-module Map = Core_map.Make_binable (T)
-module Set = Core_set.Make_binable (T)
+end) : Hashable.S_binable with type t := t)
+
+include Comparable.Map_and_set_binable (T)
 
 (* for interactive top-levels -- modules deriving from String should have String's pretty
    printer. *)
@@ -478,99 +477,103 @@ module Escaping = struct
 
   (* If this is changed, make sure to update [escape], which attempts to ensure all the
      invariants checked here.  *)
-  let build_and_validate_escapeworthy_map escapeworthy_map escape_char =
+  let build_and_validate_escapeworthy_map escapeworthy_map escape_char func =
     let escapeworthy_map =
-      if List.Assoc.mem escapeworthy_map escape_char then
-        escapeworthy_map
-      else
-        (escape_char, escape_char) :: escapeworthy_map
+      if List.Assoc.mem escapeworthy_map escape_char
+      then escapeworthy_map
+      else (escape_char, escape_char) :: escapeworthy_map
     in
-    (* Check that if escapeworthy_map is one-to-one. *)
-    List.fold escapeworthy_map ~init:(Char.Set.empty, Char.Set.empty)
-      ~f:(fun (acc_from, acc_to) (c_from, c_to) ->
-        if Char.Set.mem acc_from c_from || Char.Set.mem acc_to c_to
-        then begin
-          failwiths "escapeworthy_map not one-to-one"
+    let arr = Array.create 256 (-1) in
+    let rec loop vals = function
+      | [] -> Ok arr
+      | (c_from, c_to) :: l ->
+        let k, v = match func with
+          | `Escape -> Char.to_int c_from, c_to
+          | `Unescape -> Char.to_int c_to, c_from
+        in
+        if arr.(k) <> -1 || Char.Set.mem vals v then
+          Or_error.error "escapeworthy_map not one-to-one"
             (c_from, c_to, escapeworthy_map)
             (<:sexp_of< char * char * (char * char) list >>)
-        end
-        else Char.Set.add acc_from c_from, Char.Set.add acc_to c_to)
-    |! ignore;
-    escapeworthy_map
-  ;;
-
-  let escape_gen_exn ~escapeworthy_map ~escape_char =
-    let escapeworthy_map =
-      build_and_validate_escapeworthy_map escapeworthy_map escape_char
+        else (arr.(k) <- Char.to_int v; loop (Char.Set.add vals v) l)
     in
-    let escapeworthy =
-      let a = Array.create 256 (-1) in
-      List.iter ~f:(fun (k, v) -> a.(Char.to_int k) <- Char.to_int v)
-        escapeworthy_map;
-      a
-    in
-    stage (fun src ->
-      (* calculate a list of (index of char to escape * escaped char) first, the order is
-         from tail to head *)
-      let to_escape =
-        foldi src ~init:[] ~f:(fun i acc c ->
-          match escapeworthy.(Char.to_int c) with
-          | -1 -> acc
-          | n ->
-            (* (index of char to escape * escaped char) *)
-            (i, Char.unsafe_of_int n) :: acc)
-      in
-      match to_escape with
-      | [] -> src
-      | _ ->
-        (* [to_escape] divide [src] to [List.length to_escape + 1] pieces separated by the
-           chars to escape.
-
-           For example there are 3 chars to escape, [to_escape] ([(c); (b); (a)]) divides
-           [src] to 4 pieces (indicated by [---0---; ---1---; ---2---; ---3---]),
-
-           ---0---(a)---1---(b)---2---(c)---3---
-
-           Then we create a [dst] of length [String.length src + 3] to store the result,
-           copy piece ---3--- to [dst] directly, then copy [escape_char][escaped_char] of
-           (c) to [dst]; then move on to next; after 3 iterations, copy piece ---3--- and
-           we are done.
-
-           Suppose (a), (b), (c) are escaped to (\A), (\B) and (\C), then the
-           result will be
-
-           ---0---(\A)---1---(\B)---2---(\C)---3---
-        *)
-        (* set [last_dst_pos] and [last_idx] to length of [dst] and [src] first *)
-        let dst = String.create (String.length src + List.length to_escape) in
-        (* index of last char to escape *)
-        let last_idx = ref (String.length src) in
-        let last_dst_pos = ref (String.length dst) in
-        List.iter to_escape ~f:(fun (idx (*index of char to escape*), escaped_char) ->
-          (* take first iteration for example *)
-          (* calculate length of ---3---, minus 1 because we don't copy (c) *)
-          let len = !last_idx - idx - 1 in
-          (* set the dst_pos to copy to *)
-          let dst_pos = !last_dst_pos - len in
-          (* copy ---3---, set [src_pos] to [idx + 1] to skip (c) *)
-          blit ~src ~src_pos:(idx + 1) ~dst ~dst_pos ~len;
-          (* backoff [dst_pos] by 2 to copy the [escape_char] and [escaped_char] of (c) *)
-          let dst_pos = dst_pos - 2 in
-          dst.[dst_pos] <- escape_char;
-          dst.[dst_pos + 1] <- escaped_char;
-          (* update [last_dst_pos] and [last_idx] *)
-          last_dst_pos := dst_pos;
-          last_idx := idx
-        );
-        (* copy ---0--- *)
-        blit ~src ~src_pos:0 ~dst ~dst_pos:0 ~len:!last_idx;
-        dst
-    )
+    loop Char.Set.empty escapeworthy_map
   ;;
 
   let escape_gen ~escapeworthy_map ~escape_char =
-    Or_error.try_with (fun () ->
-      unstage (escape_gen_exn ~escapeworthy_map ~escape_char))
+    match
+      build_and_validate_escapeworthy_map escapeworthy_map escape_char `Escape
+    with
+    | Error _ as x -> x
+    | Ok escapeworthy ->
+      Ok (fun src ->
+        (* calculate a list of (index of char to escape * escaped char) first, the order
+           is from tail to head *)
+        let to_escape_len = ref 0 in
+        let to_escape =
+          foldi src ~init:[] ~f:(fun i acc c ->
+            match escapeworthy.(Char.to_int c) with
+            | -1 -> acc
+            | n ->
+              (* (index of char to escape * escaped char) *)
+              incr to_escape_len;
+              (i, Char.unsafe_of_int n) :: acc)
+        in
+        match to_escape with
+        | [] -> src
+        | _ ->
+          (* [to_escape] divide [src] to [List.length to_escape + 1] pieces separated by
+             the chars to escape.
+
+             Lets take
+             {[
+             escape_gen_exn
+             ~escapeworthy_map:[('a', 'A'); ('b', 'B'); ('c', 'C')]
+             ~escape_char:'_'
+             ]}
+             for example, and assume the string to escape is
+
+             "000a111b222c333"
+
+             then [to_escape] is [(11, 'C'); (7, 'B'); (3, 'A')].
+
+             Then we create a [dst] of length [String.length src + 3] to store the
+             result, copy piece "333" to [dst] directly, then copy '_' and 'C' to [dst];
+             then move on to next; after 3 iterations, copy piece "000" and we are done.
+
+             Finally the result will be
+
+             "000_A111_B222_C333"
+          *)
+          let src_len = String.length src in
+          let dst_len = src_len + !to_escape_len in
+          let dst = String.create dst_len in
+          let rec loop last_idx last_dst_pos = function
+            | [] ->
+              (* copy "000" at last *)
+              blit ~src ~src_pos:0 ~dst ~dst_pos:0 ~len:last_idx
+            | (idx, escaped_char) :: to_escape -> (*[idx] = the char to escape*)
+              (* take first iteration for example *)
+              (* calculate length of "333", minus 1 because we don't copy 'c' *)
+              let len = last_idx - idx - 1 in
+              (* set the dst_pos to copy to *)
+              let dst_pos = last_dst_pos - len in
+              (* copy "333", set [src_pos] to [idx + 1] to skip 'c' *)
+              blit ~src ~src_pos:(idx + 1) ~dst ~dst_pos ~len;
+              (* backoff [dst_pos] by 2 to copy '_' and 'C' *)
+              let dst_pos = dst_pos - 2 in
+              dst.[dst_pos] <- escape_char;
+              dst.[dst_pos + 1] <- escaped_char;
+              loop idx dst_pos to_escape
+          in
+          (* set [last_dst_pos] and [last_idx] to length of [dst] and [src] first *)
+          loop src_len dst_len to_escape;
+          dst
+      )
+  ;;
+
+  let escape_gen_exn ~escapeworthy_map ~escape_char =
+    Or_error.ok_exn (escape_gen ~escapeworthy_map ~escape_char) |! stage
   ;;
 
   TEST_MODULE "escape_gen" = struct
@@ -612,87 +615,97 @@ module Escaping = struct
       List.map ~f:(fun c -> (c, c))
         (Char.Set.to_list (Char.Set.remove (Char.Set.of_list escapeworthy) escape_char))
     in
-    try
-      escape_gen_exn ~escapeworthy_map ~escape_char
-    with _ -> assert false
+    escape_gen_exn ~escapeworthy_map ~escape_char
   ;;
 
-  let unescape_gen_exn ~escapeworthy_map ~escape_char =
-    let escapeworthy_map =
-      build_and_validate_escapeworthy_map escapeworthy_map escape_char
-    in
-    let escapeworthy =
-      let a = Array.create 256 (-1) in
-      List.iter ~f:(fun (k, v) -> a.(Char.to_int v) <- Char.to_int k)
-        escapeworthy_map;
-      a
-    in
-    stage (fun src ->
-      (* Continue the example in [escape_gen_exn], now we unescape
+  (* In an escaped string, any char is either `Escaping, `Escaped or `Literal. For
+     example, the escape statuses of chars in string "a_a__" with escape_char = '_' are
 
-         ---0---(\A)---1---(\B)---2---(\C)---3---
+       a : `Literal
+       _ : `Escaping
+       a : `Escaped
+       _ : `Escaping
+       _ : `Escaped
 
-         back to
-
-         ---0---(a)---1---(b)---2---(c)---3---
-
-         We first calculate a list of indexes of escape chars, (\ in this example), then
-         we can decide the length of result [String.length src - 3].
-
-         Then we create a string [dst] to store the result, copy ---3--- to it, then copy
-         unescaped char of (C), then move on to next iteration. After 3 iterations copy
-         ---0--- and we are done.
-      *)
-      (* indexes of escape chars *)
-      let to_unescape =
-        let escaping = ref false in
-        let to_unescape = Stack.create () in
-        for i = 0 to length src - 1 do
-          if !escaping then (
-            escaping := false
-          ) else if src.[i] = escape_char then (
-            escaping := true;
-            Stack.push to_unescape i
-          )
-        done;
-        Stack.to_list to_unescape
-      in
-      match to_unescape with
-      | [] -> src
-      | _ ->
-        let dst = create (String.length src - List.length to_unescape) in
-        (* set [last_dst_pos] and [last_idx] to length of [dst] and [src] first *)
-        let last_dst_pos = ref (String.length dst) in
-        let last_idx = ref (String.length src) in
-        List.iter to_unescape ~f:(fun idx (* index of [escape_char] *) ->
-          (* take 1st iteration as example, calculate the length of ---3---, minus 2 to
-             skip (\C) *)
-          let len = !last_idx - idx - 2 in
-          (* set [dst_pos] to the position to copy ---3--- to *)
-          let dst_pos = !last_dst_pos - len in
-          (* copy ---3--- *)
-          blit ~src ~src_pos:(idx + 2) ~dst ~dst_pos ~len;
-          (* backoff [dst_pos] by 1 to copy unescaped char (c) *)
-          let dst_pos = dst_pos - 1 in
-          dst.[dst_pos] <-
-            ( match escapeworthy.(Char.to_int src.[idx + 1]) with
-            | -1 -> src.[idx + 1]
-            | n -> Char.unsafe_of_int n);
-          (* update [last_dst_pos] and [last_idx] *)
-          last_dst_pos := dst_pos;
-          last_idx := idx;
-        );
-        (* copy ---0--- *)
-        blit ~src ~src_pos:0 ~dst ~dst_pos:0 ~len:!last_idx;
-        dst
-    )
+     [update_escape_status str ~escape_char i previous_status] gets escape status of
+     str.[i] basing on escape status of str.[i - 1]
+  *)
+  let update_escape_status str ~escape_char i = function
+    | `Escaping -> `Escaped
+    | `Literal
+    | `Escaped -> if str.[i] = escape_char then `Escaping else `Literal
   ;;
 
   let unescape_gen ~escapeworthy_map ~escape_char =
-    Or_error.try_with (fun () ->
-      unstage (unescape_gen_exn ~escapeworthy_map ~escape_char))
+    match
+      build_and_validate_escapeworthy_map escapeworthy_map escape_char `Unescape
+    with
+    | Error _ as x -> x
+    | Ok escapeworthy ->
+      Ok (fun src ->
+        (* Continue the example in [escape_gen_exn], now we unescape
+
+           "000_A111_B222_C333"
+
+           back to
+
+           "000a111b222c333"
+
+           Then [to_unescape] is [14; 9; 4], which is indexes of '_'s.
+
+           Then we create a string [dst] to store the result, copy "333" to it, then copy
+           'c', then move on to next iteration. After 3 iterations copy "000" and we are
+           done.  *)
+        (* indexes of escape chars *)
+        let to_unescape =
+          let rec loop i status acc =
+            if i >= String.length src then acc
+            else
+              let status = update_escape_status src ~escape_char i status in
+              loop (i + 1) status (if status = `Escaping then i :: acc else acc)
+          in
+          loop 0 `Literal []
+        in
+        match to_unescape with
+        | [] -> src
+        | idx::to_unescape' ->
+          let dst = create (String.length src - List.length to_unescape) in
+          let rec loop last_idx last_dst_pos = function
+            | [] ->
+              (* copy "000" at last *)
+              blit ~src ~src_pos:0 ~dst ~dst_pos:0 ~len:last_idx
+            | idx::to_unescape -> (* [idx] = index of escaping char *)
+              (* take 1st iteration as example, calculate the length of "333", minus 2 to
+                 skip '_C' *)
+              let len = last_idx - idx - 2 in
+              (* point [dst_pos] to the position to copy "333" to *)
+              let dst_pos = last_dst_pos - len in
+              (* copy "333" *)
+              blit ~src ~src_pos:(idx + 2) ~dst ~dst_pos ~len;
+              (* backoff [dst_pos] by 1 to copy 'c' *)
+              let dst_pos = dst_pos - 1 in
+              dst.[dst_pos] <-
+                ( match escapeworthy.(Char.to_int src.[idx + 1]) with
+                | -1 -> src.[idx + 1]
+                | n -> Char.unsafe_of_int n);
+              (* update [last_dst_pos] and [last_idx] *)
+              loop idx dst_pos to_unescape
+          in
+          ( if idx < String.length src - 1 then
+              (* set [last_dst_pos] and [last_idx] to length of [dst] and [src] *)
+              loop (String.length src) (String.length dst) to_unescape
+            else
+              (* for escaped string ending with an escaping char like "000_", just ignore
+                 the last escaping char *)
+              loop (String.length src - 1) (String.length dst) to_unescape'
+          );
+          dst
+      )
   ;;
 
+  let unescape_gen_exn ~escapeworthy_map ~escape_char =
+    Or_error.ok_exn (unescape_gen ~escapeworthy_map ~escape_char) |! stage
+  ;;
 
   TEST_MODULE "unescape_gen" = struct
     let unescape =
@@ -708,6 +721,10 @@ module Escaping = struct
     let unescape2 =
       unstage
         (unescape_gen_exn ~escapeworthy_map:['_','.';'%','p';'^','c'] ~escape_char:'_')
+
+    (* this one is ill-formed, just ignore the escape_char without escaped char *)
+    TEST = unescape2 "_" = ""
+    TEST = unescape2 "a_" = "a"
 
     TEST = unescape2 "__" = "_"
     TEST = unescape2 "_.." = "_."
@@ -783,6 +800,16 @@ module Escaping = struct
     TEST = unescape "_^foo_%" = "^foo%"
   end
 
+  let preceding_escape_chars str ~escape_char pos =
+    let rec loop p cnt =
+      if (p < 0) || (str.[p] <> escape_char) then
+        cnt
+      else
+        loop (p - 1) (cnt + 1)
+    in
+    loop (pos - 1) 0
+  ;;
+
   (* In an escaped string, any char is either `Escaping, `Escaped or `Literal. For
      example, the escape statuses of chars in string "a_a__" with escape_char = '_' are
 
@@ -801,13 +828,12 @@ module Escaping = struct
     | `Escaped -> if str.[i] = escape_char then `Escaping else `Literal
   ;;
 
-  (* Get escape status of str.[pos] *)
   let escape_status str ~escape_char pos =
-    let rec loop i status =
-      let status = update_escape_status str ~escape_char i status in
-      if i = pos then status else loop (i + 1) status
-    in
-    loop 0 `Literal
+    let odd = (preceding_escape_chars str ~escape_char pos) mod 2 = 1 in
+    match odd, str.[pos] = escape_char with
+    | true, (true|false) -> `Escaped
+    | false, true -> `Escaping
+    | false, false -> `Literal
   ;;
 
   let check_bound str pos function_name =
@@ -866,19 +892,23 @@ module Escaping = struct
   end
 
   let index_from str ~escape_char pos char =
+    check_bound str pos "index_from";
     let rec loop i status =
-      if i >= length str then None
-      else
-        let status = update_escape_status str ~escape_char i status in
-        if i >= pos && status = `Literal && str.[i] = char then Some i
-        else loop (i + 1) status
+      if i >= pos && status = `Literal && str.[i] = char then Some i
+      else (
+        let i = i + 1 in
+        if i >= length str then None
+        else loop i (update_escape_status str ~escape_char i status))
     in
-    loop 0 `Literal
+    loop pos (escape_status str ~escape_char pos)
   ;;
 
   let index_from_exn str ~escape_char pos char =
     match index_from str ~escape_char pos char with
-    | None -> raise Not_found
+    | None ->
+      failwiths "index_from_exn: not found"
+        (str, `escape_char escape_char, `pos pos, char)
+        <:sexp_of<t * [`escape_char of char] * [`pos of int] * char>>
     | Some pos -> pos
   ;;
 
@@ -895,19 +925,27 @@ module Escaping = struct
   end
 
   let rindex_from str ~escape_char pos char =
-    let rec loop i status last_found =
-      if i > pos then last_found
-      else
-        let status = update_escape_status str ~escape_char i status in
-        loop (i + 1) status
-          (if status = `Literal && str.[i] = char then Some i else last_found)
-    in
-    loop 0 `Literal None
+    check_bound str pos "rindex_from";
+    (* if the target char is the same as [escape_char], we have no way to determine which
+       escape_char is literal, so just return None *)
+    if char = escape_char then None
+    else
+      let rec loop pos =
+        if pos < 0 then None
+        else (
+          let escape_chars = preceding_escape_chars str ~escape_char pos in
+          if escape_chars mod 2 = 0 && str.[pos] = char
+          then Some pos else loop (pos - escape_chars - 1))
+      in
+      loop pos
   ;;
 
   let rindex_from_exn str ~escape_char pos char =
     match rindex_from str ~escape_char pos char with
-    | None -> raise Not_found
+    | None ->
+      failwiths "rindex_from_exn: not found"
+        (str, `escape_char escape_char, `pos pos, char)
+        <:sexp_of<t * [`escape_char of char] * [`pos of int] * char>>
     | Some pos -> pos
   ;;
 
@@ -916,9 +954,7 @@ module Escaping = struct
   ;;
 
   let rindex_exn str ~escape_char char =
-    match rindex_from str ~escape_char (String.length str - 1) char with
-    | None -> raise Not_found
-    | Some pos -> pos
+    rindex_from_exn str ~escape_char (String.length str - 1) char
   ;;
 
   TEST_MODULE "rindex_from" = struct
@@ -973,44 +1009,55 @@ module Escaping = struct
     TEST = split "foo:bar_,baz_,," = ["foo"; "bar_,baz_,"; ""]
   end
 
-  let split2 str ~on ~escape_char f =
-    match f str ~escape_char on with
-    | None -> None
-    | Some pos ->
-      Some
-        (String.sub str ~pos:0 ~len:pos,
-         String.sub str ~pos:(pos + 1) ~len:(String.length str - pos - 1))
+  let split_at str pos =
+      String.sub str ~pos:0 ~len:pos,
+      String.sub str ~pos:(pos + 1) ~len:(String.length str - pos - 1)
   ;;
 
-  let split2_exn str ~on ~escape_char f =
-    match split2 str ~on ~escape_char f with
-    | None -> raise Not_found
-    | Some x -> x
+  let lsplit2 str ~on ~escape_char =
+    Option.map (index str ~escape_char on) ~f:(fun x -> split_at str x)
   ;;
 
-  let lsplit2 str ~on ~escape_char = split2 str ~on ~escape_char index
-  let rsplit2 str ~on ~escape_char = split2 str ~on ~escape_char rindex
-  let lsplit2_exn str ~on ~escape_char = split2_exn str ~on ~escape_char index
-  let rsplit2_exn str ~on ~escape_char = split2_exn str ~on ~escape_char rindex
+  let rsplit2 str ~on ~escape_char =
+    Option.map (rindex str ~escape_char on) ~f:(fun x -> split_at str x)
+  ;;
+
+  let lsplit2_exn str ~on ~escape_char =
+    split_at str (index_exn str ~escape_char on)
+  ;;
+  let rsplit2_exn str ~on ~escape_char =
+    split_at str (rindex_exn str ~escape_char on)
+  ;;
 
   TEST_MODULE "split2" = struct
-    let split2 = split2 ~escape_char:'_' ~on:','
-    TEST = split2 "foo_,bar,baz_,0" index = Some ("foo_,bar", "baz_,0")
-    TEST = split2 "foo_,bar,baz_,0" rindex = Some ("foo_,bar", "baz_,0")
-    TEST = split2 "foo_,bar" index = None
-    TEST = split2 "foo_,bar" rindex = None
+    let escape_char = '_'
+    let on = ','
+    TEST = lsplit2 ~escape_char ~on "foo_,bar,baz_,0" = Some ("foo_,bar", "baz_,0")
+    TEST = rsplit2 ~escape_char ~on "foo_,bar,baz_,0" = Some ("foo_,bar", "baz_,0")
+    TEST = lsplit2_exn ~escape_char ~on "foo_,bar,baz_,0" = ("foo_,bar", "baz_,0")
+    TEST = rsplit2_exn ~escape_char ~on "foo_,bar,baz_,0" = ("foo_,bar", "baz_,0")
+    TEST = lsplit2 ~escape_char ~on "foo_,bar" = None
+    TEST = rsplit2 ~escape_char ~on "foo_,bar" = None
+    TEST = try lsplit2_exn ~escape_char ~on "foo_,bar" |! Fn.const false with _ -> true
+    TEST = try rsplit2_exn ~escape_char ~on "foo_,bar" |! Fn.const false with _ -> true
   end
 end
 ;;
 
-let min (x : t) y = if x < y then x else y
-let max (x : t) y = if x > y then x else y
-let compare (x : t) y = compare x y
-let ascending = compare
-let descending x y = compare y x
-let ( >= ) x y = (x : t) >= y
-let ( <= ) x y = (x : t) <= y
-let ( = ) x y = (x : t) = y
-let ( > ) x y = (x : t) > y
-let ( < ) x y = (x : t) < y
-let ( <> ) x y = (x : t) <> y
+module Replace_polymorphic_compare = struct
+  let equal = equal
+  let min (x : t) y = if x < y then x else y
+  let max (x : t) y = if x > y then x else y
+  let compare (x : t) y = compare x y
+  let ascending = compare
+  let descending x y = compare y x
+  let ( >= ) x y = (x : t) >= y
+  let ( <= ) x y = (x : t) <= y
+  let ( = ) x y = (x : t) = y
+  let ( > ) x y = (x : t) > y
+  let ( < ) x y = (x : t) < y
+  let ( <> ) x y = (x : t) <> y
+end
+
+include Replace_polymorphic_compare
+

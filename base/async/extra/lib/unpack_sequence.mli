@@ -15,6 +15,11 @@ module Result : sig
   val to_error : (_, _) t -> Error.t
 end
 
+val unpack_from_string_pipe
+  :  ('a, 'b) Unpack_buffer.t
+  -> string Pipe.Reader.t
+  -> 'a Pipe.Reader.t * ('a, 'b) Result.t Deferred.t
+
 (** [unpack_from_reader unpacker] unpacks all the values from reader until reaching EOF.
     The resulting [pipe] is closed once unpacking finishes (normally or abnormally). *)
 val unpack_from_reader

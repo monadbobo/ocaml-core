@@ -55,6 +55,7 @@ let send
     ?(cc=[])
     ?(bcc=[])
     ?(reply_to=[])
+    ?content_type
     ~recipients
     body =
   let nl = match mta () with
@@ -70,6 +71,7 @@ let send
   option "From" sender;
   list "To" recipients;
   option "Subject" subject;
+  option "Content-type" content_type;
   list "Cc" cc;
   list "Bcc" bcc;
   list "Reply-to" reply_to;

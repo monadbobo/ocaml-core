@@ -4,11 +4,22 @@ open Async.Std
 
 let global_dir = "/mnt/global/base/bin/"
 
+let filename_filter filename =
+  let prefix = "rpc-canary-" in
+  let suffix = ".exe" in
+  String.is_prefix ~prefix filename && String.is_suffix ~suffix filename
+  &&
+    let interior =
+      String.slice filename (String.length prefix) (- String.length suffix)
+    in
+    match String.lsplit2 interior ~on:'.' with
+    | None -> false
+    | Some (s1, s2) ->
+      List.for_all ~f:(String.for_all ~f:Char.is_digit) [s1; s2]
+;;
+
 let canary_exe_names =
-  List.filter (Array.to_list (Core.Std.Sys.readdir global_dir))
-    ~f:(fun filename ->
-      String.is_prefix ~prefix:"rpc-canary-" filename
-      && String.is_suffix ~suffix:".exe" filename)
+  List.filter (Array.to_list (Core.Std.Sys.readdir global_dir)) ~f:filename_filter
 ;;
 
 let local_port =

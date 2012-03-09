@@ -1,13 +1,5 @@
 (** Simple implementation of a polymorphic functional queue *)
 
-(** Performance guarantees:
-
-      - push, top, and bottom are O(1).
-      - pop is O(1) amortized.
-      - to_list is O(n).
-      - length is O(1).
-*)
-
 (** Invariants:
 
       - iff queue is not empty, outlist is not empty

@@ -24,7 +24,7 @@ module Ratio = struct
   let ratio_of_sexp = Conv.ratio_of_sexp
 end
 module Lazy = struct
-  include Lazy 
+  include Lazy
 
   let t_of_sexp = Conv.lazy_of_sexp
   let sexp_of_t = Conv.sexp_of_lazy

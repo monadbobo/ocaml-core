@@ -37,7 +37,7 @@ Library async
   #Pack:               true
   Modules:            ${MODULES}
   BuildDepends:       async_core,
-                      async_scheduler,
+                      async_unix,
                       async_extra,
                       threads
 

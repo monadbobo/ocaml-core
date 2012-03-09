@@ -3,13 +3,13 @@ open Time_internal.Helpers
 module Time = Time_internal.T
 
 (* Create a local private date type to ensure that all dates are created via
-   Date.create.
+   Date.create_exn.
 *)
 module T : sig
   type t = private { y: int; m: Month.t; d: int; }
 
   include Binable with type t := t
-  val create : y:int -> m:Month.t -> d:int -> t
+  val create_exn : y:int -> m:Month.t -> d:int -> t
 end = struct
   type t = { y: int; m: Month.t; d: int; } with bin_io
 
@@ -17,9 +17,9 @@ end = struct
     (year mod 4 = 0 && not (year mod 100 = 0))
     || year mod 400 = 0
 
-  let create ~y:year ~m:month ~d:day =
+  let create_exn ~y:year ~m:month ~d:day =
     let invalid msg =
-      invalid_argf "Date.create ~y:%d ~m:%s ~d:%d error: %s"
+      invalid_argf "Date.create_exn ~y:%d ~m:%s ~d:%d error: %s"
         year (Month.to_string month) day msg ()
     in
     if year < 0 || year > 9999 then invalid "year outside of [0..9999]";
@@ -84,7 +84,7 @@ let parse_day str pos = parse_two_digits str pos
 let of_string_iso8601_basic str ~pos =
   if pos + 8 > String.length str then
     invalid_arg "Date.of_string_iso8601_basic: pos + 8 > string length";
-  create
+  create_exn
     ~y:(parse_year4 str pos)
     ~m:(parse_month str (pos + 4))
     ~d:(parse_day str (pos + 6))
@@ -94,13 +94,13 @@ let of_string s =
   let invalid () = failwith ("invalid date: " ^ s) in
   let ensure b = if not b then invalid () in
   let month_num ~year ~month ~day =
-    create
+    create_exn
       ~y:(parse_year4 s year)
       ~m:(parse_month s month)
       ~d:(parse_day s day)
   in
   let month_abrv ~year ~month ~day =
-    create
+    create_exn
       ~y:(parse_year4 s year)
       ~m:(Month.of_string (String.sub s ~pos:month ~len:3))
       ~d:(parse_day s day)
@@ -121,7 +121,7 @@ let of_string s =
     in
     let month = Month.of_int_exn (Int.of_string m) in
     let day = Int.of_string d in
-    create ~y:year ~m:month ~d:day
+    create_exn ~y:year ~m:month ~d:day
   end else if String.contains s '-' then begin
     (* yyyy-mm-dd *)
     ensure (String.length s = 10 && s.[4] = '-' && s.[7] = '-');
@@ -154,7 +154,7 @@ module Sexpable = struct
   module Old_date = struct
     type t = { y: int; m: int; d: int; } with sexp
 
-    let to_date t = T.create ~y:t.y ~m:(Month.of_int_exn t.m) ~d:t.d
+    let to_date t = T.create_exn ~y:t.y ~m:(Month.of_int_exn t.m) ~d:t.d
     let of_date t = { y = t.T.y; m = Month.to_int t.T.m; d = t.T.d; }
   end
 
@@ -206,7 +206,7 @@ let month t = t.m
 let year t = t.y
 
 let of_tm tm =
-  create
+  create_exn
     ~y:(tm.Unix.tm_year + 1900)
     ~m:(Month.of_int_exn (tm.Unix.tm_mon + 1))
     ~d:tm.Unix.tm_mday
@@ -264,7 +264,7 @@ let add_months t n =
   let m = Month.of_int_exn m in
   (** handle invalid dates for months with fewer number of days **)
   let rec try_create d =
-    try create ~y ~m ~d
+    try create_exn ~y ~m ~d
     with _exn ->
       assert (Int.(>=) d 1);
       try_create (d - 1)

@@ -1,9 +1,11 @@
 open Sexplib
 
 module type Elt = Comparator.Pre
+module type Elt_binable = Comparator.Pre_binable
 
 module type Accessors = sig
   include Container.Generic_phantom
+
   val mem : ('a, _) t -> 'a elt -> bool (* override [Container]'s [mem] *)
   val add    : ('a, 'comparator) t -> 'a elt -> ('a, 'comparator) t
   val remove : ('a, 'comparator) t -> 'a elt -> ('a, 'comparator) t
@@ -18,6 +20,11 @@ module type Accessors = sig
     :  ('a, _) t
     -> init:'b
     -> f:('b -> 'a elt -> [ `Continue of 'b | `Stop of 'b ])
+    -> 'b
+  val fold_right
+    :  ('a, _) t
+    -> init:'b
+    -> f:('a elt -> 'b -> 'b)
     -> 'b
   val filter : ('a, 'comparator) t -> f:('a elt -> bool) -> ('a, 'comparator) t
   (** if [res = partition_tf set ~f] then [fst res] are the elements on which [f]
@@ -68,13 +75,21 @@ module type Accessors = sig
      is element 0. *)
   val find_index : ('a, _) t -> int -> 'a elt option
   val remove_index : ('a, 'comparator) t -> int -> ('a, 'comparator) t
+
+  (** [tree t] returns the underlying binary tree that represents the set.  This is useful
+      if you want to marshal a set between processes.  Since the set contains a closure,
+      it cannot be marshalled between processes that use different executables; however,
+      the underlying tree can. *)
+  type ('a, 'comparator) tree
+  val to_tree : ('a, 'comparator) t -> ('a elt, 'comparator) tree
+
 end
 
 type ('key, 'comparator, 'z) create_options_without_comparator =
   ('key, 'comparator, 'z) Core_map_intf.create_options_without_comparator
 
-type ('key, 'comparator, 'z) create_options_with_comparator_required =
-  ('key, 'comparator, 'z) Core_map_intf.create_options_with_comparator_required
+type ('key, 'comparator, 'z) create_options_with_comparator =
+  ('key, 'comparator, 'z) Core_map_intf.create_options_with_comparator
 
 module type Creators = sig
   type ('a, 'comparator) set
@@ -96,13 +111,27 @@ module type Creators = sig
      polymorphic comparison by instantiating the functor at a different implementation of
      Comparator and using the resulting [stable_dedup_list]. *)
   val stable_dedup_list : ('a, _, 'a elt list -> 'a elt list) create_options
+
+  (* The types of [map] and [filter_map] are subtle.  The input set, [('a, _) set],
+     reflects the fact that these functions take a set of *any* type, with any comparator,
+     while the output set, [('b, 'comparator) t], reflects that the output set has the
+     the particular ['comparator] of the creation function.  The comparator can come
+     in one of three ways, depending on which set module is used
+
+       [Set.map] -- comparator comes as an argument
+       [Set.Poly.map] -- comparator is polymorphic comparison
+       [Foo.Set.map] -- comparator is [Foo.comparator] *)
   val map
-    : ('b, 'comparator,
-       ('a, _) set -> f:('a -> 'b elt) -> ('b, 'comparator) t
+    : ('b, 'comparator, ('a, _) set -> f:('a -> 'b elt       ) -> ('b, 'comparator) t
     ) create_options
   val filter_map
-    : ('b, 'comparator,
-       ('a, _) set -> f:('a -> 'b elt option) -> ('b, 'comparator) t
+    : ('b, 'comparator, ('a, _) set -> f:('a -> 'b elt option) -> ('b, 'comparator) t
+    ) create_options
+
+  type ('a, 'comparator) tree
+  val of_tree
+    : ('a, 'comparator,
+       ('a elt, 'comparator) tree -> ('a, 'comparator) t
     ) create_options
 end
 
@@ -112,16 +141,19 @@ module type S = sig
   type ('a, 'comparator) set
   type t = (Elt.t, Elt.comparator) set with sexp
   type ('a, 'comparator) t_ = t
+  type ('a, 'comparator) tree
   type 'a elt_ = Elt.t
 
   include Creators
     with type ('a, 'comparator) set := ('a, 'comparator) set
     with type ('a, 'comparator) t := ('a, 'comparator) t_
+    with type ('a, 'b) tree := ('a, 'b) tree
     with type 'a elt := 'a elt_
     with type ('a, 'b, 'c) create_options := ('a, 'b, 'c) create_options_without_comparator
 
   include Accessors
     with type ('a, 'b) t := ('a, 'b) t_
+    with type ('a, 'b) tree := ('a, 'b) tree
     with type 'a elt := 'a elt_
 end
 

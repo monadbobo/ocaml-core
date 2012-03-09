@@ -15,16 +15,17 @@ let subcommand_cmp a c =
   else
     is_help_cmd_diff
 
-let subcommand_cmp_fst (a, _) (c, _) =
-  subcommand_cmp a c
+let subcommand_cmp_fst (a, _) (c, _) = subcommand_cmp a c
 
 (* simple module for formatting two columns *)
 module Columns = struct
+
   type t = (string * string) list
-  let align list : string list =
-    match list with
+
+  let align pairs =
+    match pairs with
     | [] -> []
-    | (x,_) :: xs ->
+    | (x, _) :: xs ->
       let left_col_len : int =
         List.fold_left
           (List.map ~f:(fun (a,_) -> String.length a) xs)
@@ -37,33 +38,20 @@ module Columns = struct
         | `Cols cols -> cols
       in
       List.concat
-        (List.map list
-           ~f:(fun (cmd,desc) ->
-             let desc_line_len = max 30 (max_width - 4 - left_col_len) in
-             let desch,descl =
-               match Extended_string.line_break desc ~len:desc_line_len with
-               | h :: t -> h,t
-               | [] -> assert false
-             in
-             let head =
-             (sprintf "%-*s  %s"
-                left_col_len
-                cmd
-                desch)
-             in
-             let tail =
-               List.map descl ~f:(fun s ->
-                 sprintf "%-*s  %s"
-                   left_col_len
-                   " "
-                   s)
-             in
-             head :: tail))
+        (List.map pairs ~f:(fun (cmd,desc) ->
+          let desc_line_len = max 30 (max_width - 4 - left_col_len) in
+          let desch,descl =
+            match Extended_string.line_break desc ~len:desc_line_len with
+            | h :: t -> (h, t)
+            | [] -> assert false
+          in
+          let head = sprintf "%-*s  %s" left_col_len cmd desch in
+          let tail =
+            List.map descl ~f:(fun s -> sprintf "%-*s  %s" left_col_len " " s)
+          in
+          head :: tail))
 
-  let sort_align list =
-    let list = List.sort list ~cmp:subcommand_cmp_fst
-    in
-    align list
+  let sort_align pairs = align (List.sort pairs ~cmp:subcommand_cmp_fst)
 
 end
 
@@ -239,6 +227,11 @@ module Flag : sig
     type t = { flag : 'a. unit -> 'a flag }
     val instantiate : t -> 'a flag
   end with type 'a flag := 'a t
+
+  val to_spec :
+    ('accum -> 'accum) ref
+    -> 'accum t
+    -> ('c, 'c) Core_command.Spec.t
 
 end = struct
 
@@ -442,14 +435,35 @@ end = struct
     | Arg.Symbol _  -> failwith "Flag.of_arg: Arg.Symbol not supported"
     | Arg.Rest _ -> failwith "Flag.of_arg: Arg.Rest not supported"
 
-
-
-
   module Poly = struct
     type t = { flag : 'a. unit -> 'a flag }
     let instantiate t = t.flag ()
   end
 
+  module Deprecated_spec = Core_command.Deprecated.Spec
+
+  let to_spec flag_env_updates {name; aliases; doc; spec; _ } =
+    let add_env_update new_env_update =
+      let old_env_update = !flag_env_updates in
+      flag_env_updates := (fun env -> new_env_update (old_env_update env))
+    in
+    Core_command.Spec.(
+      let drop () = step (fun m _ -> m) in
+      match spec with
+      | Action.Noarg update ->
+        drop ()
+        ++ flag name ~aliases ~doc
+             (Deprecated_spec.no_arg ~hook:(fun () -> add_env_update update))
+      | Action.Arg update ->
+        drop ()
+        ++ flag name ~aliases ~doc
+             (listed (arg_type (fun s -> add_env_update (fun env -> update env s); s)))
+      | Action.Rest update ->
+        drop ()
+        ++ flag name ~aliases ~doc
+             (Deprecated_spec.escape ~hook:(fun ss ->
+               add_env_update (fun env -> update env ss)))
+    )
 end
 
 module Shared_flags = struct
@@ -538,109 +552,6 @@ let is_help_flag = function
   | ("--help" | "-help" | "help" | "h" | "?" | "-?") -> true
   | _ -> false
 
-module Base = struct
-  module type T = sig
-    type accum
-    type argv
-    val summary : string
-    val readme : (unit -> string) option
-    val usage_arg : string
-    val init : unit -> accum
-    val autocomplete : Autocomplete_.t option
-    val flags : accum Flag.t list
-    val final : accum -> string list -> argv
-    val main : argv -> unit
-  end
-  type t = (module T)
-
-  let add_flags t poly_flags =
-    let module T = (val t : T) in
-    (module struct
-      include T
-      let flags = flags @ List.map ~f:Flag.Poly.instantiate poly_flags
-    end : T)
-
-  let summary      t = let module T = (val t : T) in T.summary
-  let usage_arg    t = let module T = (val t : T) in T.usage_arg
-  let autocomplete t = let module T = (val t : T) in T.autocomplete
-  let readme       t = let module T = (val t : T) in T.readme
-
-  let flags_help t =
-    let module T = (val t : T) in List.concat_map ~f:Flag.help T.flags
-
-  let get_flag_names t =
-    let module T = (val t : T) in List.map ~f:Flag.name T.flags
-
-  let help ~cmd t =
-    let helps = flags_help t in
-    Help_page.render
-      ~summary:(summary t)
-      ~readme:(readme t)
-      ~usage:(cmd ^ " " ^ usage_arg t)
-      ~choice_type:"available flags"
-      ~choices:(Columns.sort_align helps)
-
-  exception Help
-
-  let run t ~allow_unknown_flags ~allow_underscores ~cmd ~argv : unit -> unit =
-    let module T = (val t : T) in
-    let maybe_dashify = maybe_dashify ~allow_underscores in
-    let rec process_flags ~state ~anon_args args =
-      match args with
-      | [] -> (state, List.rev anon_args)
-      | arg :: argv ->
-        if not (String.is_prefix ~prefix:"-" arg) then
-          process_flags ~state argv ~anon_args:(arg :: anon_args)
-        else
-          let flag = maybe_dashify arg in
-          if is_help_flag flag then raise Help
-          else match Flag.lookup T.flags flag with
-          | None ->
-            if allow_unknown_flags then begin
-              process_flags ~state argv ~anon_args:(arg :: anon_args)
-            end
-            else
-              raise (Invalid_arguments [(sprintf "unknown flag %s" arg)])
-          | Some (Flag.Action.Noarg f) -> process_flags ~state:(f state) ~anon_args argv
-          | Some (Flag.Action.Rest f) -> (f state argv, List.rev anon_args)
-          | Some (Flag.Action.Arg f) ->
-            match argv with
-            | arg :: argv -> process_flags ~state:(f state arg) argv ~anon_args
-            | [] ->
-              raise (Invalid_arguments [(sprintf "missing argument for flag %s" arg)])
-    in
-    let process_flags ~state args = process_flags ~state args ~anon_args:[] in
-    let (>>=) = Result.(>>=) in
-    (fun () ->
-      match
-        Result.try_with (fun () -> process_flags ~state:(T.init ()) argv)
-      >>= fun (state,anon_args) ->
-      Result.try_with (fun () -> T.final state anon_args)
-      with
-      | Error Help ->
-        printf "%s\n" (help ~cmd t);
-        exit 0
-      | Error exn ->
-        eprintf "%s\n" (help ~cmd t);
-        eprintf "%s\n" (Exn.to_string exn);
-        exit 1
-      | Ok argv ->
-        let end_with_error msg =
-          Printf.eprintf "Error: %s\n%!" msg;
-          exit 1
-        in
-        try T.main argv with
-        | Help ->
-          eprintf "%s\n" (help ~cmd t);
-          exit 0
-        | Invalid_arguments args ->
-          let args_string = String.concat args ~sep:" " in
-          Printf.eprintf "Invalid arguments: %s\n%s\n%!" args_string (help ~cmd t);
-          exit 1
-        | Failure s -> end_with_error s
-        | exn -> end_with_error (Exn.to_string exn))
-end
-
 type group = {
   summary : string;
   readme : (unit -> string) option;
@@ -648,7 +559,7 @@ type group = {
 }
 
 and t =
-  | Base of Base.t
+  | Core of Core_command.t * (string list -> string list) option (* autocomplete *)
   | Group of group
 
 let group ~summary ?readme alist =
@@ -658,50 +569,20 @@ let group ~summary ?readme alist =
   | `Duplicate_key name -> failwith ("multiple subcommands named " ^ name)
 
 let summary = function
-  | Base implicit -> Base.summary implicit
+  | Core (base, _) -> Core_command.Deprecated.summary base
   | Group grp -> grp.summary
-
-let create (type a) (type b) ?autocomplete ?readme ~summary ~usage_arg ~init ~flags ~final main =
-  Base
-    (module struct
-      type accum = a
-      type argv = b
-      let summary = summary
-      let readme = readme
-      let usage_arg = usage_arg
-      let init = init
-      let autocomplete = autocomplete
-      let flags = flags
-      let final = final
-      let main = main
-    end : Base.T)
-
-let create0 ?autocomplete ?readme ~summary ~usage_arg ~init ~flags ~final main =
-  let final accum anonargs =
-    match anonargs with
-    | [] -> final accum
-    | _ :: _ as lst ->
-      printf "Error: expected 0 anonymous arguments, got %i\n%!" (List.length lst);
-      exit 1
-  in
-  create ?autocomplete ?readme ~summary ~usage_arg ~init ~flags ~final main
-;;
-
-let create_no_accum ?autocomplete ?readme ~summary ~usage_arg ~flags ~final main =
-  let init () = () in
-  let final _ anonargs = final anonargs in
-  create ?autocomplete ?readme ~summary ~usage_arg ~init ~flags ~final main
-;;
-
-let create_no_accum0 ?autocomplete ?readme ~summary ~usage_arg ~flags main =
-  let init () = () in
-  let final _ = () in
-  create0 ?autocomplete ?readme ~summary ~usage_arg ~init ~flags ~final main
-;;
 
 let help ~cmd t =
   match t with
-  | Base base -> Base.help ~cmd base
+  | Core _ ->
+    (* This will be dealt with by the Core_command internally
+       this function is only called from within dispatch.
+       during a call to dispatch, if we get to a point where our command is a Core
+       (and would thus get into this branch),
+       we call Core_command.Deprecated.run, which punts the entire functionality
+       over to Core_command
+    *)
+    assert false
   | Group grp ->
       let alist =
         ("help [-r]", "explain a given subcommand (perhaps recursively)") ::
@@ -725,7 +606,7 @@ let help_help ~cmd subcommands =
     ~usage:(cmd ^ " help [-r[ecursive] [-flags] [-expand-dots]] [SUBCOMMAND]\n"
             ^ "  " ^ cmd ^ " -? [SUBCOMMAND]\n"
             ^ "  " ^ cmd ^ " -?? [SUBCOMMAND]   # (shortcut for -help -r) \n"
-            ^ "  " ^ cmd ^ " -??? [SUBCOMMAND]  # (shortcur for -help -r -flags)")
+            ^ "  " ^ cmd ^ " -??? [SUBCOMMAND]  # (shortcut for -help -r -flags)")
     ~choice_type:"available subcommands"
     ~choices
 ;;
@@ -735,37 +616,31 @@ let help_recursive ~cmd ~with_flags ~expand_dots t =
   let rec help_recursive_rec ~cmd t s =
     let new_s = s ^ (if expand_dots then cmd else ".") ^ " " in
     match t with
-    | Base base ->
-      let base_help = (s ^ cmd, summary t) in
-      if with_flags then
-        base_help :: (List.map
-          (List.sort ~cmp:subcommand_cmp_fst (Base.flags_help base))
-          ~f:(fun (flag, h) -> (new_s ^ flag, h)))
-      else
-        [base_help]
+    | Core (t, _) ->
+      Core_command.Deprecated.help_recursive ~cmd ~with_flags ~expand_dots t s
     | Group grp ->
-      (s ^ cmd, grp.summary) :: (List.concat
-        (List.map
+      (s ^ cmd, grp.summary) ::
+        List.concat_map
           (List.sort ~cmp:subcommand_cmp_fst (Hashtbl.to_alist grp.subcommands))
-          ~f:(fun (cmd', t) -> help_recursive_rec ~cmd:cmd' t new_s)))
+          ~f:(fun (cmd', t) -> help_recursive_rec ~cmd:cmd' t new_s)
   in
-  let alist =
-    help_recursive_rec ~cmd t ""
-  in
-  let choices = Columns.align alist
-  in
+  let alist = help_recursive_rec ~cmd t "" in
+  let choices = Columns.align alist in
   match t with
-  | Base base ->
-    Base.help ~cmd base (* just the plain help *)
+  | Core _ ->
+    (*  help_recursive is only called from within dispatch
+        if we ever get to a Core variant (which would cause us to be in this branch),
+        we would have gone into the | Core branch of dispatch,
+        which would punt responibility over to Core_command
+    *)
+    assert false
   | Group grp ->
     Help_page.render
       ~summary:grp.summary
       ~readme:grp.readme
       ~usage:(cmd ^ " SUBCOMMAND")
-      ~choice_type:("available subcommands" ^ (if with_flags then " and flags" else ""))
+      ~choice_type:("available subcommands" ^ if with_flags then " and flags" else "")
       ~choices
-
-;;
 
 (* These refs are populated by run_internal. *)
 let expanded_argv_head_rev = ref []
@@ -847,15 +722,14 @@ complete -F %s %s" fname fname Sys.argv.(0)
 
   let rec autocomplete t command_line =
     match t with
-    | Base base ->
-      let flags = Base.get_flag_names base in
-      let autocomplete = Base.autocomplete base in
+    | Core (base, autocomplete) ->
+      let flags = Core_command.Deprecated.get_flag_names base in
       (match List.rev command_line with
       | [] -> print_list flags
       | key :: _ ->
-          if key = "" || key.[0] <> '-' then
-            external_completion ~autocomplete ~key ~command_line
-          else filter_matching_prefixes_and_print ~autocomplete ~key ~command_line flags)
+        if key = "" || key.[0] <> '-' then
+          external_completion ~autocomplete ~key ~command_line
+        else filter_matching_prefixes_and_print ~autocomplete ~key ~command_line flags)
     | Group grp ->
       match command_line with
       | [key] ->
@@ -921,6 +795,51 @@ complete -F %s %s" fname fname Sys.argv.(0)
   ;;
 end
 
+let of_core_command t = Core (t, None)
+
+let create ?autocomplete ?readme ~summary ~usage_arg ~init ~flags ~final main =
+  let c =
+    Core_command.basic ~summary ?readme
+      Core_command.Spec.(
+        let flag_env_updates = ref Fn.id in
+        let flags =
+          List.fold flags ~init:(step Fn.id) ~f:(fun flags t ->
+            let flag = Flag.to_spec flag_env_updates t in
+            flags ++ flag)
+        in
+        flags
+        ++ step (fun m anons ->
+          let env = init () in
+          let env = !flag_env_updates env in
+          let argv = final env anons in
+          m argv
+        )
+        ++ anon (ad_hoc ~usage_arg)
+      )
+      main
+  in
+  Core (c, autocomplete)
+
+let create0 ?autocomplete ?readme ~summary ~usage_arg ~init ~flags ~final main =
+  let final accum anonargs =
+    match anonargs with
+    | [] -> final accum
+    | _ :: _ as lst ->
+      printf "Error: expected 0 anonymous arguments, got %i\n%!" (List.length lst);
+      exit 1
+  in
+  create ?autocomplete ?readme ~summary ~usage_arg ~init ~flags ~final main
+
+let create_no_accum ?autocomplete ?readme ~summary ~usage_arg ~flags ~final main =
+  let init () = () in
+  let final _ anonargs = final anonargs in
+  create ?autocomplete ?readme ~summary ~usage_arg ~init ~flags ~final main
+
+let create_no_accum0 ?autocomplete ?readme ~summary ~usage_arg ~flags main =
+  let init () = () in
+  let final _ = () in
+  create0 ?autocomplete ?readme ~summary ~usage_arg ~init ~flags ~final main
+
 INCLUDE "version_defaults.mlh"
 module Version = struct
   type command = t
@@ -966,8 +885,8 @@ module Version = struct
   let add ?version ?build_info unversioned =
     let command =
         match unversioned with
-        | Base impl ->
-          Base (Base.add_flags impl (poly_flags ?version ?build_info ()))
+        | Core _ -> failwith "You have used a Core_command in a Command basic stub. \
+                              Please convert fully to Core_command"
         | Group grp ->
           group ~summary:grp.summary
             (("version", command ?version ?build_info ())
@@ -976,7 +895,7 @@ module Version = struct
     { command; flags = flags ?version ?build_info () }
 end
 
-let run_internal versioned ~allow_unknown_flags ~allow_underscores ~cmd
+let run_internal versioned ~allow_unknown_flags:_ ~allow_underscores ~cmd
       ~argv ?post_parse =
   let maybe_dashify = maybe_dashify ~allow_underscores in
   expanded_argv_head_rev := [cmd];
@@ -999,12 +918,9 @@ let run_internal versioned ~allow_unknown_flags ~allow_underscores ~cmd
         f status_code (get_expanded_argv ())
     in
     match t with
-    | Base base ->
-      post_parse_call ~is_ok:true;
-      if is_help then
-        (fun () -> printf "%s" (help ~cmd t); exit 0)
-      else
-        Base.run base ~allow_unknown_flags ~allow_underscores ~cmd ~argv
+    | Core (t, _) -> fun () ->
+        Core_command.Deprecated.run
+          t ~cmd ~args:argv ~is_help ~is_help_rec ~is_help_rec_flags ~is_expand_dots
     | Group grp ->
       let execute_group (subcmd, rest) =
         match partial_match grp.subcommands (maybe_dashify subcmd) with
@@ -1134,22 +1050,25 @@ let (run : unit with_run_flags)
     ?(hash_bang_expand=false)
     ?post_parse
     t =
-  let t = Version.add ?version ?build_info t in
-  match Autocomplete.execution_mode () with
-  | `print_bash_autocomplete_function ->
+  match t with
+  | Core (c, _) -> Core_command.run ?version ?build_info ?argv c
+  | Group _ as t ->
+    let t = Version.add ?version ?build_info t in
+    match Autocomplete.execution_mode () with
+    | `print_bash_autocomplete_function ->
       Autocomplete.output_bash_function ();
       exit 0
-  | `doing_auto_completion partial_command_line ->
+    | `doing_auto_completion partial_command_line ->
       Autocomplete.autocomplete t.Version.command partial_command_line;
       exit 0
-  | `run_main ->
-    let argv = Option.value argv ~default:(Array.to_list Sys.argv) in
-    match argv with
-    | [] -> failwith "no command name passed in" (* I think this is impossible *)
-    | cmd :: argv ->
-      let cmd = Filename.basename cmd in
-      let argv = if hash_bang_expand then hash_bang_expand_arg argv else argv in
-      run_internal t ~allow_unknown_flags ~allow_underscores ~cmd ~argv ?post_parse ()
+    | `run_main ->
+      let argv = Option.value argv ~default:(Array.to_list Sys.argv) in
+      match argv with
+      | [] -> failwith "no command name passed in" (* I think this is impossible *)
+      | cmd :: argv ->
+        let cmd = Filename.basename cmd in
+        let argv = if hash_bang_expand then hash_bang_expand_arg argv else argv in
+        run_internal t ~allow_unknown_flags ~allow_underscores ~cmd ~argv ?post_parse ()
 ;;
 
 module Annotated_field = struct
@@ -1542,3 +1461,4 @@ module Helpers = struct
       raise Found_anonymous_arguments
   ;;
 end
+

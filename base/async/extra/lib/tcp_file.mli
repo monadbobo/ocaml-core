@@ -61,8 +61,8 @@ module Server : sig
   (** [with_file filename ~f] opens filename and runs [f], passing the resultant
       [t].  When the deferred returned by [f] is determined, [t] will be
       closed. *)
-  val with_file :
-    ?append:bool
+  val with_file
+    :  ?append:bool
     -> string
     -> f:(File.t -> 'a Deferred.t)
     -> 'a Deferred.t
@@ -115,13 +115,13 @@ module Client : sig
   (** [read t filename] provides a pipe that will be filled with messages from [filename]
       starting from the beginning, and continuing until the server calls [unlink] or
       [close].  The client can indicate that it is no longer interested by calling
-      [Pipe.close]. *)
+      [Pipe.close_reader]. *)
   val read : t -> string -> Response.t Pipe.Reader.t Deferred.t
 
   (** [tail t filename] same as [read], but delivers messages starting at some
       unspecified point near the current end of the file and continuing until the server
       calls [unlink] or [close]. The client can indicate that it is no longer interested
-      by calling [Pipe.close]. *)
+      by calling [Pipe.close_reader]. *)
   val tail : t -> string -> Response.t Pipe.Reader.t Deferred.t
 
 end

@@ -3,6 +3,7 @@ open Sexplib.Std
 module Int = Core_int
 module List = Core_list
 module Hashtbl = Core_hashtbl
+module String = Core_string
 
 let failwithf = Core_printf.failwithf
 
@@ -27,9 +28,9 @@ let of_caml_int t = t
 let to_caml_int t = t
 
 type sys_behavior = [
-| `Continue (** Continue the process if it is currently stopped*)
+| `Continue (** Continue the process if it is currently stopped *)
 | `Dump_core (** Terminate the process and dump core *)
-| `Ignore (** Ignore the signal*)
+| `Ignore (** Ignore the signal *)
 | `Stop  (** Stop the process *)
 | `Terminate  (** Terminate the process *)
 ] with sexp
@@ -63,7 +64,9 @@ include struct
   let zero = 0
 end
 
-let to_string, default_sys_behavior =
+exception Invalid_signal_mnemonic_or_number of string with sexp
+
+let to_string, of_string, default_sys_behavior =
   let known =
     [
       ("abrt", abrt, `Dump_core);
@@ -91,9 +94,11 @@ let to_string, default_sys_behavior =
     ]
   in
   let str_tbl = Int.Table.create ~size:1 () in
+  let int_tbl = Core_string.Table.create ~size:1 () in
   let behavior_tbl = Int.Table.create ~size:1 () in
   List.iter known ~f:(fun (name, s, behavior) ->
     Hashtbl.replace str_tbl ~key:s ~data:("sig" ^ name);
+    Hashtbl.replace int_tbl ~key:name ~data:s;
     Hashtbl.replace behavior_tbl ~key:s ~data:behavior);
   (* For unknown signal numbers, [to_string] returns a meaningful
      string, while [default_sys_behavior] has to raise an exception
@@ -103,6 +108,16 @@ let to_string, default_sys_behavior =
     | None -> "<unknown signal " ^ Int.to_string s ^ ">"
     | Some string -> string
   in
+  let of_string s =
+    let s = Core_string.lowercase (Core_string.strip s) in
+    match Hashtbl.find int_tbl s with
+    | Some sn -> sn
+    | None ->
+      if Core_string.is_prefix s ~prefix:"<unknown signal " then
+        try Int.of_string (Core_string.slice s 16 ~-1)
+        with _ -> raise (Invalid_signal_mnemonic_or_number s)
+      else raise (Invalid_signal_mnemonic_or_number s)
+  in
   let default_sys_behavior s =
     match Hashtbl.find behavior_tbl s with
     | None ->
@@ -110,39 +125,10 @@ let to_string, default_sys_behavior =
   Int.to_string s))
     | Some behavior -> behavior
   in
-  to_string, default_sys_behavior
+  to_string, of_string, default_sys_behavior
 ;;
 
-exception Invalid_signal_mnemonic_or_number of string with sexp
 exception Expected_atom of Sexplib.Sexp.t with sexp
-
-let of_string = function
-  | "abrt" -> abrt
-  | "alrm" -> alrm
-  | "chld" -> chld
-  | "cont" -> cont
-  | "fpe" -> fpe
-  | "hup" -> hup
-  | "ill" -> ill
-  | "int" -> int
-  | "kill" -> kill
-  | "pipe" -> pipe
-  | "prof" -> prof
-  | "quit" -> quit
-  | "segv" -> segv
-  | "stop" -> stop
-  | "term" -> term
-  | "tstp" -> tstp
-  | "ttin" -> ttin
-  | "ttou" -> ttou
-  | "usr1" -> usr1
-  | "usr2" -> usr2
-  | "vtalrm" -> vtalrm
-  | "<zero>" -> zero
-  | x ->
-    try Int.of_string x
-    with _ -> raise (Invalid_signal_mnemonic_or_number x)
-;;
 
 let sexp_of_t t = Sexplib.Sexp.Atom (to_string t)
 
@@ -154,24 +140,17 @@ let t_of_sexp s =
 
 type pid_spec = [ `Pid of Pid.t | `My_group | `Group of Pid.t ] ;;
 
-let pid_spec_to_string = function
-  | `Pid pid   -> Pid.to_string pid
-  | `My_group  -> "0"
-  | `Group pid -> Int.to_string (- (Pid.to_int pid))
+let pid_spec_to_int = function
+  | `Pid pid -> Pid.to_int pid
+  | `My_group -> 0
+  | `Group pid -> ~- (Pid.to_int pid)
 ;;
 
+let pid_spec_to_string p = Int.to_string (pid_spec_to_int p)
+
 let send signal pid_spec =
-  try
-    let kill =
-      match pid_spec with
-      | `Pid pid    -> UnixLabels.kill ~pid:(Pid.to_int pid)
-      | `My_group   -> UnixLabels.kill ~pid:0
-      | `Group pgrp -> UnixLabels.kill ~pid:(- (Pid.to_int pgrp))
-    in
-    kill ~signal;
-    `Ok
-  with
-  | Unix.Unix_error (Unix.ESRCH, _, _) -> `No_such_process
+  try UnixLabels.kill ~pid:(pid_spec_to_int pid_spec) ~signal; `Ok
+  with Unix.Unix_error (Unix.ESRCH, _, _) -> `No_such_process
 ;;
 
 let send_i t pid_spec =

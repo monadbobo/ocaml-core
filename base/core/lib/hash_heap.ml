@@ -34,6 +34,7 @@ module type S = sig
   val find_pop_exn : 'a t -> Key.t -> 'a
   val iter : 'a t -> f:(key:Key.t -> data:'a -> unit) -> unit
   val iter_vals : 'a t -> f:('a -> unit) -> unit
+  val length : 'a t -> int
 end
 
 module Make (Key : Key) : S with module Key = Key = struct
@@ -159,4 +160,8 @@ module Make (Key : Key) : S with module Key = Key = struct
 
   let iter t ~f = Heap.iter t.heap ~f:(fun (k, v) -> f ~key:k ~data:v)
   let iter_vals t ~f = Heap.iter t.heap ~f:(fun (_k, v) -> f v)
+
+  let length t =
+    assert (Hashtbl.length t.tbl = Heap.length t.heap);
+    Hashtbl.length t.tbl
 end

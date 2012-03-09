@@ -2,10 +2,10 @@ open Core.Std
 open Import
 open Deferred_std
 
-module Monitor = Raw_monitor
 module Stream = Async_stream
-
 module Event = Clock_event
+
+open Monitor.Exported_for_scheduler
 
 let can_not_abort (d, _event) = d >>| function `Aborted -> assert false | `Happened -> ()
 
@@ -46,7 +46,7 @@ let at_intervals ?stop span = at_varying_intervals ?stop (fun () -> span)
 let every' ?(start = Deferred.unit) ?(stop = Deferred.never ())
     ?(continue_on_error = true) span f =
   if Time.Span.(<=) span Time.Span.zero then
-    fail "Clock.every got nonpositive span" span <:sexp_of< Time.Span.t >>;
+    failwiths "Clock.every got nonpositive span" span <:sexp_of< Time.Span.t >>;
   start
   >>> fun () ->
     (* We use an extra monitor so we can specially handle errors in [f]. *)
@@ -55,9 +55,9 @@ let every' ?(start = Deferred.unit) ?(stop = Deferred.never ())
     Stream.iter (Monitor.errors monitor) ~f:(fun e ->
       Monitor.send_exn (Monitor.current ()) e;
       saw_error := true);
-    let rec loop () =
+    let rec loop wait =
       upon (choose [choice stop (fun () -> `Stop);
-                    choice (after span) (fun () -> `Continue)])
+                    choice wait (fun () -> `Continue)])
         (function
           | `Stop -> ()
           | `Continue ->
@@ -65,7 +65,7 @@ let every' ?(start = Deferred.unit) ?(stop = Deferred.never ())
                raised an error after having returned ok.  We check [saw_error] and don't
                proceed if it did. *)
             if continue_on_error || not !saw_error then begin
-              Monitor.within' ~monitor (fun () ->
+              within' ~monitor (fun () ->
                 Monitor.try_with_raise_rest
                   (fun () ->
                     (* We check at the last possible moment before running [f] whether
@@ -78,14 +78,14 @@ let every' ?(start = Deferred.unit) ?(stop = Deferred.never ())
                 | Ok z ->
                   begin match z with
                   | `Stop -> ()
-                  | `Ran -> loop ()
+                  | `Ran -> loop (after span)
                   end
                 | Error error ->
                   Monitor.send_exn (Monitor.current ()) error;
-                  if continue_on_error then loop ()
+                  if continue_on_error then loop (after span)
             end)
     in
-    loop ()
+    loop Deferred.unit
 ;;
 
 let every ?start ?stop ?continue_on_error span f =

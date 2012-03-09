@@ -83,12 +83,13 @@ val failwiths    :  string -> 'a -> ('a -> Sexp.t) -> _
 val failwithf    : ('r, unit, string, unit -> _) format4 -> 'r
 val invalid_argf : ('r, unit, string, unit -> _) format4 -> 'r
 
+
 (* The following [sexp_of_X] functions ignore their argument and return [Sexp.Atom "_"].
    They are useful when one has a polymorphic type ['a t] with a sexp converter [val
    sexp_of_t : ('a -> Sexp.t) -> 'a t -> Sexp.t], and one wants to convert a value of type
    ['a t] to a sexp, yet one doesn't have a sexp_converter for ['a] handy.  These
    functions allow one to use [<:sexp_of< a t >>] to get a sexp converter for ['a t].  For
-   example:q
+   example:
 
    let f a_t = ... (<:sexp_of< a t >> a_t) ...
 

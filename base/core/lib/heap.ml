@@ -1,9 +1,7 @@
 
+open Int_replace_polymorphic_compare
 module OldArray = Caml.Array
 module Array = Res.Array
-
-open No_polymorphic_compare
-module P = Pervasives
 
 let def_gfactor, def_sfactor, def_min_size = Res.DefStrat.default
 
@@ -22,12 +20,12 @@ and 'el heap_el =
     mutable el : 'el;
   }
 
-let heap_el_is_valid h_el = P.(h_el.pos >= 0)
+let heap_el_is_valid h_el = h_el.pos >= 0
 
 let heap_el_get_el h_el = h_el.el
 
 let length h = Array.length h.ar
-let is_empty h = P.(length h = 0)
+let is_empty h = length h = 0
 let get_cmp h = h.cmp
 
 let calc_parent pos = (pos - 1) / 2
@@ -48,16 +46,16 @@ let rec heapify ar cmp len pos =
   let left = calc_left pos in
   let right = left + 1 in
   let largest =
-    if P.(left < len) && P.(cmp (get_el ar left) (get_el ar pos) < 0)
+    if left < len && cmp (get_el ar left) (get_el ar pos) < 0
     then left
     else pos
   in
   let largest =
-    if P.(right < len) && P.(cmp (get_el ar right) (get_el ar largest) < 0)
+    if right < len && cmp (get_el ar right) (get_el ar largest) < 0
     then right
     else largest
   in
-  if P.(pos <> largest) then begin
+  if pos <> largest then begin
     exchange ar pos largest;
     heapify ar cmp len largest
   end
@@ -78,11 +76,11 @@ let make_dummy_heap cmp =
 
 let of_array ?min_size cmp ar =
   let len = OldArray.length ar in
-  if P.(len = 0) then create ?min_size cmp
+  if len = 0 then create ?min_size cmp
   else
     let dummy = make_dummy_heap cmp in
     (* Copied in from core_int, to avoid annoying loops *)
-    let int_max (x : int) y = if P.(x > y) then x else y in
+    let int_max (x : int) y = if x > y then x else y in
     let min_size =
       match min_size with
       | None -> int_max def_min_size (len / 2)
@@ -98,19 +96,20 @@ let of_array ?min_size cmp ar =
     for pos = 0 to len - 1 do
       (Array.get rar pos).heap <- res
     done;
-    if P.(len = 1) then res
+    if len = 1 then res
     else
       let rec loop pos =
-        if P.(pos >= 0) then (
+        if pos >= 0 then (
           heapify rar cmp len pos;
           loop (pos - 1)) in
       loop (calc_parent (len - 1));
       res
+;;
 
-let copy { ar = ar; cmp = cmp } =
+let copy { ar; cmp } =
   let len = Array.length ar in
   let (_, _, min_size) as strat = Array.get_strategy ar in
-  if P.(len = 0) then create ~min_size cmp
+  if len = 0 then create ~min_size cmp
   else
     let res_ar =
       Array.sinit strat len (fun ix ->
@@ -121,79 +120,77 @@ let copy { ar = ar; cmp = cmp } =
       (Array.get res_ar pos).heap <- res
     done;
     res
+;;
 
-(***************************************************************)
-
-let mem { ar = ar; cmp = cmp } el =
+let mem { ar; cmp } el =
   let len = Array.length ar in
-  P.(len > 0) &&
+  len > 0 &&
     let rec loop pos =
       let c = cmp (get_el ar pos) el in
-      P.(c = 0)
-      || P.(c < 0)
+      c = 0
+      || c < 0
       &&
         let left = calc_left pos in
-        P.(left < len)
+        left < len
         && (
           loop left
           ||
             let right = left + 1 in
-            P.(right < len)
+            right < len
             && loop right
         )
     in
     loop 0
+;;
 
-type found
-external found_of_heap_el : 'el heap_el -> found = "%identity"
-external heap_el_of_found : found -> 'el heap_el = "%identity"
-exception Found of found
-
-let find_heap_el_exn { ar = ar; cmp = cmp } el =
+let find_heap_el_exn { ar; cmp } el =
   let len = Array.length ar in
-  if P.(len = 0) then raise Not_found;
   let rec loop pos =
-    let h_el = Array.get ar pos in
-    let c = cmp h_el.el el in
-    (
-      P.(c = 0) &&
-      raise (Found (found_of_heap_el h_el))
-    ) ||
-    P.(c < 0) &&
-      let left = calc_left pos in
-      P.(left < len) && (
-        loop left ||
-        let right = left + 1 in
-        P.(right < len) && loop right) in
-  try
-    ignore (loop 0);
-    raise Not_found
-  with Found h_el -> heap_el_of_found h_el
+    if pos >= len then None
+    else begin
+      let h_el = Array.get ar pos in
+      let c = cmp h_el.el el in
+      if c = 0 then
+        Some h_el
+      else if c > 0 then
+        None
+      else begin
+        let left = calc_left pos in
+        match loop left with
+        | Some _ as x -> x
+        | None ->
+          let right = left + 1 in
+          loop right
+      end
+    end
+  in
+  match loop 0 with
+  | Some el -> el
+  | None -> raise Not_found
+;;
 
 let heap_el_mem heap h_el = heap_el_is_valid h_el && h_el.heap == heap
 
-(***************************************************************)
-
 let top_heap_el_exn { ar; _ } =
-  if P.(Array.length ar = 0) then raise Empty;
+  if Array.length ar = 0 then raise Empty;
   ar.(0)
 
 let top_heap_el { ar; _ } =
-  if P.(Array.length ar = 0) then None
+  if Array.length ar = 0 then None
   else Some ar.(0)
 
 let top_exn t = (top_heap_el_exn t).el
 
 let top { ar; _ } =
-  if P.(Array.length ar = 0) then None
+  if Array.length ar = 0 then None
   else Some (get_el ar 0)
 
 let iter t ~f =
   let ar = t.ar in
   let rec loop i =
-    if P.(i < Array.length ar) then begin
+    if i < Array.length ar then begin
       let el = ar.(i) in
-      if P.(el.pos >= 0) then begin
+      if el.pos >= 0 then begin
         f el.el;
         loop (i + 1);
       end
@@ -204,10 +201,10 @@ let iter t ~f =
 
 let pop_heap_el_exn ({ ar; _ } as h) =
   let len = Array.length ar in
-  if P.(len = 0) then raise Empty;
+  if len = 0 then raise Empty;
   let min_h_el = Array.get ar 0 in
   invalidate min_h_el;
-  if P.(len = 1) then (Array.remove_one ar; min_h_el)
+  if len = 1 then (Array.remove_one ar; min_h_el)
   else (
     Array.swap_in_last ar 0;
     set_pos ar 0;
@@ -215,35 +212,35 @@ let pop_heap_el_exn ({ ar; _ } as h) =
     min_h_el)
 
 let pop_heap_el ({ ar; _ } as h) =
-  if P.(Array.length ar = 0) then None
+  if Array.length ar = 0 then None
   else Some (pop_heap_el_exn h)
 
 let pop_exn h = (pop_heap_el_exn h).el
 
 let pop ({ ar; _ } as h) =
-  if P.(Array.length ar = 0) then None
+  if Array.length ar = 0 then None
   else Some (pop_exn h)
 
 let cond_pop_heap_el ({ ar; _ } as h) cond =
-  if P.(Array.length ar = 0) then None
+  if Array.length ar = 0 then None
   else
     let min_h_el = Array.get ar 0 in
     if cond min_h_el.el then Some (pop_heap_el_exn h)
     else None
 
 let cond_pop ({ ar; _ } as h) cond =
-  if P.(Array.length ar = 0) then None
+  if Array.length ar = 0 then None
   else
     let min_el = get_el ar 0 in
     if cond min_el then Some (pop_exn h)
     else None
 
 let rec move_up ar cmp el pos =
-  if P.(pos <= 0) then pos
+  if pos <= 0 then pos
   else
     let parent_pos = calc_parent pos in
     let parent = Array.get ar parent_pos in
-    if P.(cmp el parent.el >= 0) then pos
+    if cmp el parent.el >= 0 then pos
     else (
       Array.set ar pos parent;
       parent.pos <- pos;
@@ -281,15 +278,15 @@ let remove ({ heap = { ar; cmp }; pos; _ } as h_el) =
   assert (heap_el_is_valid h_el);
   invalidate h_el;
   let lix = Array.lix ar in
-  if P.(pos = lix) then Array.remove_one ar
+  if pos = lix then Array.remove_one ar
   else
     let { el = last_el; _ } as last = Array.get ar lix in
     Array.remove_one ar;
-    if P.(pos = 0) then remove_move_down ar cmp lix pos last
+    if pos = 0 then remove_move_down ar cmp lix pos last
     else
       let parent_pos = calc_parent pos in
       let parent = Array.get ar parent_pos in
-      if P.(cmp last_el parent.el < 0) then move_up_h_el last ar cmp last_el pos
+      if cmp last_el parent.el < 0 then move_up_h_el last ar cmp last_el pos
       else remove_move_down ar cmp lix pos last
 
 let update ({ pos; _ } as h_el) el =
@@ -297,11 +294,11 @@ let update ({ pos; _ } as h_el) el =
   h_el.el <- el;
   let { ar = ar; cmp = cmp } = h_el.heap in
   let len = Array.length ar in
-  if P.(pos = 0) then heapify ar cmp len pos
+  if pos = 0 then heapify ar cmp len pos
   else
     let parent_pos = calc_parent pos in
     let parent = Array.get ar parent_pos in
-    if P.(cmp el parent.el < 0) then move_up_h_el h_el ar cmp el pos
+    if cmp el parent.el < 0 then move_up_h_el h_el ar cmp el pos
     else heapify ar cmp len pos
 
 let check_heap_property { ar = ar; cmp = cmp } =
@@ -311,8 +308,8 @@ let check_heap_property { ar = ar; cmp = cmp } =
       let el = ar.(i).el in
       let left_child = calc_left i in
       let right_child = calc_right i in
-      if P.(cmp ar.(left_child).el el < 0)
-        || P.(cmp ar.(right_child).el el < 0)
+      if cmp ar.(left_child).el el < 0
+        || cmp ar.(right_child).el el < 0
       then raise Exit;
     done;
     true

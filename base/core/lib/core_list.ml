@@ -13,108 +13,154 @@ end
 
 include T
 
-let range ?(stride=1) ?(start_inc_exc=`inclusive) ?(stop_inc_exc=`exclusive) start stop =
+let range ?(stride=1) ?(start=`inclusive) ?(stop=`exclusive) start_i stop_i =
   if stride = 0 then
     invalid_arg "Core_list.range: stride must be non-zero";
   (* Generate the range from the last element, so that we do not need to rev it *)
   let rec loop last counter accum =
     if counter <= 0 then accum
-    else loop (last - stride) (counter - 1) (last::accum)
+    else loop (last - stride) (counter - 1) (last :: accum)
   in
   let stride_sign = if stride > 0 then 1 else -1 in
   let start =
-    match start_inc_exc with
-    | `inclusive -> start
-    | `exclusive -> start + stride
+    match start with
+    | `inclusive -> start_i
+    | `exclusive -> start_i + stride
   in
   let stop =
-    match stop_inc_exc with
-    | `inclusive -> stop + stride_sign
-    | `exclusive -> stop
+    match stop with
+    | `inclusive -> stop_i + stride_sign
+    | `exclusive -> stop_i
   in
   let num_elts = (stop - start + stride - stride_sign) / stride in
   loop (start + (stride * (num_elts - 1))) num_elts []
 ;;
 
-TEST = range 3 1 = []
-TEST = range 3 3 = []
-TEST = range 3 4 = [3]
-TEST = range 3 8 = [3;4;5;6;7]
-TEST = range ~stride:3 4 10 = [4;7]
-TEST = range ~stride:3 4 11 = [4;7;10]
-TEST = range ~stride:3 4 12 = [4;7;10]
-TEST = range ~stride:3 4 13 = [4;7;10]
-TEST = range ~stride:3 4 14 = [4;7;10;13]
+TEST_MODULE "range symmetries" = struct
 
-TEST = range ~stride:(-1)  1 3 = []
-TEST = range ~stride:(-1)  3 3 = []
-TEST = range ~stride:(-1)  4 3 = [4]
-TEST = range ~stride:(-1)  8 3 = [8;7;6;5;4]
-TEST = range ~stride:(-3) 10 4 = [10;7]
-TEST = range ~stride:(-3) 10 3 = [10;7;4]
-TEST = range ~stride:(-3) 10 2 = [10;7;4]
-TEST = range ~stride:(-3) 10 1 = [10;7;4]
-TEST = range ~stride:(-3) 10 0 = [10;7;4;1]
+  let basic ~stride ~start ~stop ~start_n ~stop_n ~result =
+    range ~stride ~start ~stop start_n stop_n = result
 
-TEST = range ~start_inc_exc:`exclusive 3 1 = []
-TEST = range ~start_inc_exc:`exclusive 3 3 = []
-TEST = range ~start_inc_exc:`exclusive 3 4 = []
-TEST = range ~start_inc_exc:`exclusive 3 8 = [4;5;6;7]
-TEST = range ~start_inc_exc:`exclusive ~stride:3 4 10 = [7]
-TEST = range ~start_inc_exc:`exclusive ~stride:3 4 11 = [7;10]
-TEST = range ~start_inc_exc:`exclusive ~stride:3 4 12 = [7;10]
-TEST = range ~start_inc_exc:`exclusive ~stride:3 4 13 = [7;10]
-TEST = range ~start_inc_exc:`exclusive ~stride:3 4 14 = [7;10;13]
+  let test stride (start_n, start) (stop_n, stop) result =
+    basic ~stride ~start ~stop ~start_n ~stop_n ~result
+    && (* works for negative [start] and [stop] *)
+      basic ~stride:(-stride)
+        ~start_n:(-start_n)
+        ~stop_n:(-stop_n)
+        ~start
+        ~stop
+        ~result:(List.map result ~f:(fun x -> -x))
 
-TEST = range ~start_inc_exc:`exclusive ~stride:(-1)  1 3 = []
-TEST = range ~start_inc_exc:`exclusive ~stride:(-1)  3 3 = []
-TEST = range ~start_inc_exc:`exclusive ~stride:(-1)  4 3 = []
-TEST = range ~start_inc_exc:`exclusive ~stride:(-1)  8 3 = [7;6;5;4]
-TEST = range ~start_inc_exc:`exclusive ~stride:(-3) 10 4 = [7]
-TEST = range ~start_inc_exc:`exclusive ~stride:(-3) 10 3 = [7;4]
-TEST = range ~start_inc_exc:`exclusive ~stride:(-3) 10 2 = [7;4]
-TEST = range ~start_inc_exc:`exclusive ~stride:(-3) 10 1 = [7;4]
-TEST = range ~start_inc_exc:`exclusive ~stride:(-3) 10 0 = [7;4;1]
+  TEST = test 1    ( 3, `inclusive) ( 1, `exclusive) []
+  TEST = test 1    ( 3, `inclusive) ( 3, `exclusive) []
+  TEST = test 1    ( 3, `inclusive) ( 4, `exclusive) [3]
+  TEST = test 1    ( 3, `inclusive) ( 8, `exclusive) [3;4;5;6;7]
+  TEST = test 3    ( 4, `inclusive) (10, `exclusive) [4;7]
+  TEST = test 3    ( 4, `inclusive) (11, `exclusive) [4;7;10]
+  TEST = test 3    ( 4, `inclusive) (12, `exclusive) [4;7;10]
+  TEST = test 3    ( 4, `inclusive) (13, `exclusive) [4;7;10]
+  TEST = test 3    ( 4, `inclusive) (14, `exclusive) [4;7;10;13]
 
-TEST = range ~stop_inc_exc:`inclusive 3 1 = []
-TEST = range ~stop_inc_exc:`inclusive 3 3 = [3]
-TEST = range ~stop_inc_exc:`inclusive 3 4 = [3;4]
-TEST = range ~stop_inc_exc:`inclusive 3 8 = [3;4;5;6;7;8]
-TEST = range ~stop_inc_exc:`inclusive ~stride:3 4 10 = [4;7;10]
-TEST = range ~stop_inc_exc:`inclusive ~stride:3 4 11 = [4;7;10]
-TEST = range ~stop_inc_exc:`inclusive ~stride:3 4 12 = [4;7;10]
-TEST = range ~stop_inc_exc:`inclusive ~stride:3 4 13 = [4;7;10;13]
-TEST = range ~stop_inc_exc:`inclusive ~stride:3 4 14 = [4;7;10;13]
+  TEST = test (-1) ( 1, `inclusive) ( 3, `exclusive) []
+  TEST = test (-1) ( 3, `inclusive) ( 3, `exclusive) []
+  TEST = test (-1) ( 4, `inclusive) ( 3, `exclusive) [4]
+  TEST = test (-1) ( 8, `inclusive) ( 3, `exclusive) [8;7;6;5;4]
+  TEST = test (-3) (10, `inclusive) ( 4, `exclusive) [10;7]
+  TEST = test (-3) (10, `inclusive) ( 3, `exclusive) [10;7;4]
+  TEST = test (-3) (10, `inclusive) ( 2, `exclusive) [10;7;4]
+  TEST = test (-3) (10, `inclusive) ( 1, `exclusive) [10;7;4]
+  TEST = test (-3) (10, `inclusive) ( 0, `exclusive) [10;7;4;1]
 
-TEST = range ~stop_inc_exc:`inclusive ~stride:(-1)  1 3 = []
-TEST = range ~stop_inc_exc:`inclusive ~stride:(-1)  3 3 = [3]
-TEST = range ~stop_inc_exc:`inclusive ~stride:(-1)  4 3 = [4;3]
-TEST = range ~stop_inc_exc:`inclusive ~stride:(-1)  8 3 = [8;7;6;5;4;3]
-TEST = range ~stop_inc_exc:`inclusive ~stride:(-3) 10 4 = [10;7;4]
-TEST = range ~stop_inc_exc:`inclusive ~stride:(-3) 10 3 = [10;7;4]
-TEST = range ~stop_inc_exc:`inclusive ~stride:(-3) 10 2 = [10;7;4]
-TEST = range ~stop_inc_exc:`inclusive ~stride:(-3) 10 1 = [10;7;4;1]
-TEST = range ~stop_inc_exc:`inclusive ~stride:(-3) 10 0 = [10;7;4;1]
+  TEST = test 1    ( 3, `exclusive) ( 1, `exclusive) []
+  TEST = test 1    ( 3, `exclusive) ( 3, `exclusive) []
+  TEST = test 1    ( 3, `exclusive) ( 4, `exclusive) []
+  TEST = test 1    ( 3, `exclusive) ( 8, `exclusive) [4;5;6;7]
+  TEST = test 3    ( 4, `exclusive) (10, `exclusive) [7]
+  TEST = test 3    ( 4, `exclusive) (11, `exclusive) [7;10]
+  TEST = test 3    ( 4, `exclusive) (12, `exclusive) [7;10]
+  TEST = test 3    ( 4, `exclusive) (13, `exclusive) [7;10]
+  TEST = test 3    ( 4, `exclusive) (14, `exclusive) [7;10;13]
 
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive 3 1 = []
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive 3 3 = []
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive 3 4 = [4]
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive 3 8 = [4;5;6;7;8]
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:3 4 10 = [7;10]
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:3 4 11 = [7;10]
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:3 4 12 = [7;10]
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:3 4 13 = [7;10;13]
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:3 4 14 = [7;10;13]
+  TEST = test (-1) ( 1, `exclusive) ( 3, `exclusive) []
+  TEST = test (-1) ( 3, `exclusive) ( 3, `exclusive) []
+  TEST = test (-1) ( 4, `exclusive) ( 3, `exclusive) []
+  TEST = test (-1) ( 8, `exclusive) ( 3, `exclusive) [7;6;5;4]
+  TEST = test (-3) (10, `exclusive) ( 4, `exclusive) [7]
+  TEST = test (-3) (10, `exclusive) ( 3, `exclusive) [7;4]
+  TEST = test (-3) (10, `exclusive) ( 2, `exclusive) [7;4]
+  TEST = test (-3) (10, `exclusive) ( 1, `exclusive) [7;4]
+  TEST = test (-3) (10, `exclusive) ( 0, `exclusive) [7;4;1]
 
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-1)  1 3 = []
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-1)  3 3 = []
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-1)  4 3 = [3]
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-1)  8 3 = [7;6;5;4;3]
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-3) 10 4 = [7;4]
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-3) 10 3 = [7;4]
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-3) 10 2 = [7;4]
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-3) 10 1 = [7;4;1]
-TEST = range ~start_inc_exc:`exclusive ~stop_inc_exc:`inclusive ~stride:(-3) 10 0 = [7;4;1]
+  TEST = test 1    ( 3, `inclusive) ( 1, `inclusive) []
+  TEST = test 1    ( 3, `inclusive) ( 3, `inclusive) [3]
+  TEST = test 1    ( 3, `inclusive) ( 4, `inclusive) [3;4]
+  TEST = test 1    ( 3, `inclusive) ( 8, `inclusive) [3;4;5;6;7;8]
+  TEST = test 3    ( 4, `inclusive) (10, `inclusive) [4;7;10]
+  TEST = test 3    ( 4, `inclusive) (11, `inclusive) [4;7;10]
+  TEST = test 3    ( 4, `inclusive) (12, `inclusive) [4;7;10]
+  TEST = test 3    ( 4, `inclusive) (13, `inclusive) [4;7;10;13]
+  TEST = test 3    ( 4, `inclusive) (14, `inclusive) [4;7;10;13]
+
+  TEST = test (-1) ( 1, `inclusive) ( 3, `inclusive) []
+  TEST = test (-1) ( 3, `inclusive) ( 3, `inclusive) [3]
+  TEST = test (-1) ( 4, `inclusive) ( 3, `inclusive) [4;3]
+  TEST = test (-1) ( 8, `inclusive) ( 3, `inclusive) [8;7;6;5;4;3]
+  TEST = test (-3) (10, `inclusive) ( 4, `inclusive) [10;7;4]
+  TEST = test (-3) (10, `inclusive) ( 3, `inclusive) [10;7;4]
+  TEST = test (-3) (10, `inclusive) ( 2, `inclusive) [10;7;4]
+  TEST = test (-3) (10, `inclusive) ( 1, `inclusive) [10;7;4;1]
+  TEST = test (-3) (10, `inclusive) ( 0, `inclusive) [10;7;4;1]
+
+  TEST = test 1    ( 3, `exclusive) ( 1, `inclusive) []
+  TEST = test 1    ( 3, `exclusive) ( 3, `inclusive) []
+  TEST = test 1    ( 3, `exclusive) ( 4, `inclusive) [4]
+  TEST = test 1    ( 3, `exclusive) ( 8, `inclusive) [4;5;6;7;8]
+  TEST = test 3    ( 4, `exclusive) (10, `inclusive) [7;10]
+  TEST = test 3    ( 4, `exclusive) (11, `inclusive) [7;10]
+  TEST = test 3    ( 4, `exclusive) (12, `inclusive) [7;10]
+  TEST = test 3    ( 4, `exclusive) (13, `inclusive) [7;10;13]
+  TEST = test 3    ( 4, `exclusive) (14, `inclusive) [7;10;13]
+
+  TEST = test (-1) ( 1, `exclusive) ( 3, `inclusive) []
+  TEST = test (-1) ( 3, `exclusive) ( 3, `inclusive) []
+  TEST = test (-1) ( 4, `exclusive) ( 3, `inclusive) [3]
+  TEST = test (-1) ( 8, `exclusive) ( 3, `inclusive) [7;6;5;4;3]
+  TEST = test (-3) (10, `exclusive) ( 4, `inclusive) [7;4]
+  TEST = test (-3) (10, `exclusive) ( 3, `inclusive) [7;4]
+  TEST = test (-3) (10, `exclusive) ( 2, `inclusive) [7;4]
+  TEST = test (-3) (10, `exclusive) ( 1, `inclusive) [7;4;1]
+  TEST = test (-3) (10, `exclusive) ( 0, `inclusive) [7;4;1]
+
+  let test_start_inc_exc stride start (stop, stop_inc_exc) result =
+    test stride (start, `inclusive) (stop, stop_inc_exc) result
+    && begin
+        match result with
+        | [] -> true
+        | head :: tail ->
+          head = start && test stride (start, `exclusive) (stop, stop_inc_exc) tail
+      end
+
+  let test_inc_exc stride start stop result =
+    test_start_inc_exc stride start (stop, `inclusive) result
+    && begin
+        match List.rev result with
+        | [] -> true
+        | last :: all_but_last ->
+          let all_but_last = List.rev all_but_last in
+          if last = stop then
+            test_start_inc_exc stride start (stop, `exclusive) all_but_last
+          else
+            true
+      end
+
+  TEST = test_inc_exc 1 4 10 [4;5;6;7;8;9;10]
+  TEST = test_inc_exc 3 4 10 [4;7;10]
+  TEST = test_inc_exc 3 4 11 [4;7;10]
+  TEST = test_inc_exc 3 4 12 [4;7;10]
+  TEST = test_inc_exc 3 4 13 [4;7;10;13]
+  TEST = test_inc_exc 3 4 14 [4;7;10;13]
+
+end
 
 module Test_values = struct
   let long1 =
@@ -146,7 +192,7 @@ let nth t n =
   let rec nth_aux t n =
     match t with
     | [] -> None
-    | a::t -> if n = 0 then Some a else nth_aux t (n-1)
+    | a :: t -> if n = 0 then Some a else nth_aux t (n-1)
   in nth_aux t n
 ;;
 
@@ -475,7 +521,7 @@ let filteri l ~f =
 
 let reduce l ~f = match l with
   | [] -> None
-  | hd::tl -> Some (fold ~init:hd ~f tl)
+  | hd :: tl -> Some (fold ~init:hd ~f tl)
 
 let reduce_exn l ~f =
   match reduce l ~f with
@@ -520,14 +566,14 @@ end
 let concat_map l ~f =
   let rec aux acc = function
     | [] -> List.rev acc
-    | hd::tl -> aux (rev_append (f hd) acc) tl
+    | hd :: tl -> aux (rev_append (f hd) acc) tl
   in
   aux [] l
 
 let concat_mapi l ~f =
   let rec aux cont acc = function
     | [] -> List.rev acc
-    | hd::tl -> aux (cont + 1) (rev_append (f cont hd) acc) tl
+    | hd :: tl -> aux (cont + 1) (rev_append (f cont hd) acc) tl
   in
   aux 0 [] l
 
@@ -536,10 +582,10 @@ let merge l1 l2 ~cmp =
     match l1,l2 with
     | [], l2 -> rev_append acc l2
     | l1, [] -> rev_append acc l1
-    | h1::t1, h2::t2 ->
+    | h1 :: t1, h2 :: t2 ->
         if cmp h1 h2 <= 0
-        then loop (h1::acc) t1 l2
-        else loop (h2::acc) l1 t2
+        then loop (h1 :: acc) t1 l2
+        else loop (h2 :: acc) l1 t2
   in
   loop [] l1 l2
 ;;
@@ -568,7 +614,7 @@ end
 (** returns final element of list *)
 let rec last_exn list = match list with
   | [x] -> x
-  | _::tl -> last_exn tl
+  | _ :: tl -> last_exn tl
   | [] -> raise (Invalid_argument "Core_list.last")
 
 TEST = last_exn [1;2;3] = 3
@@ -578,18 +624,18 @@ TEST = last_exn (Test_values.long1 ()) = 99_999
 (** optionally returns final element of list *)
 let rec last list = match list with
   | [x] -> Some x
-  | _::tl -> last tl
+  | _ :: tl -> last tl
   | [] -> None
 
 (* returns list without adjacent duplicates *)
 let dedup_without_sorting ?(compare=Pervasives.compare) list =
   let rec loop list accum = match list with
     | [] -> accum
-    | hd::[] -> hd::accum
-    | hd1::hd2::tl ->
+    | hd :: [] -> hd :: accum
+    | hd1 :: hd2 :: tl ->
         if compare hd1 hd2 = 0
-        then loop (hd2::tl) accum
-        else loop (hd2::tl) (hd1::accum)
+        then loop (hd2 :: tl) accum
+        else loop (hd2 :: tl) (hd1 :: accum)
   in
   loop list []
 
@@ -613,8 +659,8 @@ let find_a_dup ?(compare=Pervasives.compare) l =
   let sorted = List.sort ~cmp:compare l in
   let rec loop l = match l with
       [] | [_] -> None
-    | hd1::hd2::tl ->
-      if compare hd1 hd2 = 0 then Some (hd1) else loop (hd2::tl)
+    | hd1 :: hd2 :: tl ->
+      if compare hd1 hd2 = 0 then Some (hd1) else loop (hd2 :: tl)
   in
   loop sorted
 
@@ -651,7 +697,7 @@ let init n ~f =
   let rec loop i accum =
     assert (i >= 0);
     if i = 0 then accum
-    else loop (i-1) (f (i-1)::accum)
+    else loop (i-1) (f (i-1) :: accum)
   in
   loop n []
 ;;
@@ -805,7 +851,7 @@ let cartesian_product list1 list2 =
   if list2 = [] then [] else
     let rec loop l1 l2 accum = match l1 with
       | [] -> accum
-      | (hd::tl) ->
+      | (hd :: tl) ->
           loop tl l2
             (List.rev_append
                (map ~f:(fun x -> (hd,x)) l2)
@@ -868,7 +914,7 @@ let compare a b ~cmp =
     | [], [] -> 0
     | [], _  -> -1
     | _ , [] -> 1
-    | x::xs, y::ys ->
+    | x :: xs, y :: ys ->
       let n = cmp x y in
       if n = 0 then loop xs ys
       else n
@@ -905,13 +951,6 @@ let transpose_exn l =
   | Some l -> l
   | None ->
     raise (Transpose_got_lists_of_different_lengths (List.map l ~f:List.length))
-;;
-
-TEST = transpose_exn [] = []
-TEST = transpose_exn [[13]] = [[13]]
-TEST = transpose_exn [[1;2];[3;4]] = [[1;3];[2;4]]
-TEST = try let _ = transpose_exn [[1;2];[3]] in false with _ -> true
-TEST = try let _ = transpose_exn [[];[3]] in false with _ -> true
 
 TEST_MODULE "transpose" = struct
 

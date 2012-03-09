@@ -28,8 +28,8 @@ module Message = struct
   | Tag_t of string * t
   | Tag_arg of string * Sexp.t * t
   | Of_list of int option * t list
+  | With_backtrace of t * string (* backtrace *)
   with bin_io, sexp
-
 
   let rec to_strings_hum t ac =
     (* We use [Sexp.to_string_mach], despite the fact that we are implementing
@@ -45,6 +45,8 @@ module Message = struct
     | Tag_t (tag, t) -> tag :: ": " :: to_strings_hum t ac
     | Tag_arg (tag, sexp, t) ->
       tag :: ": " :: Sexp.to_string_mach sexp :: ": " :: to_strings_hum t ac
+    | With_backtrace (t, backtrace) ->
+      to_strings_hum t ("\nBacktrace:\n" :: backtrace :: ac)
     | Of_list (trunc_after, ts) ->
       let ts =
         match trunc_after with
@@ -70,11 +72,11 @@ module Message = struct
     | Tag_sexp (tag, sexp) -> List [ Atom tag; sexp ] :: ac
     | Tag_t (tag, t) -> List (Atom tag :: to_sexps_hum t []) :: ac
     | Tag_arg (tag, sexp, t) -> List (Atom tag :: sexp :: to_sexps_hum t []) :: ac
+    | With_backtrace (t, backtrace) ->
+      Sexp.List [ to_sexp_hum t; Sexp.Atom backtrace ] :: ac
     | Of_list (_, ts) ->
       List.fold (List.rev ts) ~init:ac ~f:(fun ac t -> to_sexps_hum t ac)
-  ;;
-
-  let to_sexp_hum t =
+  and to_sexp_hum t =
     match to_sexps_hum t [] with
     | [sexp] -> sexp
     | sexps -> Sexp.List sexps
@@ -126,13 +128,39 @@ let tag_arg t tag x sexp_of_x =
 
 let of_list ?trunc_after ts = lazy (Of_list (?trunc_after, List.map ts ~f:to_message))
 
-exception Error of t with sexp
+exception Error of t
+
+let () =
+  let format =
+    if (try Some (Sys.getenv "CORE_ERROR_FORMAT") with _ -> None) = Some "sexp" then
+      `Sexp
+    else
+      `String
+  in
+  Sexplib.Conv.Exn_converter.add_auto (Error (of_string "<template>"))
+    (function
+    | Error t ->
+      begin match format with
+      | `String -> Sexp.Atom (to_string_hum t)
+      | `Sexp -> to_sexp_hum t
+      end
+    | _ -> assert false)
+;;
 
 let to_exn t = Error t
 
-let of_exn = function
-  | Error t -> t
-  | exn -> lazy (Sexp (Exn.sexp_of_t exn))
+let of_exn ?backtrace exn =
+  let backtrace =
+    match backtrace with
+    | None -> None
+    | Some `Get -> Some (Printexc.get_backtrace ())
+    | Some (`This s) -> Some s
+  in
+  match exn, backtrace with
+  | Error t, None           -> t
+  | Error t, Some backtrace -> lazy (With_backtrace (to_message t, backtrace))
+  | _      , None           -> lazy (Sexp (Exn.sexp_of_t exn))
+  | _      , Some backtrace -> lazy (With_backtrace (Sexp (Exn.sexp_of_t exn), backtrace))
 ;;
 
 let raise t = raise (Error t)

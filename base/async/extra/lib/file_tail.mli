@@ -95,7 +95,11 @@ end
 
     [start_at] determines the file position at which the file tail starts.
 
-    [eof_latency_tolerance] affects the [Did_not_reach_eof_for] warning. *)
+    [eof_latency_tolerance] affects the [Did_not_reach_eof_for] warning.
+
+    [null_read_tolerance] determines how long the tailing must observe null reads
+    before it will report a [Delayed_due_to_null_reads_for] warning.
+ *)
 val create :
   ?read_buf_len:int (* default 32k *)
   -> ?read_delay:Time.Span.t (* default 0.5s *)

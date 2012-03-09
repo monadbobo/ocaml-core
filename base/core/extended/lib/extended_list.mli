@@ -2,6 +2,11 @@
 
 open Core.Std
 
+(** [of_option o] returns a list that is empty if [o] is None, otherwise it is a singleton
+    list. Useful to get filter_map-like behavior in the context of something like a
+    concat_map. *)
+val of_option : 'a option -> 'a list
+
 (** [set_inter l1 l2] returns a list without duplicates of all elements of l1 that are in l2 *)
 val set_inter : 'a list -> 'a list -> 'a list
 

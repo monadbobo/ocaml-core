@@ -12,9 +12,9 @@
 
 type 'a t
 
-include Binable.S1   with type 'a t := 'a t
+include Binable  .S1 with type 'a t := 'a t
 include Container.S1 with type 'a t := 'a t
-include Sexpable.S1  with type 'a t := 'a t
+include Sexpable .S1 with type 'a t := 'a t
 
 (** [create ()] returns an empty queue. *)
 val create : unit -> 'a t

@@ -131,7 +131,7 @@ let and_ ts =
   loop true_ ts
 
 TEST = let (a, b, c) = (base 1, base 2, base 3) in
-       and_ [a;b;c] = andalso (andalso a b) c
+       and_ [a; b; c] = andalso (andalso a b) c
 
 let or_ ts =
   let rec loop acc = function
@@ -142,7 +142,7 @@ let or_ ts =
   loop false_ ts
 
 TEST = let (a, b, c) = (base 1, base 2, base 3) in
-       or_ [a;b;c] = orelse (orelse a b) c
+       or_ [a; b; c] = orelse (orelse a b) c
 
 TEST_MODULE "blang-list-and-or" = struct
 

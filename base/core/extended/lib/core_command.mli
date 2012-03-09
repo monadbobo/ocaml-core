@@ -90,7 +90,7 @@ module Spec : sig
       form [arg_name ^ " " ^ description] where [arg_name] describes the
       argument and [description] describes the meaning of the flag.
 
-      NOTE: [name] must not contain underscores.  Use dashes instead.
+      NOTE: flag names must not contain underscores.  Use dashes instead.
   *)
   val flag : ?aliases:string list -> string -> 'a flag -> doc:string -> ('a -> 'm, 'm) t
 
@@ -174,15 +174,17 @@ module Spec : sig
   val path : unit -> (string list   -> 'm, 'm) t (* the subcommand path of this command *)
   val args : (string list -> 'm, 'm) t (* the arguments passed to this command *)
 
+  (** specifies an exact usage message for a sequence of anonymous strings *)
+  val ad_hoc : usage_arg:string -> string list anons
 end
 
 type t (** commands which can be built up into a hierarchy of subcommands *)
 
 (** [basic ~summary ?readme spec main] is a basic command that executes
     a function [main] which is passed parameters parsed from the command
-    line according to [spec]. [summary] is to contain a short description
-    of its behavior.  [readme] is to contain any longer description of its
-    behavior that will go on that commands help screen.
+    line according to [spec]. [summary] is to contain a short one-line
+    description of its behavior.  [readme] is to contain any longer
+    description of its behavior that will go on that commands' help screen.
 *)
 val basic :
   summary:string
@@ -192,15 +194,42 @@ val basic :
   -> t
 
 (** [group ~summary subcommand_alist] is a compound command with named
-    subcommands, as found in [subcommand_alist].
-
-    [summary] is to contain a short description of
-    the commands behavior that will go into the output of command help.
+    subcommands, as found in [subcommand_alist].  [summary] is to contain
+    a short one-line description of the command group.  [readme] is to
+    contain any longer description of its behavior that will go on that
+    command's help screen.
 
     NOTE: subcommand names must not contain underscores.  Use dashes instead.
 *)
-val group : summary:string -> (string * t) list -> t
+val group : summary:string -> ?readme:(unit -> string) -> (string * t) list -> t
 
 (** run a command against [Sys.argv] *)
-val run : ?version:string -> ?build_info:string -> t -> unit
+val run : ?version:string -> ?build_info:string -> ?argv:string list -> t -> unit
+
+(** Should be used only by Core_extended.Command. *)
+module Deprecated : sig
+  module Spec : sig
+    val no_arg : hook:(unit -> unit) -> bool Spec.flag
+    val escape : hook:(string list -> unit) -> string list option Spec.flag
+  end
+  val summary : t -> string
+  val help_recursive : 
+    cmd:string
+    -> with_flags:bool
+    -> expand_dots:bool 
+    -> t 
+    -> string
+    -> (string * string) list
+  val run : t 
+  -> cmd:string 
+  -> args:string list 
+  -> is_help:bool
+  -> is_help_rec:bool
+  -> is_help_rec_flags:bool
+  -> is_expand_dots:bool
+  -> unit
+  val get_flag_names : t ->  string list
+  (*val autocomplete : t -> ('a -> string list) option*)
+  (*val autocomplete_of_extended_autocomplete : (string list -> string list) -> Hmap.t -> part:string -> string list*)
+end
 

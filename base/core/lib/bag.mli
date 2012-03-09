@@ -16,7 +16,7 @@ module Elt : sig
   val value : 'a t -> 'a
 end
 
-type 'a t
+type 'a t with sexp_of
 
 include Container.S1 with type 'a t := 'a t
 
@@ -69,4 +69,4 @@ val until_empty : 'a t -> ('a -> unit) -> unit
     time. *)
 val transfer : src:'a t -> dst:'a t -> unit
 
-val sexp_of_t : ('a -> Sexp.t) -> 'a t -> Sexp.t
+val of_list : 'a list -> 'a t
