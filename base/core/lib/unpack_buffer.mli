@@ -63,7 +63,8 @@ val is_empty : (_, _) t -> bool Or_error.t
 
 (** [feed t buf ?pos ?len] adds the specified substring of [buf] to [t]'s buffer.  It
     returns an error if [t] has encountered an unpacking error. *)
-val feed : ?pos:int -> ?len:int -> (_, _) t -> Bigstring.t -> unit Or_error.t
+val feed        : ?pos:int -> ?len:int -> (_, _) t -> Bigstring.t -> unit Or_error.t
+val feed_string : ?pos:int -> ?len:int -> (_, _) t -> string      -> unit Or_error.t
 
 (** [unpack t] unpacks all the values that it can from [t].  The resulting queue will be
     empty if nothing could be unpacked.  If there is an unpacking error, [unpack] returns

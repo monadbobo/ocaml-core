@@ -4,19 +4,22 @@ open Result.Export
 
 type 'a t = ('a, Error.t) Result.t with sexp, bin_io
 
-let try_with f =
+let try_with ?(backtrace = false) f =
   try Ok (f ())
-  with exn -> Error (Error.of_exn exn)
+  with exn -> Error (Error.of_exn exn ?backtrace:(if backtrace then Some `Get else None))
+;;
 
-let try_with_bind f =
+let try_with_bind ?(backtrace = false) f =
   try f ()
-  with exn -> Error (Error.of_exn exn)
+  with exn -> Error (Error.of_exn exn ?backtrace:(if backtrace then Some `Get else None))
+;;
 
 let ok_exn = function
   | Ok x -> x
   | Error err -> Error.raise err
+;;
 
-let of_exn exn = Error (Error.of_exn exn)
+let of_exn ?backtrace exn = Error (Error.of_exn ?backtrace exn)
 
 let error message a sexp_of_a = Error (Error.create message a sexp_of_a)
 

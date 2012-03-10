@@ -26,7 +26,8 @@ val write_new_string_and_sexp_formats__read_only_new : unit -> unit
 val forbid_new_string_and_sexp_formats : unit -> unit
 
 val current_string_and_sexp_format : unit -> [
-  | `Old | `Force_old
+  | `Old
+  | `Force_old
   | `Write_new_read_both
   | `Write_new_read_only_new
 ]
@@ -157,8 +158,8 @@ val interruptible_pause : Span.t -> [`Ok | `Remaining of Span.t]
 val pause_forever : unit -> never_returns
 
 (** [ofday_occurrence ofday side now] returns a Time.t that is the occurrence of ofday (in
-    local time) which is the latest occurrence before now or the earliest occurrence after
-    now, according to side.  NOTE: This function is a little bit wrong near daylight
+    the given zone) which is the latest occurrence before now or the earliest occurrence
+    after now, according to side.  NOTE: This function is a little bit wrong near daylight
     savings time *)
 val ofday_occurrence : t -> Zone.t -> Ofday.t -> [ `right_after | `right_before ] -> t
 

@@ -158,7 +158,7 @@ module Resource_usage = struct
     nvcsw : int64;
     nivcsw : int64;
   }
-  with sexp
+  with sexp, fields
 
   external getrusage : int -> t = "unix_getrusage"
 
@@ -485,15 +485,15 @@ let record l =
 going to be receiving a steady stream of interrupts.
    Glibc's macro doesn't have a counter either.
 *)
-let rec temp_failure_retry f =
+let rec retry_until_no_eintr f =
   try
     f ()
   with Unix.Unix_error (Unix.EINTR, _, _) ->
-    temp_failure_retry f
+    retry_until_no_eintr f
 
 let improve ?(restart=false) f make_arg_sexps =
   try
-    if restart then temp_failure_retry f else f ()
+    if restart then retry_until_no_eintr f else f ()
   with
   | Unix.Unix_error (e, s, _) ->
     let buf = Buffer.create 100 in
@@ -713,6 +713,7 @@ type wait_on =
   | `Group of Pid.t
   | `Pid of Pid.t
   ]
+with sexp
 
 type mode = wait_flag list with sexp_of
 
@@ -829,8 +830,6 @@ let close ?restart = unary_fd ?restart Unix.close
 let with_close fd ~f = protect ~f:(fun () -> f fd) ~finally:(fun () -> close fd)
 
 let with_file ?perm file ~mode ~f = with_close (openfile file ~mode ?perm) ~f
-
-let with_file_read file ~f = with_file file ~mode:[O_RDONLY] ~perm:0x000 ~f
 
 let read_write f ?restart ?pos ?len fd ~buf =
   let pos, len =
@@ -1080,21 +1079,24 @@ let mkdir ?(perm=0o777) dirname =
 ;;
 
 let mkdir_p ?perm dirname =
+  let mkdir_if_missing ?perm dir =
+    try
+      mkdir ?perm dir
+    with
+    | Unix_error (EEXIST, _, _) -> ()
+    | e -> raise e
+  in
   let init,dirs =
     match Core_filename.parts dirname with
     | [] -> assert false
     | init :: dirs -> (init, dirs)
   in
-  let (_:string) =
-    (* just using the fold for the side effects *)
-    List.fold dirs ~init ~f:(fun acc dir ->
+  mkdir_if_missing ?perm init;
+  let (_:string) = (* just using the fold for the side effects and accumulator *)
+    (* This must be [fold_left], not [fold_right]. *)
+    List.fold_left dirs ~init ~f:(fun acc dir ->
       let dir = Filename.concat acc dir in
-      begin try
-        mkdir dir ?perm;
-      with
-      | Unix_error (EEXIST, _, _) -> ()
-      | e -> raise e
-      end;
+      mkdir_if_missing ?perm dir;
       dir)
   in
   ()
@@ -1378,33 +1380,34 @@ module Passwd = struct
 
   exception Getpwent with sexp
 
-  external core_setpwent : unit -> unit = "core_setpwent" ;;
-  external core_endpwent : unit -> unit = "core_endpwent" ;;
-  external core_getpwent : unit -> Unix.passwd_entry = "core_getpwent" ;;
+  module Low_level = struct
+    external core_setpwent : unit -> unit = "core_setpwent" ;;
+    external core_endpwent : unit -> unit = "core_endpwent" ;;
+    external core_getpwent : unit -> Unix.passwd_entry = "core_getpwent" ;;
+    let setpwent = core_setpwent ;;
+
+    let getpwent_exn () = of_unix (core_getpwent ()) ;;
+    let getpwent () = Option.try_with (fun () -> getpwent_exn ()) ;;
+    let endpwent = core_endpwent ;;
+  end ;;
 
   let pwdb_lock = Mutex0.create () ;;
 
   let getpwents () =
     Mutex0.critical_section pwdb_lock ~f:(fun () ->
-      core_setpwent ();
-      let rec loop acc =
-        try
-          let ent = core_getpwent () in
-          loop (of_unix ent :: acc)
-        with End_of_file ->
-          core_endpwent ();
-          List.rev acc
-      in
-      loop []
-    )
+      Low_level.setpwent ();
+      Exn.protect
+        ~f:(fun () ->
+          let rec loop acc =
+            try
+              let ent = Low_level.getpwent_exn () in
+              loop (ent :: acc)
+            with
+            | End_of_file -> List.rev acc
+          in
+          loop []))
+        ~finally:(fun () -> Low_level.endpwent ())
   ;;
-  module Low_level = struct
-    let setpwent = core_setpwent ;;
-    let endpwent = core_endpwent ;;
-
-    let getpwent_exn () = of_unix (core_getpwent ()) ;;
-    let getpwent () = Option.try_with (fun () -> getpwent_exn ()) ;;
-  end ;;
 end
 
 module Group = struct

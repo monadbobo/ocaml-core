@@ -39,6 +39,13 @@ module Measure = struct
     | `Gigabytes -> gbyte
     | `Words -> bytes_per_word
 
+  let smallest = function
+    | (`Bytes, _) | (_, `Bytes) -> `Bytes
+    | (`Words, _) | (_, `Words) -> `Words
+    | (`Kilobytes, _) | (_, `Kilobytes) -> `Kilobytes
+    | (`Megabytes, _) | (_, `Megabytes) -> `Megabytes
+    | (`Gigabytes, `Gigabytes) -> `Gigabytes
+
 end
 
 module T = struct
@@ -49,10 +56,18 @@ module T = struct
   } with bin_io
 
   module Infix = struct
-    let ( - ) t1 t2 = {t1 with bytes = t1.bytes -. t2.bytes}
-    let ( + ) t1 t2 = {t1 with bytes = t1.bytes +. t2.bytes}
-    let ( * ) t1 t2 = {t1 with bytes = t1.bytes *. t2.bytes}
-    let ( / ) t1 t2 = {t1 with bytes = t1.bytes /. t2.bytes}
+
+    let lift_linear op t1 t2 = {
+      bytes = op t1.bytes t2.bytes;
+      preferred_measure =
+        Measure.smallest (t1.preferred_measure, t2.preferred_measure);
+    }
+
+    let ( - ) t1 t2 = lift_linear ( -. ) t1 t2
+    let ( + ) t1 t2 = lift_linear ( +. ) t1 t2
+
+    let ( * ) t1 t2 = {t1 with bytes = t1.bytes *. t2}
+    let ( / ) t1 t2 = {t1 with bytes = t1.bytes /. t2}
   end
 
   let number_of_preferred_measures t = t.bytes /. Measure.bytes t.preferred_measure

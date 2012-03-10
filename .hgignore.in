@@ -19,7 +19,6 @@ config.status$
 mycaml$
 \.DS_Store$
 tmtags$
-\.rnc$
 
 ^\.git/.*$
 ^\.transdeps/.*$
@@ -46,6 +45,7 @@ personal_compilation_ignores
 *.rej
 *.spot
 *.toc
+*.cmp
 .*.sw[pabcdef]
 .mydeps
 inline_tests.ml
@@ -54,7 +54,7 @@ TAGS
 order_file_*_common.ml
 *_db_pnl_common.ml
 order_file_*_eval.ml
-
+_build
 
 # for new omake rules
 *.deps
@@ -65,6 +65,7 @@ order_file_*_eval.ml
 *.hg_version.c
 *.build_info.c
 hg_version.out
+stub.names
 
 # specific files
 .last_build_env
@@ -77,6 +78,8 @@ libdeps.ps
 libdeps.corrected
 ocaml_path
 .ocaml-3.10
+bisect{.itarget,.mlpack,.odocl,_pp.mlpack}
+bisect-1.1/Makefile.config
 \#*
 .\#*
 

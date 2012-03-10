@@ -4,18 +4,18 @@ open Core.Std
    Process and system stats
 *)
 
-type bigint = Big_int.big_int
+type bigint = Big_int.big_int with sexp ;;
 
 module Process : sig
   module Inode : sig
-    type t
+    type t with sexp ;;
     val of_string : string -> t
     val to_string : t -> string
   end ;;
   module Limits : sig
     module Rlimit : sig
-      type value = [ `unlimited | `limited of bigint ] ;;
-      type t = { soft : value; hard: value } with fields ;;
+      type value = [ `unlimited | `limited of bigint ] with sexp ;;
+      type t = { soft : value; hard: value } with fields, sexp ;;
     end ;;
     type t =
       {
@@ -35,7 +35,7 @@ module Process : sig
         nice_priority     : Rlimit.t;
         realtime_priority : Rlimit.t;
      }
-    with fields ;;
+    with fields, sexp ;;
   end ;;
   module Stat : sig
     type t =
@@ -93,8 +93,8 @@ module Process : sig
         processor   : int;    (** CPU number last executed on. *)
         rt_priority : bigint; (** Real-time scheduling priority. *)
         policy      : bigint; (** Scheduling policy *)
-      } with fields
-    ;;
+      }
+    with fields, sexp ;;
   end ;;
 
   module Statm : sig
@@ -107,8 +107,8 @@ module Process : sig
         lib      : bigint; (** library *)
         data     : bigint; (** data/stack *)
         dt       : bigint; (** dirty pages (unused) *)
-      } with fields
-    ;;
+      }
+    with fields, sexp ;;
   end ;;
 
   module Status : sig
@@ -122,8 +122,8 @@ module Process : sig
         egid  : int; (** Effective group ID *)
         sgid  : int; (** Saved group ID *)
         fsgid : int; (** FS group ID *)
-      } with fields
-    ;;
+      }
+    with fields, sexp ;;
   end ;;
 
   module Fd : sig
@@ -132,13 +132,13 @@ module Process : sig
       | Socket of Inode.t
       | Pipe of Inode.t
       | Inotify
-    ;;
+    with sexp ;;
     type t =
       {
         fd      : int;     (** File descriptor (0=stdin, 1=stdout, etc.) *)
         fd_stat : fd_stat; (** Kind of file *)
-      } with fields
-    ;;
+      }
+    with fields, sexp ;;
   end ;;
 
   type t =
@@ -158,8 +158,8 @@ module Process : sig
       fds         : Fd.t list option; (** File descriptors *)
       oom_adj     : int;              (** OOM killer niceness [range: -17 to +15] *)
       oom_score   : int;              (** OOM "sacrifice" priority *)
-    } with fields
-  ;;
+    }
+  with fields, sexp ;;
 end ;;
 
 module Meminfo : sig
@@ -188,8 +188,8 @@ module Meminfo : sig
       vmalloc_total : bigint;
       vmalloc_used  : bigint;
       vmalloc_chunk : bigint;
-    } with fields
-  ;;
+    }
+  with fields, sexp ;;
 end ;;
 
 module Loadavg : sig
@@ -291,7 +291,7 @@ module Net : sig
   val default : unit -> Unix.Inet_addr.t
 
   end
-  
+
 end
 
 module Mount : sig

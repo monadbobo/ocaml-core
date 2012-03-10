@@ -13,21 +13,21 @@
 open Std_internal
 
 
-type 'a t = { mutable data: 'a array;
-              mutable min_index: int; (* conceptual *)
-              mutable length: int;    (* conceptual: max_index = min_index + length - 1 *)
-              never_shrink: bool;
-              dummy: 'a;
-            }
-with bin_io, sexp
+type 'a t = {
+  mutable data: 'a array;
+  mutable min_index: int; (* conceptual *)
+  mutable length: int;    (* conceptual: max_index = min_index + length - 1 *)
+  never_shrink: bool;
+  dummy: 'a;
+} with bin_io, sexp
 
-let create ?(never_shrink=false) ?(initial_index=0) ~dummy () =
-  { data = Array.create (1 lsl 3) dummy;  (* (1 lsl 3) = 8, must be power of 2! *)
-    min_index = initial_index;
-    length = 0;
-    never_shrink = never_shrink;
-    dummy = dummy;
-  }
+let create ?(never_shrink=false) ?(initial_index=0) ~dummy () = {
+  data = Array.create (1 lsl 3) dummy;  (* (1 lsl 3) = 8, must be power of 2! *)
+  min_index = initial_index;
+  length = 0;
+  never_shrink = never_shrink;
+  dummy = dummy;
+}
 
 let length buf = buf.length
 
@@ -49,10 +49,10 @@ let fast_mod x l = x land (l-1)         (* x % l (works when l is power of 2) *)
 let fast_is_power_2 x = x land (x-1) = 0(* x=2^n for non-negative integer n or x=0 or -max_int-1*)
 
 let check_index fname buf i =
-  if i < buf.min_index || i >= buf.min_index + buf.length
-  then invalid_arg (sprintf "Dequeue.%s: index %i is not in [%d, %d]"
-                      fname i (front_index buf) (back_index buf)
-                   )
+  if i < buf.min_index || i >= buf.min_index + buf.length then
+    invalid_arg
+      (sprintf "Dequeue.%s: index %i is not in [%d, %d]"
+        fname i (front_index buf) (back_index buf))
 
 let get_exn buf i =
   check_index "get" buf i;

@@ -25,16 +25,15 @@
    Here is a table showing what classes of functions are available in each kind
    of hash-table module:
 
-   creation   sexp-conv   accessors
-   Hashtbl                       X'          X
+                 creation   sexp-conv   accessors
+   Hashtbl                                   X
    Hashtbl.Poly      X           X
    Key.Table         X           X           X'
 
-   Those entries marked with X' are there only for historical reasons, and at will be
-   eliminated at some point.  The upshot is that one should use [Hashtbl] for accessors,
-   [Hashtbl.Poly] for hash-table creation and sexp conversion using polymorphic
-   compare/hash, and [Key.Table] for hash-table creation and sexp conversion using
-   [Key.compare] and [Key.hash]. *)
+   The entry marked with X' is there for historical reasons, and may be eliminated at some
+   point.  The upshot is that one should use [Hashtbl] for accessors, [Hashtbl.Poly] for
+   hash-table creation and sexp conversion using polymorphic compare/hash, and [Key.Table]
+   for hash-table creation and sexp conversion using [Key.compare] and [Key.hash]. *)
 
 (** For many students of ocaml, using hashtables is complicated by the
     functors.  Here are a few tips: *)
@@ -44,9 +43,9 @@
 (** To create a hashtable with string keys use String.Table.
    {[
     let table = String.Table.create () ~size:4 in
-    List.iter ~f:(fun (key, data) -> String.Table.replace table ~key ~data)
+    List.iter ~f:(fun (key, data) -> Hashtbl.set table ~key ~data)
       [ ("A", 1); ("B", 2); ("C", 3); ];
-    String.Table.find table "C" ]}
+    Hashtbl.find table "C" ]}
     Here 4 need only be a guess at the hashtable's future size.
     There are other similar pre-made hashtables, eg
       Int63.Table or Symbol.Reuters.Table. *)
@@ -63,12 +62,12 @@
       include Hashable.Make (T)
     end
     let table = Key.Table.create () ~size:4 in
-    List.iter ~f:(fun (key, data) -> Key.Table.replace table ~key ~data)
+    List.iter ~f:(fun (key, data) -> Hashtbl.set table ~key ~data)
       [ (("pi", Int63.zero), 3.14159);
         (("e", Int63.minus_one), 2.71828);
         (("Euler", Int63.one), 0.577215);
       ];
-    Key.Table.find table ("pi", Int63.zero)]}
+    Hashtbl.find table ("pi", Int63.zero)]}
     Performance {i may} improve if you define [equal] and [hash] explicitly, eg:
     {[
     let equal (x, y) (x', y') = String.(=) x x' && Int63.(=) y y'
@@ -81,12 +80,16 @@ module Hashable : Hashable
 val hash : 'a -> int
 val hash_param : int -> int -> 'a -> int
 
-type ('a, 'b) t
+type ('a, 'b) t with sexp_of
+(* We use [with sexp_of] but not [with sexp] because we want people to be explicit
+   about the hash and comparison functions used when creating hashtables.  One can
+   use [Hashtbl.Poly.t], which does have [with sexp], to use polymorphic comparison and
+   hashing. *)
 
 include Creators
   with type ('a, 'b) t  := ('a, 'b) t
   with type 'a key = 'a
-  with type ('a, 'z) create_options := ('a, 'z) create_options_with_hashable_required
+  with type ('a, 'z) create_options := ('a, 'z) create_options_with_hashable
 
 include Accessors with type ('a, 'b) t := ('a, 'b) t with type 'a key := 'a key
 

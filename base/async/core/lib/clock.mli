@@ -1,11 +1,8 @@
-(** Clock includes functions to create deferreds that become determined at a
-    certain time.
+(** Clock includes functions to create deferreds that become determined at a certain time.
 
-    The underlying implementation uses a heap of events, one for each deferred
-    that needs to be determined at some time in the future.  It uses the timeout
-    argument to select() in the core select loop to wake up and fill in the
-    deferreds.
-*)
+    The underlying implementation uses a heap of events, one for each deferred that needs
+    to be determined at some time in the future.  It uses the timeout argument to select()
+    in the core select loop to wake up and fill in the deferreds. *)
 
 open Core.Std
 
@@ -34,8 +31,8 @@ val after_event : Time.Span.t -> [ `Happened | `Aborted ] Deferred.t * Event.t
     checking, if [d] is determined and the timeout has expired, the resulting deferred
     will be determined with [`Result].  In other words, since there is inherent race
     between [d] and the timeout, the preference is given to [d]. *)
-val with_timeout :
-  Time.Span.t
+val with_timeout
+  :  Time.Span.t
   -> 'a Deferred.t
   -> [ `Timeout
      | `Result of 'a
@@ -53,20 +50,16 @@ val with_timeout :
 val at       : Time.t -> unit Deferred.t
 val at_event : Time.t -> [ `Happened | `Aborted ] Deferred.t * Event.t
 
-(** [at_varying_intervals ~stop f] returns a stream whose next element becomes
-    determined by calling [f ()] and waiting for that amount of time, and then
-    looping to determine subsequent elements.  The stream will end after [stop]
-    becomes determined.
-*)
+(** [at_varying_intervals ~stop f] returns a stream whose next element becomes determined
+    by calling [f ()] and waiting for that amount of time, and then looping to determine
+    subsequent elements.  The stream will end after [stop] becomes determined. *)
 val at_varying_intervals :
   ?stop:unit Deferred.t -> (unit -> Time.Span.t) -> unit Async_stream.t
 
-(** [at_intervals ~stop span] returns a stream whose elements will become
-    determined span time apart.  The stream will end after stop becomes
-    determined.
+(** [at_intervals ~stop span] returns a stream whose elements will become determined span
+    time apart.  The stream will end after stop becomes determined.
 
-    [at_intervals ~stop span] = [at_varying_intervals ~stop (fun () -> span)]
-*)
+    [at_intervals ~stop span] = [at_varying_intervals ~stop (fun () -> span)] *)
 val at_intervals : ?stop:unit Deferred.t -> Time.Span.t -> unit Async_stream.t
 
 (** [every' ?start ?stop span f] runs [f()] every [span] amount of time starting when
@@ -78,24 +71,21 @@ val at_intervals : ?stop:unit Deferred.t -> Time.Span.t -> unit Async_stream.t
     It is guaranteed that if [stop] becomes determined, even during evaluation of [f],
     then [f] will not be called again by a subsequent iteration of the loop.
 
-    It is an error for [span] to be nonpositive.
-*)
-val every' :
-  ?start : unit Deferred.t
+    It is an error for [span] to be nonpositive. *)
+val every'
+  :  ?start : unit Deferred.t
   -> ?stop : unit Deferred.t
   -> ?continue_on_error : bool
   -> Time.Span.t
   -> (unit -> unit Deferred.t) -> unit
 
-(** [every ?start ?stop span f]
- * is [every' ?start ?stop span (fun () -> f (); Deferred.unit)]
- *)
-val every :
-  ?start : unit Deferred.t
+(** [every ?start ?stop span f] is
+    [every' ?start ?stop span (fun () -> f (); Deferred.unit)] *)
+val every
+  :  ?start : unit Deferred.t
   -> ?stop : unit Deferred.t
   -> ?continue_on_error : bool
   -> Time.Span.t
   -> (unit -> unit) -> unit
 
-val with_timeout :
-  Time.Span.t -> 'a Deferred.t -> [ `Timeout | `Result of 'a ] Deferred.t
+val with_timeout : Time.Span.t -> 'a Deferred.t -> [ `Timeout | `Result of 'a ] Deferred.t

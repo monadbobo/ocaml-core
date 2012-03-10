@@ -54,23 +54,12 @@ val invariant : ('k, 'v) t -> compare:('k -> 'k -> int) -> unit
     returned t is the new root node of the tree, and should be used on all further calls
     to any other function in this module. The bool ref, added, will be set to true if a
     new node is added to the tree, or false if an existing node is replaced (in the case
-    that the key already exists). *)
-val add : ('k, 'v) t
-  -> compare:('k -> 'k -> int)
-  -> added:bool ref
-  -> key:'k
-  -> data:'v
+    that the key already exists). If [replace] (default true) is true then add will
+    overwrite any existing mapping for [key]. If [replace] is false, and there is an
+    existing mapping for key then add has no effect. *)
+val add
+  :  ?replace:bool
   -> ('k, 'v) t
-
-(** adds the specified key and data to the tree destructively if it does not already exist
-    in the tree (previous t's are no longer valid) using the specified comparison
-    function. O(log(N)) time, O(1) space. The returned t is the new root node of the tree,
-    and should be used on all further calls to any other function in this module. The bool
-    ref, added, will be set to true if a new node is added to the tree, or false if an
-    there was an existing node (in which case no change was made to the tree).  You may
-    assume that previous t's are valid of added is false, though it is always safe
-    to use the returned t. *)
-val add_if_not_exists : ('k, 'v) t
   -> compare:('k -> 'k -> int)
   -> added:bool ref
   -> key:'k
@@ -87,8 +76,8 @@ val mem : ('k, 'v) t -> compare:('k -> 'k -> int) -> 'k -> bool
 (** remove key destructively from the tree if it exists, return the new root node.
     Previous root nodes are not usable anymore, do so at your peril. the removed ref will
     be set to true if a node was actually removed, or false otherwise. *)
-
-val remove : ('k, 'v) t
+val remove
+  :  ('k, 'v) t
   -> removed:bool ref
   -> compare:('k -> 'k -> int)
   -> 'k

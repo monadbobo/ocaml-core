@@ -1,7 +1,7 @@
 open Sexplib
 
 type t = {
-  exn: exn;                    (* where we stash the raw value *)
+  exn : exn;                    (* where we stash the raw value *)
   constr_name : string;
   to_sexp : unit -> Sexp.t;
 }
@@ -10,8 +10,8 @@ module Constr = struct
   type 'a t = {
     emb : 'a -> exn;
     prj : exn  -> 'a option;
-    to_sexp: 'a -> Sexp.t;
-    name: string;
+    to_sexp : 'a -> Sexp.t;
+    name : string;
   }
 
   let create (type a) name to_sexp =
@@ -29,9 +29,9 @@ let constr_name t = t.constr_name
 let sexp_of_t t = t.to_sexp ()
 
 let create constr x = {
-  exn       = constr.Constr.emb x;
+  exn         = constr.Constr.emb x;
   constr_name = constr.Constr.name;
-  to_sexp   = (fun () -> constr.Constr.to_sexp x);
+  to_sexp     = (fun () -> constr.Constr.to_sexp x);
 }
 
 let match_ t constr = constr.Constr.prj t.exn

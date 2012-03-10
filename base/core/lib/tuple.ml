@@ -67,7 +67,6 @@ end
 
 module type Hashable_sexpable = sig
   type t
-  val compare : t -> t -> int
   include Hashable.S with type t := t
   include Sexpable.S with type t := t
 end

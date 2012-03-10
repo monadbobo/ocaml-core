@@ -67,6 +67,7 @@ struct
   include (Map : Map_intf.Accessors with type ('a, 'b, 'c) t := ('a, 'b, 'c) Map.t with type 'a key = 'a)
   include (Map.Poly : Map_intf.Creators
                         with type ('a, 'b, 'c) t := ('a, 'b, 'c) Map.Poly.t_
+                        with type ('a, 'b, 'c) tree := ('a, 'b, 'c) Map.tree
                         with type 'a key := 'a key
                         with type ('a, 'b, 'c) create_options := ('a, 'b, 'c) Map_intf.create_options_without_comparator)
   type 'a _in_value = 'a Fold.data

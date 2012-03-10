@@ -1,11 +1,13 @@
+(** An ivar is a write-once cell that can be empty or full (i.e. hold a single value) that
+    one can [read] and to obtain a deferred that becomes determined when the ivar is
+    filled.  An ivar is similar to an [a option ref], except it is an error to fill an
+    already full ivar. *)
+
 open Core.Std
 
-(** An ivar is a write-once cell that can be empty or full (i.e. hold a single value).  It
-    is like the type ['a option ref], except it is an error to fill an already full
-    ivar. *)
-type 'a t = 'a Basic.Ivar.t with bin_io, sexp_of
-
-val sexp_of_t : ('a -> Sexplib.Sexp.t) -> 'a t -> Sexplib.Sexp.t
+type 'a t = ('a, Execution_context.t) Raw_ivar.t with bin_io, sexp_of
+type 'a detailed = 'a t with sexp_of
+type 'a deferred = ('a, Execution_context.t) Raw_deferred.t
 
 (** [equal t t'] is physical equality of [t] and [t']. *)
 val equal : 'a t -> 'a t -> bool
@@ -29,4 +31,4 @@ val is_full : 'a t -> bool
 
 (** [read t] returns a deferred that becomes enabled with value [v] after the ivar is
     filled with [v]. *)
-val read : 'a t -> 'a Deferred.t
+val read : 'a t -> 'a deferred

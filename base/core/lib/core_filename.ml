@@ -165,4 +165,15 @@ let parts filename =
       loop (dir :: acc) rest
   in
   loop [] filename
-;;
+
+TEST = parts "/tmp/foo/bar/baz" = ["/"; "tmp"; "foo"; "bar"; "baz" ]
+TEST = parts "/tmp/foo/bar/baz/" = ["/"; "tmp"; "foo"; "bar"; "baz" ]
+TEST = parts "" = ["."]
+TEST = parts "." = ["."]
+TEST = parts "./" = ["."]
+TEST = parts "/" = ["/"]
+TEST = parts "foo" = ["."; "foo"]
+TEST = parts "./foo" = ["."; "foo"]
+TEST = parts "./foo/" = ["."; "foo"]
+TEST = parts "./foo/." = ["."; "foo"; "."]
+

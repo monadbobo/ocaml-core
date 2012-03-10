@@ -22,11 +22,13 @@ let input_lines ?fix_win_eol:_ _ = `Deprecated_use_In_channel_input_lines
 let close_in = In_channel.close
 let close_out = Out_channel.close
 
-type read_only with bin_io, sexp
-type immutable  = private read_only with bin_io, sexp
-type read_write = private read_only with bin_io, sexp
-type write_only with bin_io, sexp
+type read_only with bin_io
+type immutable  = private read_only with bin_io
+type read_write = private read_only with bin_io
+type write_only with bin_io
 
+(* These are to work around a bug in pa_sexp where sexp_of_immutable would assert false
+   rather than give a clear error message. *)
 let sexp_of_immutable _ = failwith "attempt to convert abstract type immutable"
 let immutable_of_sexp = sexp_of_immutable
 let sexp_of_read_only _ = failwith "attempt to convert abstract type read_only"

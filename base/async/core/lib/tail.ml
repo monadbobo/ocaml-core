@@ -1,12 +1,18 @@
 open Core.Std
 open Import
 
-include Basic.Tail
-open Basic
+module Stream = Raw_stream
+module Tail = Raw_tail
 
-let sexp_of_t _ t = Sexp.Atom (if Ivar.is_empty t.next then "<open>" else "<closed>")
+type ('a, 'execution_context) t_ = ('a, 'execution_context) Tail.t =
+  { mutable next: (('a, 'execution_context) Stream.next, 'execution_context) Raw_ivar.t;
+  }
 
-let collect t = Ivar.read t.next
+type 'a t = ('a, Execution_context.t) Tail.t with sexp_of
+
+let create = Tail.create
+
+let collect = Tail.collect
 
 let is_closed t = Ivar.is_full t.next
 

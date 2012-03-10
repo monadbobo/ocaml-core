@@ -1,33 +1,14 @@
 open Core.Std
 
-let verbosity_threshold = ref `Low
-let cmp_verbosity a b =
-  match a, b with
-  | `Low, `Low -> 0
-  | `Low, _ -> -1
-  | `Mid, `Low -> 1
-  | `Mid, `Mid -> 0
-  | `Mid, `High -> -1
-  | `High, `High -> 0
-  | `High, _ -> 1
-;;
-
-let printout msg_verbosity =
-  if cmp_verbosity !verbosity_threshold msg_verbosity >= 0
-  then printf else ifprintf stdout
-;;
-
-let default_clock = `Wall
-
 module Test = struct
   type t =
     { name : string option;
       size : int option;
-      func : unit -> unit;
+      f    : unit -> unit;
     }
   ;;
 
-  let create ?name ?size func = { name; size; func }
+  let create ?name ?size f = { name; size; f }
 
   let name t = t.name
   let size t = t.size
@@ -78,7 +59,8 @@ module Result = struct
 
   let sample_size arr = arr.(0).sample_size
 
-  let sdev arr =
+  let stdev arr =
+    if Array.length arr <= 1 then None else
     let mean_run = (mean arr).run_time in
     let diff_sq x y =
       let d = (Float.of_int x) -. (Float.of_int y) in
@@ -87,7 +69,7 @@ module Result = struct
     let squares = Array.map arr ~f:(fun stat -> diff_sq mean_run stat.run_time) in
     let squares_sum = Array.fold squares ~init:0. ~f:(+.) in
     let init_sd = sqrt (squares_sum /. Float.of_int (Array.length arr)) in
-    Int.of_float (init_sd /. sqrt (Float.of_int (sample_size arr)))
+    Some (init_sd /. sqrt (Float.of_int (sample_size arr)))
 
   let compactions_occurred arr = (max arr).compactions > 0
 
@@ -138,8 +120,14 @@ let make_norm ~time_format (_name_opt, size_opt, results) =
   | None -> ""
 ;;
 
-let make_sdev ~time_format (_name_opt, _size_opt, results) =
-  time_string ~time_format (Result.sdev results)
+let make_stdev ~time_format (_name_opt, _size_opt, results) =
+  match Result.stdev results with
+  | None -> "N/A"
+  | Some stdev ->
+    if stdev <. 100. then
+      sprintf "%.3G ns" stdev
+    else
+      time_string ~time_format (Int.of_float stdev)
 ;;
 
 let make_allocated (_name_opt, _size_opt, results) =
@@ -159,14 +147,15 @@ let make_warn (_name_opt, _size_opt, results) =
 ;;
 
 let print ?(time_format=`Auto) data =
-  let r_create = Ascii_table.Column.create ~align:Ascii_table.Align.right in
-  let name_col = r_create "Name" make_name in
-  let size_col = r_create "Input size" make_size in
-  let time_col = r_create "Run time" (make_time ~time_format) in
-  let norm_col = r_create "Normalized" (make_norm ~time_format) in
-  let sdev_col = r_create "S. dev." (make_sdev ~time_format) in
-  let allocated_col = r_create "Allocated" make_allocated in
-  let warn_col = r_create "Warnings" make_warn in
+  let module Col = Ascii_table.Column in
+  let right = Ascii_table.Align.right in
+  let name_col = Col.create "Name" make_name in
+  let size_col = Col.create ~align:right "Input size" make_size in
+  let time_col = Col.create ~align:right "Run time" (make_time ~time_format) in
+  let norm_col = Col.create ~align:right "Normalized" (make_norm ~time_format) in
+  let stdev_col = Col.create ~align:right "Stdev" (make_stdev ~time_format) in
+  let allocated_col = Col.create ~align:right "Allocated" make_allocated in
+  let warn_col = Col.create ~align:right "Warnings" make_warn in
 
   let exists_name = List.exists data ~f:(fun (name_opt, _, _) -> is_some name_opt) in
   let exists_size = List.exists data ~f:(fun (_, size_opt, _) -> is_some size_opt) in
@@ -177,7 +166,7 @@ let print ?(time_format=`Auto) data =
         (if exists_size then [size_col] else []);
         [time_col];
         (if exists_size then [norm_col] else []);
-        [sdev_col; allocated_col; warn_col]
+        [stdev_col; allocated_col; warn_col]
       ]
     end
     data
@@ -262,73 +251,75 @@ let allocated_cost ~now () =
   assert (0 = compute ~allocated_cost 100);
   allocated_cost
 
-let parse_clock maybe_clock =
-  let clock = Option.value maybe_clock ~default:default_clock in
-  match clock with
-  | `Wall -> Posix_clock.Monotonic
-  | `Cpu -> Posix_clock.Process_cpu
-
-let bench_basic ~gc_prefs ~no_compactions ?clock ~run_count {Test.name; func = f} =
+let bench_basic ~verbosity ~gc_prefs ~no_compactions ~clock ~run_count test =
+  let print_high s = match verbosity with
+    | `High -> printf s
+    | `Low | `Mid -> ifprintf stdout s
+  in
+  let print_mid s = match verbosity with
+    | `High | `Mid -> printf s
+    | `Low -> ifprintf stdout s
+  in
   let old_gc = Gc.get () in
-  begin match gc_prefs with
-    | Some prefs -> Gc.set prefs
-    | None -> ()
-  end;
-  let measurement_clock = parse_clock clock in
+  Option.iter gc_prefs ~f:Gc.set;
+  let measurement_clock = match clock with
+    | `Wall -> Posix_clock.Monotonic
+    | `Cpu  -> Posix_clock.Process_cpu
+  in
   let now () = Posix_clock.gettime measurement_clock in
   if no_compactions then Gc.set { (Gc.get ()) with Gc.Control.max_overhead = 1_000_000 };
   (* calculate how long it takes us to get a time measurement for the current thread *)
-  printout `High "calculating cost of timing measurement: %!";
+  print_high "calculating cost of timing measurement: %!";
   let gettime_cost =
     Posix_clock.mean_gettime_cost ~measure:measurement_clock ~using:Posix_clock.Monotonic
   in
-  printout `High "%i ns\n%!" gettime_cost;
-  printout `High "calculating minimal measurable interval: %!";
+  print_high "%i ns\n%!" gettime_cost;
+  print_high "calculating minimal measurable interval: %!";
   let gettime_min_interval = Posix_clock.min_interval measurement_clock in
-  printout `High "%i ns\n%!" gettime_min_interval;
+  print_high "%i ns\n%!" gettime_min_interval;
   (* find the number of samples of f needed before gettime cost is < 1% of the total *)
-  printout `High "determining number of runs per sample: %!";
-  let sample_size, run_time = find_run_size ~now gettime_min_interval f in
-  printout `High "%i\n%!" sample_size;
+  print_high "determining number of runs per sample: %!";
+  let sample_size, run_time = find_run_size ~now gettime_min_interval test.Test.f in
+  print_high "%i\n%!" sample_size;
   let runs = Array.create run_count Result.Stat.empty in
-  printout `High "stabilizing GC: %!";
+  print_high "stabilizing GC: %!";
   stabilize_gc ();
-  printout `High "done\n%!";
-  printout `High "calculating the cost of a full major sweep: %!";
+  print_high "done\n%!";
+  print_high "calculating the cost of a full major sweep: %!";
   let full_major_cost = full_major_cost ~now () in
-  printout `High "%i ns\n%!" full_major_cost;
-  printout `High "calculating memory allocated by tester: %!";
+  print_high "%i ns\n%!" full_major_cost;
+  print_high "calculating memory allocated by tester: %!";
   let allocated_cost = allocated_cost ~now () in
-  printout `High "%i words\n%!" allocated_cost;
-  printout `Mid "running samples for %s (estimated time %i sec)\n%!"
-    (Option.value ~default:"(NO NAME)" name)
+  print_high "%i words\n%!" allocated_cost;
+  print_mid "running samples for %s (estimated time %i sec)\n%!"
+    (Option.value ~default:"(NO NAME)" test.Test.name)
     ((run_time * run_count) / 1000 / 1000 / 1000);
   for i = 0 to run_count - 1 do
-    runs.(i) <- run_once ~f ~sample_size ~gettime_cost ~full_major_cost ~allocated_cost
+    runs.(i) <- run_once ~f:test.Test.f ~sample_size ~gettime_cost ~full_major_cost ~allocated_cost
       ~now;
-    printout `Mid ".%!";
+    print_mid ".%!";
   done;
-  printout `Mid "\n%!";
+  print_mid "\n%!";
   (* keep f from being gc'd by calling f () again *)
-  f ();
+  test.Test.f ();
   Gc.set old_gc;
   runs
 
-type ('a, 'b) benchmark_function =
+type 'a with_benchmark_flags =
   ?verbosity:[ `High | `Mid | `Low ] -> ?gc_prefs:Gc.Control.t -> ?no_compactions:bool
-  -> ?fast:bool -> ?clock:[`Wall | `Cpu] -> 'a -> 'b
+  -> ?fast:bool -> ?clock:[`Wall | `Cpu] -> 'a
 
-type 'a print_function =
+type 'a with_print_flags =
   ?time_format:[`Ns | `Ms | `Us | `S | `Auto]
   -> 'a
 
 let default_run_count = 100
 
-let bench_raw ?verbosity ?gc_prefs ?(no_compactions = false) ?fast ?clock tests =
-  let run_count = if Option.value ~default:false fast then 1 else default_run_count in
-  verbosity_threshold := Option.value ~default:`Low verbosity;
+let bench_raw ?(verbosity=`Low) ?gc_prefs ?(no_compactions=false) ?(fast=false)
+    ?(clock=`Wall) tests =
+  let run_count = if fast then 1 else default_run_count in
   List.map tests ~f:(fun test -> test.Test.name, test.Test.size,
-    bench_basic ~gc_prefs ~no_compactions ?clock ~run_count test)
+    bench_basic ~verbosity ~gc_prefs ~no_compactions ?clock ~run_count test)
 ;;
 
 let bench ?time_format ?verbosity ?gc_prefs ?no_compactions ?fast ?clock tests =

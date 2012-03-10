@@ -43,7 +43,7 @@ module Sing = struct
       Command.Spec.(
         (* flags *)
         step (fun k slow -> k ~slow)
-        ++ flag "-slow" no_arg ~doc:" sing slow"
+        ++ flag "slow" ~aliases:["AA";"-BB"] no_arg ~doc:" sing slow"
         ++ flag "-loudness" (optional int)
           ~doc:"N how loud to sing (number of decibels)"
         ++ flag "-date" (optional date) ~doc:"DATE the date"
@@ -189,9 +189,10 @@ module Goodies = struct
         help
         ++ path ()
         ++ args
+        ++ flag "t" (optional string) ~doc:""
         ++ flag "-fail" no_arg ~doc:" die, die, die!"
       )
-      (fun help path args _ ->
+      (fun help path args _ _ ->
         print_endline "PATH:";
         List.iter path ~f:(fun x -> print_endline ("  " ^ x));
         print_endline "ARGS:";

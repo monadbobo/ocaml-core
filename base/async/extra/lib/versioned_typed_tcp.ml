@@ -25,11 +25,10 @@ module type Name = sig
   include Comparable with type t := t
 end
 
-(* estokes tried changing the type of [marshal_fun] so that it returned a
- * variant indicating conversion failure, and decided it was too messy.  So,
- * the plan is to use exceptions for conversion failure.  And that this is OK,
- * because that case is usually a bug.
- *)
+(* estokes tried changing the type of [marshal_fun] so that it returned a variant
+   indicating conversion failure, and decided it was too messy.  So, the plan is to use
+   exceptions for conversion failure.  And that this is OK, because that case is usually a
+   bug. *)
 type 'a marshal_fun = 'a -> Bigsubstring.t option
 type 'a unmarshal_fun = Bigsubstring.t -> 'a option
 
@@ -186,12 +185,10 @@ module type S = sig
       -> ?now:(unit -> Time.t) (** defualt: Scheduler.cycle_start *)
       -> ?enforce_unique_remote_name:bool (** remote names must be unique, default true *)
       -> ?is_client_ip_authorized:(string -> bool)
-      (** [warn_when_free_connections_lte_pct].  If the number of free
-       * connections falls below this percentage of max connections an
-       * Almost_full event will be generated.
-       * The default is 5%.
-       * It is required that 0.0 <= warn_when_free_connections_lte_pct <= 1.0
-       *)
+      (** [warn_when_free_connections_lte_pct].  If the number of free connections falls
+          below this percentage of max connections an Almost_full event will be generated.
+          The default is 5%.  It is required that 0.0 <=
+          warn_when_free_connections_lte_pct <= 1.0 *)
       -> ?warn_when_free_connections_lte_pct:float
       -> ?max_clients:int (** max connected clients. default 500 *)
       -> listen_port:int
@@ -624,6 +621,8 @@ module Make (Z : Arg) :
         | Some f -> f (`Send d) name ~time_sent_received:now
       ;;
 
+      let schedule_bigstring_threshold = 64 * 1024 (* half the size of writer's buffer *)
+
       let send_to_all' t d ~logfun ~now =
         let module C = Connection in
         let module H = Message_header in
@@ -636,11 +635,28 @@ module Make (Z : Arg) :
                   match marshal_fun d with
                   | None -> `Dropped
                   | Some msg ->
+                    let body_length = Bigsubstring.length msg in
                     let hdr =
-                      {H.time_stamp = now; body_length = Bigsubstring.length msg}
+                      { H.time_stamp = now; body_length; }
+                    in
+                    let send =
+                      if body_length > schedule_bigstring_threshold then begin
+                        let to_schedule = Bigstring.create body_length in
+                        Bigsubstring.blit_to_bigstring msg ~dst:to_schedule ~dst_pos:0;
+                        fun conn ->
+                          wrap_write_bin_prot
+                            ~sexp:H.sexp_of_t ~tc:H.bin_t.Bin_prot.Type_class.writer
+                            ~writer:conn.C.writer
+                            ~name:"send" hdr;
+                          Writer.schedule_bigstring conn.C.writer to_schedule
+                      end
+                      else begin
+                        fun conn ->
+                          send_raw ~writer:conn.C.writer ~hdr ~msg;
+                      end
                     in
                     Bag.iter bag ~f:(fun conn ->
-                      send_raw ~writer:conn.C.writer ~hdr ~msg;
+                      send conn;
                       maybe_log ~logfun ~now ~name:conn.C.name d);
                     `Sent
                 in

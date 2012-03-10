@@ -127,7 +127,7 @@ make_tags "$HERE/_tags" <<EOF
 $(tag_for_pack Core $HERE/lib/*.ml)
 
 <lib{,_test}/*.ml{,i}>: syntax_camlp4o
-<lib/{std,core_int63,bigstring,core_mutex,core_unix,bigstring_marshal,linux_ext,backtrace}.ml{,i}>:pkg_camlp4.macro
+<lib/{core_int63,bigstring,core_mutex,core_unix,bigstring_marshal,linux_ext,backtrace}.ml{,i}>:pkg_camlp4.macro
 EOF
 
 cd $HERE

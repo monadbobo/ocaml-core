@@ -112,9 +112,9 @@ val error_message : error -> string
     2. *)
 val handle_unix_error : (unit -> 'a) -> 'a
 
-(** [temp_failure_retry f] returns [f ()] unless [f ()] fails with [EINTR]; in which case
-    [f ()] is run again until it raises another error or returns a value. *)
-val temp_failure_retry : (unit -> 'a) -> 'a
+(** [retry_until_no_eintr f] returns [f ()] unless [f ()] fails with [EINTR]; in which
+    case [f ()] is run again until it raises a different error or returns a value. *)
+val retry_until_no_eintr : (unit -> 'a) -> 'a
 
 (** {6 Access to the process environment} *)
 
@@ -237,6 +237,7 @@ type wait_on =
   | `My_group
   | `Pid of Pid.t
   ]
+with sexp
 
 val wait                 : ?restart:bool -> wait_on ->  Pid.t * Exit_or_signal.t
 val wait_nohang          :                  wait_on -> (Pid.t * Exit_or_signal .t       ) option
@@ -311,16 +312,12 @@ val close : ?restart:bool -> File_descr.t -> unit
 (** [with_file file ~mode ~perm ~f] opens [file], and applies [f] to the resulting file
     descriptor.  When [f] finishes (or raises), [with_file] closes the descriptor and
     returns the result of [f] (or raises). *)
-val with_file: ?perm:file_perm
+val with_file
+  :  ?perm:file_perm
   -> string
   -> mode:open_flag list
   -> f:(File_descr.t -> 'a)
   -> 'a
-
-(** [with_file_read file ~f] opens [file] for reading and applies [f] to the resulting
-    file descriptor.  When [f] finishes (or raises), [with_file_read] closes the file
-    descriptor and returns the result of [f] (or raises). *)
-val with_file_read : string -> f:(File_descr.t -> 'a) -> 'a
 
 (** [read fd buff ofs len] reads [len] characters from descriptor
     [fd], storing them in string [buff], starting at position [ofs]
@@ -810,11 +807,10 @@ type tm =
     }
 with sexp
 
-(** Return the current time since 00:00:00 GMT, Jan. 1, 1970,
-   in seconds. *)
+(** Return the current time since 00:00:00 GMT, Jan. 1, 1970, in seconds. *)
 val time : unit -> float
 
-(** Same as {!UnixLabels.time}, but with resolution better than 1 second. *)
+(** Same as {!time} above, but with resolution better than 1 second. *)
 val gettimeofday : unit -> float
 
 (** Convert a time in seconds, as returned by {!UnixLabels.time}, into a date and
@@ -949,6 +945,9 @@ module Passwd : sig
   val getpwents : unit -> t list
 
   module Low_level : sig
+    (* These functions may not be thread safe.
+       Use [getpwents], above, if possible. *)
+
     val setpwent : unit -> unit
     val getpwent : unit -> t option
     val getpwent_exn : unit -> t
@@ -1473,7 +1472,7 @@ val set_out_channel_timeout : out_channel -> float -> unit
 (** [exit_immediately exit_code] immediately calls the [exit] system call with the given
     exit code without performing any other actions (unlike Pervasives.exit).  Does not
     return. *)
-external exit_immediately : int -> _ = "caml_sys_exit"
+val exit_immediately : int -> _
 
 (** {2 Filesystem functions} *)
 
@@ -1491,12 +1490,12 @@ external exit_immediately : int -> _ = "caml_sys_exit"
     @param major default = [0]
     @param minor default = [0]
 *)
-val mknod :
-  ?file_kind : file_kind ->
-  ?perm : int ->
-  ?major : int ->
-  ?minor : int ->
-  string -> unit
+val mknod
+  :  ?file_kind : file_kind
+  -> ?perm : int
+  -> ?major : int
+  -> ?minor : int
+  -> string -> unit
 
 (** {2 I/O vectors} *)
 
@@ -1680,7 +1679,7 @@ module Resource_usage : sig
     nvcsw : int64;
     nivcsw : int64;
   }
-  with sexp
+  with sexp, fields
 
   val get : [`Self | `Children] -> t
 

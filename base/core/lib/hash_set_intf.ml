@@ -1,7 +1,7 @@
 module type Accessors = sig
   include Container.Generic
 
-  val mem : 'a t -> 'a -> bool (* override from [Container.S1.mem] *)
+  val mem : 'a t -> 'a -> bool (* override [Container.Generic.mem] *)
   val copy : 'a t -> 'a t                 (* preserves the equality function *)
   val add               : 'a t -> 'a -> unit
   val strict_add        : 'a t -> 'a -> unit Or_error.t
@@ -21,7 +21,7 @@ type ('key, 'z) create_options_without_hashable =
   ('key, 'z) Core_hashtbl_intf.create_options_without_hashable
 
 type ('key, 'z) create_options_with_hashable_required =
-  ('key, 'z) Core_hashtbl_intf.create_options_with_hashable_required
+  ('key, 'z) Core_hashtbl_intf.create_options_with_hashable
 
 module type Creators = sig
   type 'a t

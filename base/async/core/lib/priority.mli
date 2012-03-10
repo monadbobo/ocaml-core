@@ -1,4 +1,4 @@
-type t = Jobs.Priority.t
+type t = Jobs.Priority.t with sexp_of
 
 val normal : t
-val low : t
+val low    : t

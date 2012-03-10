@@ -64,6 +64,21 @@ let diff ?(options=["-d"]) s1 s2 =
       Out_channel.write_all f2 ~data:s2;
       Shell.run_full ~expect:[0;1] "/usr/bin/diff" (options @ ["--"; f1; f2])))
 
+let getbyname_ip () =
+  Unix.gethostname ()
+  |! Unix.Inet_addr.of_string_or_getbyname
+  |! Unix.Inet_addr.to_string
+
+let ifconfig_ip_rex = Pcre.regexp "inet addr:([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})"
+let ifconfig_ips () =
+  Shell.run_lines "/sbin/ifconfig" []
+  |! List.filter_map ~f:(fun line ->
+    Option.try_with (fun () ->
+      match Pcre.extract line ~rex:ifconfig_ip_rex ~full_match:false with
+      | [|ip|] -> ip
+      | _ -> assert false))
+  |! String.Set.of_list
+
 let digest file =
   if Sys.file_exists file <> `No then
     Digest.file file

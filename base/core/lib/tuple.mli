@@ -42,9 +42,9 @@ end
 
 (* These functors allow users to write:
    module Foo = struct
-     type t = String.t * Int.t
-     include Tuple.Comparable (String.t) (Int)
-     include Tuple.Hashable (String.t) (Int)
+     include Tuple.Make       (String) (Int)
+     include Tuple.Comparable (String) (Int)
+     include Tuple.Hashable   (String) (Int)
    end
 *)
 
@@ -60,7 +60,6 @@ module Comparable (S1 : Comparable_sexpable) (S2 : Comparable_sexpable)
 
 module type Hashable_sexpable = sig
   type t
-  val compare : t -> t -> int
   include Hashable.S with type t := t
   include Sexpable.S with type t := t
 end

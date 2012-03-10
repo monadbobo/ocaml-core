@@ -25,19 +25,17 @@ include Robustly_comparable with type t := t
 include Sexpable with type t := t
 
 (* String converters and sexp converters allow for specifying of time spans in various
-   units.  An unadorned float is interpreted as being in seconds.  Other formats are
-   achieved by appending a string to the end indicating the unit, e.g. 12ms for 12
-   milliseconds 5.1h for 5.1 hours.  The endings are as follows:
+   units after a leading float (e.g. 45s, 3h, or 1d):
 
-   ms - milliseconds
-   s - seconds
-   m - minutes
-   h - hours
-   d - days
+    ms - milliseconds
+    s - seconds
+    m - minutes
+    h - hours
+    d - days
 
    The outgoing conversion functions use these units as well, choosing the largest
-   available type.  I.e., if it's a bit greater than or equal to 1 hour, the span will be
-   rendered in hours, e.g., Time.to_string (Time.of_string "66m") = "1.1h".
+   available type.  For instance, if it's a bit greater than or equal to 1 hour, the span
+   will be rendered in hours, (Time.to_string (Time.of_string "66m") = "1.1h").
 *)
 val to_string : t -> string
 val of_string : string -> t
@@ -93,13 +91,11 @@ val to_day : t -> float
 val (+)   : t -> t -> t
 val (-)   : t -> t -> t
 val abs   : t -> t (** absolute value *)
+val neg   : t -> t (** negation *)
 val scale : t -> float -> t
 val (/)   : t -> float -> t
 val (//)  : t -> t -> float
 
-(** [randomize t ~percent] returns a random span between [t - percent * t]
-    and [t + percent * t] *)
-val randomize : t -> percent:float -> t
 val pp : Format.formatter -> t -> unit
 
 (** [to_short_string t] pretty-prints approximate time span using no more than
@@ -115,3 +111,7 @@ val pp : Format.formatter -> t -> unit
     only the most significant denomination is shown.
   *)
 val to_short_string : t -> string
+
+(** [randomize t ~percent] returns a span +/- percent * original span.  Percent must be
+    between 0 and 1, and must be positive. *)
+val randomize : t -> percent:float -> t

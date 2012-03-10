@@ -1,6 +1,10 @@
 
 open Core.Std
 
+let of_option = function
+  | None -> []
+  | Some x -> [x]
+
 
 
 let set_diff l1 l2 =

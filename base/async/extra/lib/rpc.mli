@@ -116,7 +116,9 @@ module type Connection = sig
     ]
     -> 'a Deferred.t
 
-  (* Runs [with_close] but dispatches no queries. *)
+  (* Runs [with_close] but dispatches no queries. The server is required because this
+     function doesn't let you dispatch any queries (i.e., act as a client), it would be
+     pointless to call it if you didn't want to act as a server.*)
   val server_with_close :
     Reader.t
     -> Writer.t

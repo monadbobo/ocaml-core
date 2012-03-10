@@ -13,6 +13,18 @@ include struct
   let phys_equal = (==)
 end
 
+(*
+  [rank] is an upper bound on the depth of any node in the up-tree.
+
+  Imagine an unlucky sequence of operations in which you create N
+  individual [t]-values and then union them together in such a way
+  that you always pick the root of each tree to union together, so that
+  no path compression takes place.  If you don't take care to somehow
+  balance the resulting up-tree, it is possible that you end up with one
+  big long chain of N links, and then calling [representative] on the
+  deepest node takes Theta(N) time.  With the balancing scheme of never
+  increasing the rank of a node unnecessarily, it would take O(log N).
+*)
 type 'a root = {
   mutable value: 'a;
   mutable rank: int;
@@ -26,12 +38,12 @@ and 'a parent =
 let create v = { parent = Root { value = v; rank = 0; }; }
 
 let compress t =
-  let rec loop t ac =
+  let rec loop t children =
     match t.parent with
     | Root _ ->
       let p = Parent t in
-      List.iter ac ~f:(fun t -> t.parent <- p);
-    | Parent t' -> loop t' (t :: ac)
+      List.iter children ~f:(fun t -> t.parent <- p);
+    | Parent t' -> loop t' (t :: children)
   in
   loop t []
 
@@ -42,7 +54,7 @@ let representative t =
   | Parent t ->
     match t.parent with
     | Root r -> (t, r)
-    | Parent _ -> assert false
+    | Parent _ -> assert false (* after path-compression, path length is < 2 *)
 
 let root t = snd (representative t)
 

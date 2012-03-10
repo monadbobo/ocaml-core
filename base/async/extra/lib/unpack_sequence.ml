@@ -18,6 +18,44 @@ module Result = struct
   ;;
 end
 
+let unpack_from_string_pipe unpack_buffer input =
+  let output_reader, output_writer = Pipe.create () in
+  let result =
+    Deferred.repeat_until_finished () (fun () ->
+      Pipe.read' input
+      >>= function
+      | `Eof ->
+        return
+          (`Finished
+              (match Unpack_buffer.is_empty unpack_buffer with
+              | Error error -> Result.Unpack_error error
+              | Ok true -> Result.Input_closed
+              | Ok false -> Result.Input_closed_in_the_middle_of_data unpack_buffer))
+      | `Ok q ->
+        let feed_result =
+          with_return (fun r ->
+            Queue.iter q ~f:(fun string ->
+              match Unpack_buffer.feed_string unpack_buffer string with
+              | Ok () -> ()
+              | Error error -> r.return (Error error));
+            Unpack_buffer.unpack unpack_buffer)
+        in
+        match feed_result with
+        | Error error -> return (`Finished (Result.Unpack_error error))
+        | Ok outputs ->
+          if Pipe.is_closed output_writer then
+            return (`Finished (Result.Output_closed (outputs, unpack_buffer)))
+          else if Queue.is_empty outputs then
+            return (`Repeat ())
+          else begin
+            Pipe.write' output_writer outputs
+            >>| fun () ->
+            `Repeat ()
+          end)
+  in
+  output_reader, result
+;;
+
 let unpack_from_reader unpack_buffer reader =
   let pipe_r, pipe_w = Pipe.create () in
   let stop a = return (`Stop a) in

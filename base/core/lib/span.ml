@@ -19,6 +19,7 @@ module T : sig
   val zero    : t
   val epsilon : t
   val abs     : t -> t
+  val neg     : t -> t
   val scale   : t -> float -> t
 
   module Constant : sig
@@ -40,6 +41,7 @@ end = struct
     val zero    : t
     val epsilon : t
     val abs     : t -> t
+    val neg     : t -> t
     val scale   : t -> float -> t
   end)
 
@@ -160,10 +162,12 @@ let of_hr x        = x ** T.Constant.hour
 let of_day x       = x ** T.Constant.day
 
 let randomize (t:T.t) ~percent =
+  if (percent < 0. || percent > 1.0) then
+    invalid_argf "percent must be between 0 and 1, %f given" percent ();
   let t = to_sec t in
-  let upperbound = percent *. t in
-  let distance = Random.float (2. *. upperbound) -. upperbound in
-  of_sec (t +. distance)
+  let distance = Random.float (t *. percent) in
+  of_sec (if Random.bool () then t +. distance else t -. distance)
+;;
 
 let create
     ?(sign=Float.Sign.Pos)
@@ -193,9 +197,8 @@ include Constant
 let of_string (s:string) =
   try
     begin match s with
-    | ""             -> failwith "empty string"
-    | "inf" | "-inf" -> failwith "cannot create infinite span"
-    | _ ->
+    | "" -> failwith "empty string"
+    | _  ->
       let float n =
         match (String.drop_suffix s n) with
         | "" -> failwith "no number given"

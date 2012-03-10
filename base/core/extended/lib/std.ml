@@ -19,6 +19,7 @@ module Cbuffer = Cbuffer
 module Command = Command
 module Console = Console
 module Core_command = Core_command
+module Core_service_command = Core_service_command
 module Csv_writer = Csv_writer
 module Date = struct
   include Core.Std.Date
@@ -74,6 +75,7 @@ module Int64 = struct
   include Core.Std.Int64
   include Extended_int64
 end
+module Lazy_sequence = Lazy_sequence
 module Low_level_debug = Low_level_debug
 module Nativeint = struct
   include Core.Std.Nativeint

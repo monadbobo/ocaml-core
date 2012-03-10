@@ -93,7 +93,7 @@ let () =
     (fun () ->
       let start =
         Time.of_local_date_ofday
-          (Date.create ~y:1999 ~m:Month.jan ~d:1)
+          (Date.create_exn ~y:1999 ~m:Month.jan ~d:1)
           Ofday.start_of_day
       in
       let day = Span.of_day 1. in
@@ -197,7 +197,7 @@ let () =
     );
   add "date"
     (fun () ->
-      let d = Date.create ~y:2004 ~m:Month.apr ~d:15 in
+      let d = Date.create_exn ~y:2004 ~m:Month.apr ~d:15 in
       "conv1" @? (Date.to_string d = "2004-04-15");
       "conv2" @? (d = Date.of_string "2004-04-15");
       "conv3" @? (d = Date.of_string "20040415");
@@ -363,10 +363,10 @@ let () =
     );
   add "diff"
     (fun () ->
-      let d1 = Date.create ~y:2000 ~m:Month.jan ~d:1 in
-      let d2 = Date.create ~y:2000 ~m:Month.jan ~d:2 in
-      let d3 = Date.create ~y:2000 ~m:Month.feb ~d:28 in
-      let d4 = Date.create ~y:2000 ~m:Month.mar ~d:1 in
+      let d1 = Date.create_exn ~y:2000 ~m:Month.jan ~d:1 in
+      let d2 = Date.create_exn ~y:2000 ~m:Month.jan ~d:2 in
+      let d3 = Date.create_exn ~y:2000 ~m:Month.feb ~d:28 in
+      let d4 = Date.create_exn ~y:2000 ~m:Month.mar ~d:1 in
       "normal-diff" @? (Date.diff d2 d1 = 1);
       "leap-diff" @? (Date.diff d4 d3 = 2)
       )

@@ -7,8 +7,8 @@
 
   # Some general resources (summarized information also appears below):
     general overview   - http://www.twinsun.com/tz/tz-link.htm
-    leap seconds       - http://www.thedjbway.org/clockspeed/leapsecs.html
     zone abbreviations - http://blogs.msdn.com/oldnewthing/archive/2008/03/07/8080060.aspx
+    leap seconds       - http://en.wikipedia.org/wiki/Leap_second
     epoch time         - http://en.wikipedia.org/wiki/Unix_time
     UTC/GMT time       - http://www.apparent-wind.com/gmt-explained.html
     TAI time           - http://en.wikipedia.org/wiki/International_Atomic_Time
@@ -150,17 +150,10 @@ open Std_internal
 exception Unknown_zone of string
 exception Invalid_file_format of string
 
-(* A time zone file consists (conceptually - the representation is more compact) of an
-   ordered list of (float * [local_time_type]) that mark the boundaries (marked from the
-   epoch) at which various time adjustment regimes are in effect.  This can also be
-   thought of as breaking down all time past the epoch into ranges with a
-   [local_time_type] that describes the offset from GMT to apply to each range to get
-   local time.
-*)
-
 (* bin_io and sexp representations of Zone.t are the name of the zone, and not the full
    data that is read from disk when Zone.find is called.  The full Zone.t is reconstructed
-   on the receiving/reading side by reloading the zone file from disk. *)
+   on the receiving/reading side by reloading the zone file from disk.  Any zone name that
+   is accepted by find is acceptable in the bin_io and sexp representations. *)
 type t
 include Sexpable   with type t := t
 include Binable    with type t := t
@@ -168,8 +161,8 @@ include Stringable with type t := t
 
 (* User friendly functions *)
 
-(** [find name] looks up a t by its name and returns it.  [find] and [find_exn] also
-    support the following helper zones that correspond to our standard office mnemonics:
+(** [find name] looks up a [t] by its name and returns it.  [find] and [find_exn] also
+    support the following zone aliases:
     - "hkg" -> Asia/Hong_Kong
     - "lon" -> Europe/London
     - "ldn" -> Europe/London
@@ -177,8 +170,8 @@ include Stringable with type t := t
     - "tyo" -> Asia/Tokyo *)
 val find : string -> t option
 
-(** [find_office office] a more type-safe interface for pulling timezones related to our
-    offices *)
+(** [find_office office] a more type-safe interface for pulling timezones related to
+    existing Jane Street offices/locations. *)
 val find_office : [ `chi | `hkg | `ldn | `nyc ] -> t
 val find_exn : string -> t
 

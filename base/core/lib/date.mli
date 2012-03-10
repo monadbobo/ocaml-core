@@ -18,7 +18,11 @@ include Hashable_binable with type t := t
 include Stringable with type t := t
 include Comparable_binable with type t := t
 
-val create : y:int -> m:Month.t -> d:int -> t
+(** [create_exn ~y ~m ~d] creates the date specified in the arguments.  Arguments are
+    validated, and are not normalized in any way.  So, days must be within the limits for
+    the month in question, numbers cannot be negative, years must be fully specified, etc.
+*)
+val create_exn : y:int -> m:Month.t -> d:int -> t
 
 val of_tm : Core_unix.tm -> t
 
@@ -39,6 +43,7 @@ val year : t -> int
 
 (* added to Date in Core.Std to handle the circular dependancy between Time and Date *)
 (* val today : unit -> t                   (* based on local timezone *) *)
+(* val yesterday : unit -> t               (* based on local timezone *) *)
 (* val of_time : Time.t -> t               (* based on local timezone *) *)
 
 val day_of_week : t -> Weekday.t
@@ -49,9 +54,7 @@ val is_weekday : t -> bool
 (* Monday through Friday are business days, unless they're a holiday *)
 val is_business_day : t -> is_holiday:(t -> bool) -> bool
 
-(* [add_days t n] adds n days to [t] and returns the resulting date.  This is done by
-   adding (or subtracting in the case of a negative [n]) one day at a time in a loop until
-   [n = 0].  Inefficient for large values of [n]. *)
+(* [add_days t n] adds n days to [t] and returns the resulting date. *)
 val add_days : t -> int -> t
 
 (** [add_months t n] returns date with max days for the month if the date would be
@@ -63,8 +66,8 @@ val add_months : t -> int -> t
 val diff : t -> t -> int
 
 (** [add_weekdays t 0] returns the next weekday if [t] is a weekend and [t] otherwise.
-    Identical to calling [add_days] where the remaining count of days to add/subtract
-    isn't changed as the loop moves over weekend days *)
+    Unlike add_days this is done by looping over the count of days to be added (forward or
+    backwards based on the sign), and is O(n) in the number of days to add.  *)
 val add_weekdays : t -> int -> t
 
 (** [add_business_days t ~is_holiday n] returns a business day even when

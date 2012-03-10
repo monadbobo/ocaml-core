@@ -1,9 +1,13 @@
 open Core.Std
 open Import
 
-module Scheduler = Basic.Scheduler
+module Scheduler = Raw_scheduler
 
-include Basic.Clock_event
+open Raw_clock_event.T
+
+type t = Execution_context.t Raw_clock_event.t with sexp_of
+
+let events = Scheduler.(t.events)
 
 let status t =
   match t.state with
@@ -15,7 +19,7 @@ let status t =
 
 let fire t =
   match t.state with
-  | Uninitialized | Aborted | Happened -> fail "Event.fire" t <:sexp_of< t >>
+  | Uninitialized | Aborted | Happened -> failwiths "Event.fire" t <:sexp_of< t >>
   | Waiting waiting ->
     Ivar.fill waiting.ready `Happened;
     t.state <- Happened;
@@ -28,7 +32,7 @@ let abort t =
   | Happened -> `Previously_happened
   | Waiting waiting ->
     t.state <- Aborted;
-    begin match Events.remove Scheduler.(t.events) waiting.event with
+    begin match Events.remove events waiting.event with
     | `Not_present -> assert false
     | `Removed -> ()
     end;
@@ -38,7 +42,7 @@ let abort t =
 let at time =
   let ready = Ivar.create () in
   let t = { state = Uninitialized } in
-  begin match Events.add Scheduler.(t.events) ~at:time t with
+  begin match Events.add events ~at:time t with
   | `Not_in_the_future -> t.state <- Happened; Ivar.fill ready `Happened;
   | `Ok events_event   -> t.state <- Waiting { event = events_event; ready };
   end;

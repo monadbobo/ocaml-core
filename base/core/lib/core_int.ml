@@ -3,16 +3,13 @@ open Bin_prot.Std
 open Common
 
 module T = struct
-  include Comparator.Make_binable (struct
-    type t = int with bin_io, sexp
+  type t = int with bin_io, sexp
 
-    (* According to estokes,
-       if i = j then 0 else if i < j then -1 else 1
-       is only slightly faster, so we've decided to stick with
-       Pervasives.compare *)
-    let compare (x : t) y = compare x y
-  end)
-
+  (* According to estokes,
+     if i = j then 0 else if i < j then -1 else 1
+     is only slightly faster, so we've decided to stick with
+     Pervasives.compare *)
+  let compare (x : t) y = compare x y
   let equal (x : t) y = x = y
   let hash (x : t) = Hashtbl.hash x
 
@@ -32,21 +29,25 @@ let num_bits = Word_size.num_bits Word_size.word_size - 1
 let of_float = int_of_float
 let to_float = float_of_int
 
-let min (x : t) y = if x < y then x else y
-let max (x : t) y = if x > y then x else y
-let ascending = compare
-let descending x y = compare y x
-let equal (x : t) y = x = y
-let ( >= ) (x : t) y = x >= y
-let ( <= ) (x : t) y = x <= y
-let ( = ) (x : t) y = x = y
-let ( > ) (x : t) y = x > y
-let ( < ) (x : t) y = x < y
-let ( <> ) (x : t) y = x <> y
+module Replace_polymorphic_compare = struct
+  let min (x : t) y = if x < y then x else y
+  let max (x : t) y = if x > y then x else y
+  let compare = compare
+  let ascending = compare
+  let descending x y = compare y x
+  let equal (x : t) y = x = y
+  let ( >= ) (x : t) y = x >= y
+  let ( <= ) (x : t) y = x <= y
+  let ( = ) (x : t) y = x = y
+  let ( > ) (x : t) y = x > y
+  let ( < ) (x : t) y = x < y
+  let ( <> ) (x : t) y = x <> y
+end
+
+include Replace_polymorphic_compare
 
 include Hashable.Make_binable (T)
-module Map = Core_map.Make_binable (T)
-module Set = Core_set.Make_binable (T)
+include Comparable.Map_and_set_binable (T)
 
 let zero = 0
 let one = 1

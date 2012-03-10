@@ -3,6 +3,7 @@ module List = StdLabels.List
 open Sexplib
 open Sexplib.Conv
 open With_return
+open Result.Export
 open Hash_set_intf
 
 module Hashable = Hashtbl.Hashable
@@ -65,6 +66,8 @@ module Accessors = struct
 
   let to_list = Hashtbl.keys
 
+  let sexp_of_t sexp_of_e t = sexp_of_list sexp_of_e (to_list t)
+
   let to_array t = Array.of_list (to_list t)
 
   let exists  t ~f =      Hashtbl.existsi t ~f:(fun ~key ~data:() ->      f key)
@@ -123,11 +126,28 @@ end = struct
 
   let hashable = Elt.hashable
 
-  let create ?growth_allowed ?size () = Hashtbl.create ?growth_allowed ?hashable ?size ()
+  let create ?growth_allowed ?size () = Hashtbl.create ?growth_allowed ~hashable ?size ()
 
   let of_list ?growth_allowed ?size l = of_list ?growth_allowed ?size ~hashable l
 
-  let t_of_sexp e_of_sexp sexp = of_list (<:of_sexp< e list >> sexp)
+  let t_of_sexp e_of_sexp sexp =
+    match sexp with
+    | Sexp.Atom _ ->
+      raise (Of_sexp_error (Failure "Hash_set.t_of_sexp requires a list", sexp))
+    | Sexp.List list ->
+      let t = create ~size:(List.length list) () in
+      List.iter list ~f:(fun sexp ->
+        let e = e_of_sexp sexp in
+        match strict_add t e with
+        | Ok () -> ()
+        | Error _ ->
+          raise (Of_sexp_error
+                   (Error.to_exn
+                      (Error.create "Hash_set.t_of_sexp got a duplicate element"
+                         sexp Fn.id),
+                    sexp)));
+      t
+  ;;
 
 end
 
@@ -146,7 +166,7 @@ module Poly = struct
 
   include Accessors
 
-  let sexp_of_t sexp_of_k t = sexp_of_list sexp_of_k (to_list t)
+  let sexp_of_t = sexp_of_t
 
 end
 

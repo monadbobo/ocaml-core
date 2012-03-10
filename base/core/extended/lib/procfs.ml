@@ -7,20 +7,20 @@ let lu x = Big_int.big_int_of_string x
 let ld x = lu x   (* bigint everything so we don't have to worry about overflows *)
 let string_of_file fn = In_channel.with_file ~f:In_channel.input_all fn ;;
 
-type bigint = Big_int.big_int ;;
+type bigint = Big_int.big_int with sexp ;;
 
 module Process = struct
 
   module Inode = struct
-    type t = Int64.t ;;
+    type t = Int64.t with sexp ;;
     let of_string = Int64.of_string ;;
     let to_string = Int64.to_string ;;
   end ;;
 
   module Limits = struct
     module Rlimit = struct
-      type value = [ `unlimited | `limited of bigint ] ;;
-      type t = { soft : value; hard: value } with fields ;;
+      type value = [ `unlimited | `limited of bigint ] with sexp ;;
+      type t = { soft : value; hard: value } with fields, sexp ;;
     end ;;
     type t =
       {
@@ -40,7 +40,7 @@ module Process = struct
         nice_priority     : Rlimit.t;
         realtime_priority : Rlimit.t;
      }
-    with fields ;;
+    with fields, sexp ;;
 
     let of_string s =
       let map =
@@ -154,8 +154,8 @@ module Process = struct
         processor   : int;    (** CPU number last executed on. *)
         rt_priority : bigint; (** Real-time scheduling priority. *)
         policy      : bigint; (** Scheduling policy *)
-      } with fields
-    ;;
+      }
+    with fields, sexp ;;
     let of_string s =
       let extract_command s =
       (*
@@ -229,8 +229,8 @@ module Process = struct
         lib      : bigint; (** library *)
         data     : bigint; (** data/stack *)
         dt       : bigint; (** dirty pages (unused) *)
-      } with fields
-    ;;
+      }
+    with fields, sexp ;;
     let of_string s =
       let a = Array.of_list (String.split s ~on:' ') in
       {
@@ -256,8 +256,8 @@ module Process = struct
         egid  : int; (** Effective group ID *)
         sgid  : int; (** Saved group ID *)
         fsgid : int; (** FS group ID *)
-      } with fields
-    ;;
+      }
+    with fields, sexp ;;
     let of_string s =
       (* Splits "foo: 1\nbar: 2\n" into [Some ("foo"," 1"); Some ("bar"," 2"); None] *)
       let records = List.map (String.split s ~on:'\n')
@@ -288,13 +288,13 @@ module Process = struct
       | Socket of Inode.t
       | Pipe of Inode.t
       | Inotify
-    ;;
+    with sexp ;;
     type t =
       {
         fd      : int;     (** File descriptor (0=stdin, 1=stdout, etc.) *)
         fd_stat : fd_stat; (** Kind of file *)
-      } with fields
-    ;;
+      }
+    with fields, sexp ;;
   end ;;
 
   type t =
@@ -314,8 +314,8 @@ module Process = struct
       fds         : Fd.t list option; (** File descriptors *)
       oom_adj     : int;
       oom_score   : int;
-    } with fields
-  ;;
+    }
+  with fields, sexp ;;
 
   let load_exn pid =
     let slurp f fn =
@@ -447,8 +447,8 @@ module Meminfo = struct
       vmalloc_total : bigint;
       vmalloc_used  : bigint;
       vmalloc_chunk : bigint;
-    } with fields
-  ;;
+    }
+  with fields, sexp ;;
   let load_exn () =
     let of_kb = Big_int.mult_int_big_int 1024 in
     let map =

@@ -34,9 +34,13 @@ let reader_writer_of_sock ?max_buffer_age ?reader_buffer_size s =
    Writer.create ?buffer_age_limit fd)
 ;;
 
-exception Connection_attempt_aborted of string with sexp
-
-let connect_sock_gen ?(interrupt=Clock.after (sec 10.)) ~sock_type ~sock_addr () =
+let connect_sock_gen ?interrupt ?(timeout = sec 10.) ~sock_type ~sock_addr () =
+  let timeout = after timeout in
+  let interrupt =
+    match interrupt with
+    | None           -> timeout
+    | Some interrupt -> choose_ident [ interrupt; timeout ]
+  in
   Deferred.create (fun result ->
     let s = create_socket sock_type in
     close_sock_on_error s (fun () ->
@@ -45,21 +49,26 @@ let connect_sock_gen ?(interrupt=Clock.after (sec 10.)) ~sock_type ~sock_addr ()
     | `Ok s -> Ivar.fill result s
     | `Interrupted ->
       whenever (Unix.close (Socket.fd s));
-      raise (Connection_attempt_aborted (Socket.Address.to_string sock_addr)))
+      let sock_addr = Socket.Address.to_string sock_addr in
+      if Option.is_some (Deferred.peek timeout) then
+        failwiths "connection attempt timeout" sock_addr <:sexp_of< string >>
+      else
+        failwiths "connection attempt aborted" sock_addr <:sexp_of< string >>)
 ;;
 
-let connect_sock ?interrupt ~host ~port () =
+let connect_sock ?interrupt ?timeout ~host ~port () =
   Unix.Inet_addr.of_string_or_getbyname host >>= fun inet_addr ->
   let sock_addr = Socket.Address.inet inet_addr ~port in
   connect_sock_gen
     ?interrupt
+    ?timeout
     ~sock_type:Socket.Type.tcp
     ~sock_addr ()
 ;;
 
-let connect_sock_unix ?interrupt ~file () =
+let connect_sock_unix ?interrupt ?timeout ~file () =
   connect_sock_gen
-    ?interrupt
+    ?interrupt ?timeout
     ~sock_type:Socket.Type.unix
     ~sock_addr:(Socket.Address.unix file) ()
 ;;
@@ -70,14 +79,14 @@ let close_connection r w =
   Reader.close r
 ;;
 
-let connect ?max_buffer_age ?interrupt ?reader_buffer_size ~host ~port () =
-  connect_sock ?interrupt ~host ~port ()
+let connect ?max_buffer_age ?interrupt ?timeout ?reader_buffer_size ~host ~port () =
+  connect_sock ?interrupt ?timeout ~host ~port ()
   >>| fun s ->
   reader_writer_of_sock ?max_buffer_age ?reader_buffer_size s
 ;;
 
-let connect_unix ?max_buffer_age ?interrupt ?reader_buffer_size ~file () =
-  connect_sock_unix ?interrupt ~file ()
+let connect_unix ?max_buffer_age ?interrupt ?timeout ?reader_buffer_size ~file () =
+  connect_sock_unix ?interrupt ?timeout ~file ()
   >>| fun s ->
   reader_writer_of_sock ?max_buffer_age ?reader_buffer_size s
 ;;
@@ -91,8 +100,8 @@ let collect_errors writer f =
   ]
 ;;
 
-let with_connection ?interrupt ?max_buffer_age ~host ~port f =
-  connect_sock ?interrupt ~host ~port ()
+let with_connection ?interrupt ?timeout ?max_buffer_age ~host ~port f =
+  connect_sock ?interrupt ?timeout ~host ~port ()
   >>= fun s ->
   let r,w    = reader_writer_of_sock ?max_buffer_age s in
   let res    = collect_errors w (fun () -> f r w) in
