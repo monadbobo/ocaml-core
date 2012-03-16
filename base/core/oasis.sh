@@ -97,6 +97,14 @@ Library core
                       unix,
                       threads
 
+Library core_top
+  Path:               top
+  FindlibName:        top
+  FindlibParent:      core
+  Modules:            Install_printers
+  XMETARequires:      core
+  XMETADescription:   Toplevel printers for Core
+
 $(declare_tests_flag)
 
 Executable test_runner
