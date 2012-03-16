@@ -648,3 +648,7 @@ let abbreviation zone time =
 let digest zone = zone.file_digest
 
 let name zone = zone.name
+
+let pp ppf t = Format.fprintf ppf "%s" (name t)
+let () = Pretty_printer.register "Core.Zone.pp"
+

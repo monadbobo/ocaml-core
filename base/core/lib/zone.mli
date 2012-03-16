@@ -223,3 +223,6 @@ val initialized_zones : unit -> (string * t) list
    is not intended to be called by most client code.  Use the high level functions
    provided in Time instead. *)
 val shift_epoch_time : t -> [`Local | `UTC] -> float -> float
+
+val pp : Format.formatter -> t -> unit
+
