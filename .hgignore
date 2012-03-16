@@ -20,7 +20,6 @@ config.status$
 mycaml$
 \.DS_Store$
 tmtags$
-\.rnc$
 
 ^\.git/.*$
 ^\.transdeps/.*$
@@ -47,6 +46,7 @@ personal_compilation_ignores
 *.rej
 *.spot
 *.toc
+*.cmp
 .*.sw[pabcdef]
 .mydeps
 inline_tests.ml
@@ -55,7 +55,7 @@ TAGS
 order_file_*_common.ml
 *_db_pnl_common.ml
 order_file_*_eval.ml
-
+_build
 
 # for new omake rules
 *.deps
@@ -66,6 +66,7 @@ order_file_*_eval.ml
 *.hg_version.c
 *.build_info.c
 hg_version.out
+stub.names
 
 # specific files
 .last_build_env
@@ -78,6 +79,8 @@ libdeps.ps
 libdeps.corrected
 ocaml_path
 .ocaml-3.10
+bisect{.itarget,.mlpack,.odocl,_pp.mlpack}
+bisect-1.1/Makefile.config
 \#*
 .\#*
 
@@ -116,21 +119,22 @@ glob:base/async/lib/async.mlpack
 glob:base/async/lib/async.odocl
 glob:base/async/lib/libasync.clib
 glob:base/async/myocamlbuild.ml
-glob:base/async/scheduler/INSTALL
-glob:base/async/scheduler/Makefile
-glob:base/async/scheduler/_build
-glob:base/async/scheduler/_oasis
-glob:base/async/scheduler/_tags
-glob:base/async/scheduler/configure
-glob:base/async/scheduler/lib/META
-glob:base/async/scheduler/lib/async_scheduler.mlpack
-glob:base/async/scheduler/lib/config.mlh
-glob:base/async/scheduler/myocamlbuild.ml
-glob:base/async/scheduler/setup.data
-glob:base/async/scheduler/setup.ml
+glob:base/async/scheduler
 glob:base/async/setup.data
 glob:base/async/setup.log
 glob:base/async/setup.ml
+glob:base/async/unix/INSTALL
+glob:base/async/unix/Makefile
+glob:base/async/unix/_build
+glob:base/async/unix/_oasis
+glob:base/async/unix/_tags
+glob:base/async/unix/configure
+glob:base/async/unix/lib/META
+glob:base/async/unix/lib/async_unix.mlpack
+glob:base/async/unix/lib/config.mlh
+glob:base/async/unix/myocamlbuild.ml
+glob:base/async/unix/setup.data
+glob:base/async/unix/setup.ml
 glob:base/bin-prot/INSTALL
 glob:base/bin-prot/Makefile
 glob:base/bin-prot/_build
