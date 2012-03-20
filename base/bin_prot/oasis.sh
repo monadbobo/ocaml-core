@@ -58,10 +58,10 @@ Library pa_bin_prot
   FindlibName:        syntax
   FindlibParent:      bin_prot
   Modules:            Pa_bin_prot
-  BuildDepends:       camlp4.quotations,camlp4.extend,type-conv (>= 3.0.4)
+  BuildDepends:       camlp4.quotations,camlp4.extend,type_conv (>= 3.0.5)
   CompiledObject:     byte
   XMETAType:          syntax
-  XMETARequires:      type-conv,bin_prot
+  XMETARequires:      type_conv,bin_prot
   XMETADescription:   Syntax extension for binary protocol generator
 
 $(declare_tests_flag)
@@ -101,8 +101,8 @@ Executable example
   Install:            false
   BuildDepends:       bin_prot,bin_prot.syntax
 
-Document "bin-prot"
-  Title:                API reference for bin-prot
+Document "bin_prot"
+  Title:                API reference for bin_prot
   Type:                 ocamlbuild (0.2)
   BuildTools+:          ocamldoc
   XOCamlbuildPath:      lib
@@ -115,7 +115,7 @@ $(tag_for_pack Bin_prot $HERE/lib/*.ml)
 
 <lib/{size,write_ml,read_ml,unsafe_read_c,type_class}.ml{i,}>: pp(cpp -undef -traditional -Werror -I.)
 <lib/{write,read}_ml.ml{,i}>:mlh
-<lib_test/*.ml{,i}>: syntax_camlp4o,pkg_type-conv.syntax
+<lib_test/*.ml{,i}>: syntax_camlp4o,pkg_type_conv.syntax
 <syntax/pa_bin_prot.ml>: syntax_camlp4o
 EOF
 
