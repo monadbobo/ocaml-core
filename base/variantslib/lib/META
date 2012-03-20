@@ -8,7 +8,7 @@ exists_if = "variantslib.cma"
 package "syntax" (
  version = "107.01"
  description = "Syntax extension for Variantslib"
- requires = "camlp4 type-conv variantslib"
+ requires = "camlp4 type_conv variantslib"
  archive(syntax, preprocessor) = "pa_variants_conv.cma"
  archive(syntax, toploop) = "pa_variants_conv.cma"
  exists_if = "pa_variants_conv.cma"

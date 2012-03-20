@@ -18,7 +18,7 @@ replace sub-expressions in S-expressions.
 
 {2 How can you use it?}
 
-Make sure you have installed the [type-conv] package on your system,
+Make sure you have installed the [type_conv] package on your system,
 too.  It should be obtainable at the same site as [sexplib].
 
 The API (.mli-files) in the [sexplib] library directory is

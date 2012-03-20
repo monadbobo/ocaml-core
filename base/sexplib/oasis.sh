@@ -47,10 +47,10 @@ Library pa_sexp_conv
   FindlibName:        syntax
   FindlibParent:      sexplib
   Modules:            Pa_sexp_conv
-  BuildDepends:       camlp4.quotations,camlp4.extend,type-conv (>= 3.0.4)
+  BuildDepends:       camlp4.quotations,camlp4.extend,type_conv (>= 3.0.5)
   CompiledObject:     byte
   XMETAType:          syntax
-  XMETARequires:      camlp4,type-conv,sexplib
+  XMETARequires:      camlp4,type_conv,sexplib
   XMETADescription:   Syntax extension for Sexplib
 
 Library sexplib_top
@@ -101,7 +101,7 @@ make_tags $HERE/_tags <<EOF
 $(tag_for_pack Sexplib $HERE/lib/*.ml{,l,y})
 
 <lib/pre_sexp.ml>: pp(cpp -undef -traditional -Werror -I$HERE/syntax)
-<lib_test/*.ml{,i}>: syntax_camlp4o, pkg_type-conv.syntax
+<lib_test/*.ml{,i}>: syntax_camlp4o, pkg_type_conv.syntax
 <lib_test/conv_test.byte>: use_sexplib, pkg_unix, pkg_num, pkg_bigarray
 <syntax/pa_sexp_conv.ml>: syntax_camlp4o
 EOF

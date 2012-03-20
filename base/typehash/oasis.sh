@@ -34,10 +34,10 @@ Library pa_typehash
   FindlibName:        syntax
   BuildDepends:       camlp4.lib,
                       camlp4.quotations,
-                      type-conv (>= 2.0.1)
+                      type_conv (>= 3.0.5)
   CompiledObject:     byte
   XMETAType:          syntax
-  XMETARequires:      camlp4,type-conv,typehashlib
+  XMETARequires:      camlp4,type_conv,typehashlib
   XMETADescription:   Syntax extension for "with typehash"
 EOF
 

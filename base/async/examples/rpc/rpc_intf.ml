@@ -16,7 +16,7 @@ let set_id_counter = Rpc.Rpc.create
   ~bin_response:Unit.bin_t
 
 
-(* This type is here only for the purpose of getting the ability to bin-prot an int
+(* This type is here only for the purpose of getting the ability to bin_prot an int
    pair. *)
 module Int_pair = struct
   type t = int * int with bin_io

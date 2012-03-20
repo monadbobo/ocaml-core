@@ -63,7 +63,7 @@ sub-expressions in S-expressions.
 *=*=*=*=*=*=*=*=*=*=*=
 
   
-  Make sure you have installed the 'type-conv' package on your system, too. It
+  Make sure you have installed the 'type_conv' package on your system, too. It
 should be obtainable at the same site as 'sexplib'.
   
   The API (.mli-files) in the 'sexplib' library directory is fully documented.
@@ -104,16 +104,16 @@ how to extract and substitute sub-expressions.
   
   To compile a file you will have to add a preprocessing flag to the compiler
 invocation, e.g. for foo.ml:
-<<  ocamlc -pp "camlp4o -I {path to type-conv} \
+<<  ocamlc -pp "camlp4o -I {path to type_conv} \
       -I {path to sexplib} pa_type_conv.cmo pa_sexp_conv.cmo" \
       -I {path to sexplib} foo.ml
 >>
   
   If you are using OCamlMakefile, just put the following line at the top of
-the file, assuming you have installed both 'type-conv' and 'sexplib' with
+the file, assuming you have installed both 'type_conv' and 'sexplib' with
 ocamlfind. The comment must start at the beginning of the line, and you must
 not break lines (here broken for readability only):
-<<  (*pp camlp4o -I `ocamlfind query type-conv` \
+<<  (*pp camlp4o -I `ocamlfind query type_conv` \
       -I `ocamlfind query sexplib` \
       pa_type_conv.cmo pa_sexp_conv.cmo *)
 >>

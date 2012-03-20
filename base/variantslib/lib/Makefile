@@ -3,7 +3,7 @@ OCAMLMAKEFILE = ../OCamlMakefile
 SOURCES = variant.ml 
 LIB_PACK_NAME = variantslib
 INCDIRS = +camlp4
-PACKS = type-conv
+PACKS = type_conv
 RESULT = variantslib
 
 TRASH = \

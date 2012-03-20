@@ -28,10 +28,10 @@ Library pa_pipebang
   FindlibName:        pa_pipebang
   BuildDepends:       camlp4.lib,
                       camlp4.quotations,
-                      type-conv (>= 2.0.1)
+                      type_conv (>= 3.0.5)
   CompiledObject:     byte
   XMETAType:          syntax
-  XMETARequires:      camlp4,type-conv,oUnit
+  XMETARequires:      camlp4,type_conv,oUnit
   XMETADescription:   Syntax extension writing inline tests
 EOF
 

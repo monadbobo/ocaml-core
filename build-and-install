@@ -56,14 +56,14 @@ esac
 
 # in dependency topological order
 libraries="
-type-conv
+type_conv
 pipebang
 compare
 typehash
 fieldslib
 variantslib
 pa_ounit
-bin-prot
+bin_prot
 sexplib
 core
 core/extended
