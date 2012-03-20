@@ -8,8 +8,8 @@ cat >$HERE/_oasis <<EOF
 OASISFormat:  0.2
 OCamlVersion: >= 3.12
 Name:         sexplib
-Version:      7.0.4
-Synopsis:     automated S-expression conversion
+Version:      7.0.5
+Synopsis:     Automated S-expression conversion
 Authors:      Markus Mottl,
               Martin Sandin
 Copyrights:   (C) 2005-2011 Jane Street Capital LLC
@@ -25,7 +25,6 @@ XStdFilesREADME: false
 
 Library sexplib
   Path:               lib
-  FindlibName:        sexplib
   #Pack:               true
   Modules:            Type,
                       Parser,
@@ -39,7 +38,6 @@ Library sexplib
                       Exn_magic,
                       Std
   BuildDepends:       unix,bigarray,num
-#  XMETAType:          library
   XMETARequires:      unix,bigarray,num
 
 Library pa_sexp_conv
@@ -69,7 +67,7 @@ Executable sexp_test
   MainIs:             sexp_test.ml
   Build\$:            flag(tests)
   Install:            false
-  BuildDepends:       sexplib, sexplib.syntax
+  BuildDepends:       sexplib
 
 Executable conv_test
   Path:               lib_test
