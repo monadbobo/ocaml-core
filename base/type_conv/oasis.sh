@@ -37,7 +37,7 @@ Document "type-conv"
   Title:                API reference for Type-conv
   Type:                 ocamlbuild (0.2)
   BuildTools+:          ocamldoc
-  XOCamlbuildPath:      lib
+  XOCamlbuildPath:      syntax
   XOCamlbuildLibraries: type-conv
 EOF
 
