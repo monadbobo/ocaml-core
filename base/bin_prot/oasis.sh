@@ -8,8 +8,8 @@ cat >$HERE/_oasis <<EOF
 OASISFormat:  0.2
 OCamlVersion: >= 3.12
 Name:         bin_prot
-Version:      2.0.7
-Synopsis:     binary protocol generator
+Version:      2.0.9
+Synopsis:     Binary protocol generator
 Authors:      Markus Mottl,
               Jane Street Holding LLC
 Copyrights:   (C) 2008-2011 Jane Street Holding LLC
@@ -23,7 +23,6 @@ Description:  binary protocol generator
 XStdFilesAUTHORS: false
 XStdFilesINSTALLFilename: INSTALL
 XStdFilesREADME: false
-
 
 PreBuildCommand: mkdir -p _build; cp lib/*.mlh lib/*.h _build/
 
@@ -99,6 +98,7 @@ Executable example
   MainIs:             example.ml
   Build\$:            flag(tests)
   Install:            false
+  CompiledObject:     best
   BuildDepends:       bin_prot,bin_prot.syntax
 
 Document "bin_prot"
@@ -121,7 +121,7 @@ EOF
 
 make_myocamlbuild $HERE/myocamlbuild.ml <<EOF
 (* We probably will want to set this up in the \`configure\` script at some
-   point.*)
+   point. *)
 let is_darwin =
   Ocamlbuild_pack.My_unix.run_and_open "uname -s" input_line = "Darwin"
 
@@ -140,7 +140,7 @@ Ocamlbuild_plugin.dispatch
           dep ["ocaml"; "ocamldep"; "mlh"] ["lib/int_codes.mlh"];
 
           flag ["ocamldep"; "ocaml"; "use_pa_bin_prot"]
-            (S [A "-ppopt"; P"syntax/pa_bin_prot.cma"]);
+            (S [A "-ppopt"; P "syntax/pa_bin_prot.cma"]);
 
           flag ["compile"; "ocaml"; "use_pa_bin_prot"]
             (S [A "-ppopt"; P "syntax/pa_bin_prot.cma"]);
@@ -171,6 +171,7 @@ Ocamlbuild_plugin.dispatch
             List.concat (List.map f flags)
           in
           flag ["compile"; "c"] (S cflags);
+
           dispatch_default e
       | e -> dispatch_default e
   end
