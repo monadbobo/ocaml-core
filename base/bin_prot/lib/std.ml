@@ -1,6 +1,6 @@
 (**
-   This module defines default converters for the types defined in
-   ocaml's standard library.
+   This module defines default converters for the types defined in the OCaml
+   standard library.
 *)
 include Size
 
