@@ -21,7 +21,7 @@ function list_mods {
 function list_stubs {
     for stub in $(find "$HERE/lib" -name "*.[ch]" -exec basename \{\} \;); do
         case "${stub%%.[ch]}" in
-            linux_ext_stubs|bigstring_marshal_stubs)
+            linux_ext_stubs)
                 if [[ "$enable_linux" == "true" ]]; then echo "$stub"; fi;;
 	    backtrace_stubs)
 		if [[ "$(uname -p)" == "x86_64" ]]; then echo "$stub"; fi;;
