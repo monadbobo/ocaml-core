@@ -732,12 +732,11 @@ end : sig
   val write_bin_prot : t -> 'a Bin_prot.Type_class.writer -> 'a -> unit
 end)
 
-let write_marshal () =
-  Or_error.map Bigstring_marshal.marshal ~f:(fun marshal t ~flags a ->
-    schedule_unscheduled t `Keep;
-    let iovec = IOVec.of_bigstring (marshal ~flags a) in
-    add_iovec t `Destroy iovec ~count_bytes_as_received:true;
-    maybe_start_writer t)
+let write_marshal t ~flags v =
+  schedule_unscheduled t `Keep;
+  let iovec = IOVec.of_bigstring (Bigstring_marshal.marshal ~flags v) in
+  add_iovec t `Destroy iovec ~count_bytes_as_received:true;
+  maybe_start_writer t
 ;;
 
 let send t s =
@@ -778,10 +777,7 @@ let schedule_bigstring t ?pos ?len bstr =
   ensure_not_closed t; schedule_bigstring t ?pos ?len bstr
 let write ?pos ?len t s       = ensure_not_closed t; write ?pos ?len t s
 let writef t                  = ensure_not_closed t; writef t
-let write_marshal () =
-  Or_error.map (write_marshal ()) ~f:(fun write_marshal t ~flags a ->
-    ensure_not_closed t; write_marshal t ~flags a)
-;;
+let write_marshal t ~flags v  = ensure_not_closed t; write_marshal t ~flags v
 let write_sexp ?hum t s       = ensure_not_closed t; write_sexp ?hum t s
 let write_bigsubstring t s    = ensure_not_closed t; write_bigsubstring t s
 let write_substring t s       = ensure_not_closed t; write_substring t s
