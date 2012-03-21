@@ -138,6 +138,38 @@ $(tag_for_pack Core $HERE/lib/*.ml)
 <lib/{core_int63,bigstring,core_mutex,core_unix,bigstring_marshal,linux_ext,backtrace}.ml{,i}>:pkg_camlp4.macro
 EOF
 
+make_myocamlbuild $HERE/myocamlbuild.ml <<EOF
+Ocamlbuild_plugin.dispatch
+  begin
+    function
+      | After_rules as e ->
+          let cflags =
+            let flags =
+              [
+                "-pipe";
+                "-g";
+                "-fPIC";
+                "-O2";
+                "-fomit-frame-pointer";
+                "-fsigned-char";
+                "-Wall";
+                "-pedantic";
+                "-Wextra";
+                "-Wunused";
+(*                "-Werror"; *)
+                "-Wno-long-long";
+              ]
+            in
+            let f flag = [A "-ccopt"; A flag] in
+            List.concat (List.map f flags)
+          in
+          flag ["compile"; "c"] (S cflags);
+          dispatch_default e
+      | e -> dispatch_default e
+  end
+;;
+EOF
+
 cd $HERE
 rm -f setup.ml
 oasis setup

@@ -98,7 +98,7 @@ make_tags $HERE/_tags <<EOF
 # remove this part when oasis supports Pack: true
 $(tag_for_pack Sexplib $HERE/lib/*.ml{,l,y})
 
-<lib/pre_sexp.ml>: pp(cpp -undef -traditional -Werror -I$HERE/syntax)
+<lib/pre_sexp.ml>: pp(cpp -undef -traditional -I$HERE/syntax)
 <lib_test/*.ml{,i}>: syntax_camlp4o, pkg_type_conv.syntax
 <lib_test/conv_test.byte>: use_sexplib, pkg_unix, pkg_num, pkg_bigarray
 <syntax/pa_sexp_conv.ml>: syntax_camlp4o

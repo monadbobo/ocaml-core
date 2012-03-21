@@ -143,6 +143,38 @@ $(tag_for_pack Core_extended $HERE/lib/*.ml)
 "lib/core_command.ml": pkg_camlp4.macro
 EOF
 
+make_myocamlbuild $HERE/myocamlbuild.ml <<EOF
+Ocamlbuild_plugin.dispatch
+  begin
+    function
+      | After_rules as e ->
+          let cflags =
+            let flags =
+              [
+                "-pipe";
+                "-g";
+                "-fPIC";
+                "-O2";
+                "-fomit-frame-pointer";
+                "-fsigned-char";
+                "-Wall";
+                "-pedantic";
+                "-Wextra";
+                "-Wunused";
+(*                "-Werror"; *)
+                "-Wno-long-long";
+              ]
+            in
+            let f flag = [A "-ccopt"; A flag] in
+            List.concat (List.map f flags)
+          in
+          flag ["compile"; "c"] (S cflags);
+          dispatch_default e
+      | e -> dispatch_default e
+  end
+;;
+EOF
+
 if [[ ! -e $HERE/lib/version_defaults.mlh ]]; then
     cat >$HERE/lib/version_defaults.mlh <<EOF
 DEFINE DEFAULT_VERSION = "No version info."

@@ -113,7 +113,7 @@ make_tags $HERE/_tags <<EOF
 # remove this part when oasis supports Pack: true
 $(tag_for_pack Bin_prot $HERE/lib/*.ml)
 
-<lib/{size,write_ml,read_ml,unsafe_read_c,type_class}.ml{i,}>: pp(cpp -undef -traditional -Werror -I.)
+<lib/{size,write_ml,read_ml,unsafe_read_c,type_class}.ml{i,}>: pp(cpp -undef -traditional -I.)
 <lib/{write,read}_ml.ml{,i}>:mlh
 <lib_test/*.ml{,i}>: syntax_camlp4o,pkg_type_conv.syntax
 <syntax/pa_bin_prot.ml>: syntax_camlp4o
@@ -162,7 +162,7 @@ Ocamlbuild_plugin.dispatch
                 "-pedantic";
                 "-Wextra";
                 "-Wunused";
-                "-Werror";
+(*                "-Werror"; *)
                 "-Wno-long-long";
               ]
             in
