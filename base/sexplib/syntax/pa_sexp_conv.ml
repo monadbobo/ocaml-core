@@ -8,6 +8,23 @@ open Printf
 open Camlp4
 open PreCast
 
+open Syntax
+
+module type Record_defaults = sig
+  val add : Loc.t -> ?do_not_emit:bool -> Ast.expr -> unit
+  val lookup : Loc.t -> (Ast.expr * [ `Emit | `Do_not_emit ]) option
+end
+
+module Record_defaults : Record_defaults = struct
+  let store = Hashtbl.create 0
+
+  let add key ?(do_not_emit = false) expr =
+    let emit = if do_not_emit then `Do_not_emit else `Emit in
+    Hashtbl.add store ~key ~data:(expr, emit)
+
+  let lookup key = try Some (Hashtbl.find store key) with Not_found -> None
+end
+
 module Gen = Pa_type_conv.Gen
 
 (* Utility functions *)
@@ -331,7 +348,7 @@ module Generate_sexp_of = struct
     let p = <:patt@loc< $lid:name$ = $lid:"v_" ^ name$ >> in
     <:patt@loc< $patt$; $p$ >>
 
-  let sexp_of_default_field patt expr name tp sexp_of empty =
+  let sexp_of_default_field patt expr name tp ?sexp_of empty =
     let loc = Ast.loc_of_ctyp tp in
     let patt = mk_rec_patt loc patt name in
     let cnv_expr =
@@ -340,13 +357,18 @@ module Generate_sexp_of = struct
       | `Match matchings ->
           <:expr@loc< fun el -> match el with [ $matchings$ ] >>
     in
+    let cnv_expr =
+      match sexp_of with
+      | None -> cnv_expr
+      | Some sexp_of -> <:expr@loc< $sexp_of$ cnv_expr >>
+    in
     let expr =
       let v_name = <:expr@loc< $lid: "v_" ^ name$ >> in
       <:expr@loc<
         let bnds =
           if $v_name$ = $empty$ then bnds
           else
-            let arg = $sexp_of$ $cnv_expr$ $v_name$ in
+            let arg = $cnv_expr$ $v_name$ in
             let bnd =
               Sexplib.Sexp.List [Sexplib.Sexp.Atom $str:name$; arg]
             in
@@ -398,26 +420,33 @@ module Generate_sexp_of = struct
           patt, expr
       | <:ctyp@loc< $lid:name$ : mutable sexp_list $tp$ >>
       | <:ctyp@loc< $lid:name$ : sexp_list $tp$ >> ->
-          sexp_of_default_field
-            patt expr name tp <:expr@loc< sexp_of_list >> <:expr@loc< [] >>
+          sexp_of_default_field patt expr name tp
+            ~sexp_of:<:expr@loc< sexp_of_list >> <:expr@loc< [] >>
       | <:ctyp@loc< $lid:name$ : mutable sexp_array $tp$ >>
       | <:ctyp@loc< $lid:name$ : sexp_array $tp$ >> ->
-          sexp_of_default_field
-            patt expr name tp <:expr@loc< sexp_of_array >> <:expr@loc< [||] >>
+          sexp_of_default_field patt expr name tp
+            ~sexp_of:<:expr@loc< sexp_of_array >> <:expr@loc< [||] >>
       | <:ctyp@loc< $lid:name$ : mutable $tp$ >>
       | <:ctyp@loc< $lid:name$ : $tp$ >> ->
-          let patt = mk_rec_patt loc patt name in
-          let vname = <:expr@loc< $lid:"v_" ^ name$ >> in
-          let cnv_expr = unroll_cnv_fp loc vname (sexp_of_type tp) in
-          let expr =
-            <:expr@loc<
-              let arg = $cnv_expr$ in
-              let bnd = Sexplib.Sexp.List [Sexplib.Sexp.Atom $str:name$; arg] in
-              let bnds = [ bnd :: bnds ] in
-              $expr$
-            >>
-          in
-          patt, expr
+          begin match Record_defaults.lookup loc with
+          | Some (default, `Do_not_emit) ->
+              sexp_of_default_field patt expr name tp default
+          | _ ->
+              let patt = mk_rec_patt loc patt name in
+              let vname = <:expr@loc< $lid:"v_" ^ name$ >> in
+              let cnv_expr = unroll_cnv_fp loc vname (sexp_of_type tp) in
+              let expr =
+                <:expr@loc<
+                  let arg = $cnv_expr$ in
+                  let bnd =
+                    Sexplib.Sexp.List [Sexplib.Sexp.Atom $str:name$; arg]
+                  in
+                  let bnds = [ bnd :: bnds ] in
+                  $expr$
+                >>
+              in
+              patt, expr
+          end
       | _ -> assert false  (* impossible *)
     in
     let loc = Ast.loc_of_ctyp flds_ctyp in
@@ -987,6 +1016,9 @@ module Generate_of_sexp = struct
       let rec loop (res_tpls, bi_lst, good_patts as acc) = function
         | <:ctyp@loc< $lid:nm$ : $tp$ >> ->
             let fld = <:expr@loc< $lid:nm ^ "_field"$.val >> in
+            let mk_default loc =
+              bi_lst, <:patt@loc< $lid:nm ^ "_value"$ >> :: good_patts
+            in
             let new_bi_lst, new_good_patts =
               match tp with
               | <:ctyp@loc< sexp_bool >> | <:ctyp@loc< mutable sexp_bool >>
@@ -995,16 +1027,17 @@ module Generate_of_sexp = struct
               | <:ctyp@loc< sexp_list $_$ >>
               | <:ctyp@loc< mutable sexp_list $_$ >>
               | <:ctyp@loc< sexp_array $_$ >>
-              | <:ctyp@loc< mutable sexp_array $_$ >> ->
-                  bi_lst, <:patt@loc< $lid:nm ^ "_value"$ >> :: good_patts
-              | _ ->
-                  let loc = Ast.loc_of_ctyp tp in
-                  has_nonopt_fields := true;
-                  (
-                    <:expr@loc<
-                      (Pervasives.(=) $fld$ None, $str:nm$) >> :: bi_lst,
-                    <:patt@loc< Some $lid:nm ^ "_value"$ >> :: good_patts
-                  )
+              | <:ctyp@loc< mutable sexp_array $_$ >> -> mk_default loc
+              | <:ctyp@loc< $_$ >> ->
+                  match Record_defaults.lookup loc with
+                  | Some _ -> mk_default loc
+                  | None ->
+                      has_nonopt_fields := true;
+                      (
+                        <:expr@loc<
+                          (Pervasives.(=) $fld$ None, $str:nm$) >> :: bi_lst,
+                        <:patt@loc< Some $lid:nm ^ "_value"$ >> :: good_patts
+                      )
             in
             (
               <:expr@loc< $fld$ >> :: res_tpls,
@@ -1033,20 +1066,31 @@ module Generate_of_sexp = struct
         let rec loop = function
           | <:ctyp@loc< $tp1$; $tp2$ >> ->
               <:rec_binding@loc< $loop tp1$; $loop tp2$ >>
+          | <:ctyp@loc< $lid:nm$ : mutable sexp_list $_$ >>
           | <:ctyp@loc< $lid:nm$ : sexp_list $_$ >> ->
               <:rec_binding@loc<
                 $lid:nm$ =
                   match $lid:nm ^ "_value"$ with
                   [ None -> [] | Some v -> v ]
               >>
+          | <:ctyp@loc< $lid:nm$ : mutable sexp_array $_$ >>
           | <:ctyp@loc< $lid:nm$ : sexp_array $_$ >> ->
               <:rec_binding@loc<
                 $lid:nm$ =
                   match $lid:nm ^ "_value"$ with
                   [ None -> [||] | Some v -> v ]
               >>
+          | <:ctyp@loc< $lid:nm$ : mutable $_$ >>
           | <:ctyp@loc< $lid:nm$ : $_$ >> ->
-              <:rec_binding@loc< $lid:nm$ = $lid:nm ^ "_value"$ >>
+              begin match Record_defaults.lookup loc with
+              | None -> <:rec_binding@loc< $lid:nm$ = $lid:nm ^ "_value"$ >>
+              | Some (default, _) ->
+                  <:rec_binding@loc<
+                    $lid:nm$ =
+                      match $lid:nm ^ "_value"$ with
+                      [ None -> $default$ | Some v -> v ]
+                  >>
+              end
           | _ -> assert false  (* impossible *)
         in
         <:expr@loc< { $loop flds$ } >>
@@ -1308,7 +1352,7 @@ end
 module Quotations = struct
   let of_sexp_quote loc _loc_name_opt cnt_str =
     Pa_type_conv.set_conv_path_if_not_set loc;
-    let ctyp = Gram.parse_string Syntax.ctyp_quot loc cnt_str in
+    let ctyp = Gram.parse_string ctyp_quot loc cnt_str in
     let fp = Generate_of_sexp.type_of_sexp ctyp in
     let body =
       match fp with
@@ -1326,17 +1370,14 @@ module Quotations = struct
       >>
 
   let () =
-    Syntax.Quotation.add "of_sexp" Syntax.Quotation.DynAst.expr_tag
-      of_sexp_quote
+    Quotation.add "of_sexp" Quotation.DynAst.expr_tag of_sexp_quote
 
   let sexp_of_quote loc _loc_name_opt cnt_str =
     Pa_type_conv.set_conv_path_if_not_set loc;
-    let ctyp = Gram.parse_string Syntax.ctyp_quot loc cnt_str in
+    let ctyp = Gram.parse_string ctyp_quot loc cnt_str in
     Generate_sexp_of.mk_cnv_expr ctyp
 
-  let () =
-    Syntax.Quotation.add "sexp_of" Syntax.Quotation.DynAst.expr_tag
-      sexp_of_quote
+  let () = Quotation.add "sexp_of" Quotation.DynAst.expr_tag sexp_of_quote
 end
 
 (* Add "of_sexp" and "sexp_of" as "sexp" to the set of generators *)
@@ -1349,3 +1390,27 @@ let () =
         $Generate_of_sexp.of_sexp tds$; $Generate_sexp_of.sexp_of tds$
       >>
     )
+
+EXTEND Gram
+  GLOBAL: label_declaration;
+
+  label_declaration:
+    [[
+          s = a_LIDENT; ":"; t = poly_type;
+          "sexp_default"; "("; e = expr; ")" ->
+            Record_defaults.add _loc e;
+            <:ctyp< $lid:s$ : $t$ >>
+        | "mutable"; s = a_LIDENT; ":"; t = poly_type;
+          "sexp_default"; "("; e = expr; ")" ->
+            Record_defaults.add _loc e;
+            <:ctyp< $lid:s$ : mutable $t$ >>
+        | s = a_LIDENT; ":"; t = poly_type;
+          "sexp_default"; "("; e = expr; ")"; "!" ->
+            Record_defaults.add _loc ~do_not_emit:true e;
+            <:ctyp< $lid:s$ : $t$ >>
+        | "mutable"; s = a_LIDENT; ":"; t = poly_type;
+          "sexp_default"; "("; e = expr; ")"; "!" ->
+            Record_defaults.add _loc ~do_not_emit:true e;
+            <:ctyp< $lid:s$ : mutable $t$ >>
+    ]];
+END
