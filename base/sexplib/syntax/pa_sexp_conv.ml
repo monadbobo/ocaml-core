@@ -376,7 +376,7 @@ module Generate_sexp_of = struct
     let cnv_expr =
       match sexp_of with
       | None -> cnv_expr
-      | Some sexp_of -> <:expr@loc< $sexp_of$ cnv_expr >>
+      | Some sexp_of -> <:expr@loc< $sexp_of$ $cnv_expr$ >>
     in
     let expr =
       let v_name = <:expr@loc< $lid: "v_" ^ name$ >> in
