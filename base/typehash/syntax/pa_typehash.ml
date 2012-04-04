@@ -526,7 +526,7 @@ module Gen_sig = struct
 end
 
 let () = Pa_type_conv.add_generator_with_arg "typehash" Config.gram_entry
-  (fun ctyp conf ->
+  (fun conf ctyp ->
    let config = match conf with None -> Config.empty | Some c -> c in
    Gen_struct.generate ~config ctyp)
 
