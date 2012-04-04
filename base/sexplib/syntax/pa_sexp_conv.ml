@@ -166,7 +166,7 @@ end
 module Generate_sexp_of = struct
   (* Handling of record defaults *)
 
-  type record_field_handler = [ `keep | `drop | `drop_if of Ast.expr ]
+  type record_field_handler = [ `keep | `drop_default | `drop_if of Ast.expr ]
 
   let record_field_handlers = Hashtbl.create 0
 
@@ -181,7 +181,7 @@ module Generate_sexp_of = struct
   let () =
     Pa_type_conv.add_record_generator "sexp_drop_default" (fun loc ->
       check_record_field_handler loc;
-      Hashtbl.replace record_field_handlers loc `drop)
+      Hashtbl.replace record_field_handlers loc `drop_default)
 
   let () =
     Pa_type_conv.add_record_generator_with_arg "sexp_drop_if"
@@ -449,29 +449,28 @@ module Generate_sexp_of = struct
             ~sexp_of:<:expr@loc< sexp_of_array >> <:expr@loc< [||] >>
       | <:ctyp@loc< $lid:name$ : mutable $tp$ >>
       | <:ctyp@loc< $lid:name$ : $tp$ >> ->
-          let emit () =
-            let patt = mk_rec_patt loc patt name in
-            let vname = <:expr@loc< $lid:"v_" ^ name$ >> in
-            let cnv_expr = unroll_cnv_fp loc vname (sexp_of_type tp) in
-            let expr =
-              <:expr@loc<
-                let arg = $cnv_expr$ in
-                let bnd =
-                  Sexplib.Sexp.List [Sexplib.Sexp.Atom $str:name$; arg]
-                in
-                let bnds = [ bnd :: bnds ] in
-                $expr$
-              >>
-            in
-            patt, expr
-          in
-          begin match Pa_type_conv.Gen.find_record_default loc with
-          | None -> emit ()
-          | Some default ->
-              match get_record_field_handler loc with
-              | `keep -> emit ()
-              | `drop -> sexp_of_default_field patt expr name tp default
-              | `drop_if test -> sexp_of_record_field patt expr name tp test
+          let opt_default = Pa_type_conv.Gen.find_record_default loc in
+          let field_handler = get_record_field_handler loc in
+          begin match opt_default, field_handler with
+          | None, `drop_default -> Loc.raise loc (Failure "no default to drop")
+          | _, `drop_if test -> sexp_of_record_field patt expr name tp test
+          | Some default, `drop_default ->
+              sexp_of_default_field patt expr name tp default
+          | _, `keep ->
+              let patt = mk_rec_patt loc patt name in
+              let vname = <:expr@loc< $lid:"v_" ^ name$ >> in
+              let cnv_expr = unroll_cnv_fp loc vname (sexp_of_type tp) in
+              let expr =
+                <:expr@loc<
+                  let arg = $cnv_expr$ in
+                  let bnd =
+                    Sexplib.Sexp.List [Sexplib.Sexp.Atom $str:name$; arg]
+                  in
+                  let bnds = [ bnd :: bnds ] in
+                  $expr$
+                >>
+              in
+              patt, expr
           end
       | _ -> assert false  (* impossible *)
     in
