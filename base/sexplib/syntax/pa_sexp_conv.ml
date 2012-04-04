@@ -10,21 +10,6 @@ open PreCast
 
 open Syntax
 
-module type Record_defaults = sig
-  val add : Loc.t -> ?do_not_emit:bool -> Ast.expr -> unit
-  val lookup : Loc.t -> (Ast.expr * [ `Emit | `Do_not_emit ]) option
-end
-
-module Record_defaults : Record_defaults = struct
-  let store = Hashtbl.create 0
-
-  let add key ?(do_not_emit = false) expr =
-    let emit = if do_not_emit then `Do_not_emit else `Emit in
-    Hashtbl.add store ~key ~data:(expr, emit)
-
-  let lookup key = try Some (Hashtbl.find store key) with Not_found -> None
-end
-
 module Gen = Pa_type_conv.Gen
 
 (* Utility functions *)
@@ -179,6 +164,37 @@ end
 
 (* Generator for converters of OCaml-values to S-expressions *)
 module Generate_sexp_of = struct
+  (* Handling of record defaults *)
+
+  type record_field_handler = [ `keep | `drop | `drop_if of Ast.expr ]
+
+  let record_field_handlers = Hashtbl.create 0
+
+  let get_record_field_handler loc =
+    try Hashtbl.find record_field_handlers loc
+    with Not_found -> `keep
+
+  let check_record_field_handler loc =
+    if Hashtbl.mem record_field_handlers loc then
+      Loc.raise loc (Failure "sexp record field handler defined twice")
+
+  let () =
+    Pa_type_conv.add_record_generator "sexp_drop_default" (fun loc ->
+      check_record_field_handler loc;
+      Hashtbl.replace record_field_handlers loc `drop)
+
+  let () =
+    Pa_type_conv.add_record_generator_with_arg "sexp_drop_if"
+      Syntax.expr (fun expr_opt loc ->
+        check_record_field_handler loc;
+        let test =
+          match expr_opt with
+          | Some expr -> expr
+          | None -> Loc.raise loc (Failure "could not parse expression")
+        in
+        Hashtbl.replace record_field_handlers loc (`drop_if test))
+
+  (* Make abstract calls *)
   let mk_abst_call loc tn rev_path =
     <:expr@loc<
       $id:Gen.ident_of_rev_path loc (("sexp_of_" ^ tn) :: rev_path)$
@@ -348,7 +364,7 @@ module Generate_sexp_of = struct
     let p = <:patt@loc< $lid:name$ = $lid:"v_" ^ name$ >> in
     <:patt@loc< $patt$; $p$ >>
 
-  let sexp_of_default_field patt expr name tp ?sexp_of empty =
+  let sexp_of_record_field patt expr name tp ?sexp_of test =
     let loc = Ast.loc_of_ctyp tp in
     let patt = mk_rec_patt loc patt name in
     let cnv_expr =
@@ -366,7 +382,7 @@ module Generate_sexp_of = struct
       let v_name = <:expr@loc< $lid: "v_" ^ name$ >> in
       <:expr@loc<
         let bnds =
-          if $v_name$ = $empty$ then bnds
+          if $test$ $v_name$ then bnds
           else
             let arg = $cnv_expr$ $v_name$ in
             let bnd =
@@ -378,6 +394,11 @@ module Generate_sexp_of = struct
       >>
     in
     patt, expr
+
+  let sexp_of_default_field patt expr name tp ?sexp_of default =
+    let loc = Ast.loc_of_expr default in
+    sexp_of_record_field patt expr name tp ?sexp_of
+      <:expr@loc< (=) $default$ >>
 
   let sexp_of_record flds_ctyp =
     let flds = Ast.list_of_ctyp flds_ctyp [] in
@@ -428,24 +449,29 @@ module Generate_sexp_of = struct
             ~sexp_of:<:expr@loc< sexp_of_array >> <:expr@loc< [||] >>
       | <:ctyp@loc< $lid:name$ : mutable $tp$ >>
       | <:ctyp@loc< $lid:name$ : $tp$ >> ->
-          begin match Record_defaults.lookup loc with
-          | Some (default, `Do_not_emit) ->
-              sexp_of_default_field patt expr name tp default
-          | _ ->
-              let patt = mk_rec_patt loc patt name in
-              let vname = <:expr@loc< $lid:"v_" ^ name$ >> in
-              let cnv_expr = unroll_cnv_fp loc vname (sexp_of_type tp) in
-              let expr =
-                <:expr@loc<
-                  let arg = $cnv_expr$ in
-                  let bnd =
-                    Sexplib.Sexp.List [Sexplib.Sexp.Atom $str:name$; arg]
-                  in
-                  let bnds = [ bnd :: bnds ] in
-                  $expr$
-                >>
-              in
-              patt, expr
+          let emit () =
+            let patt = mk_rec_patt loc patt name in
+            let vname = <:expr@loc< $lid:"v_" ^ name$ >> in
+            let cnv_expr = unroll_cnv_fp loc vname (sexp_of_type tp) in
+            let expr =
+              <:expr@loc<
+                let arg = $cnv_expr$ in
+                let bnd =
+                  Sexplib.Sexp.List [Sexplib.Sexp.Atom $str:name$; arg]
+                in
+                let bnds = [ bnd :: bnds ] in
+                $expr$
+              >>
+            in
+            patt, expr
+          in
+          begin match Pa_type_conv.Gen.find_record_default loc with
+          | None -> emit ()
+          | Some default ->
+              match get_record_field_handler loc with
+              | `keep -> emit ()
+              | `drop -> sexp_of_default_field patt expr name tp default
+              | `drop_if test -> sexp_of_record_field patt expr name tp test
           end
       | _ -> assert false  (* impossible *)
     in
@@ -1029,7 +1055,7 @@ module Generate_of_sexp = struct
               | <:ctyp@loc< sexp_array $_$ >>
               | <:ctyp@loc< mutable sexp_array $_$ >> -> mk_default loc
               | <:ctyp@loc< $_$ >> ->
-                  match Record_defaults.lookup loc with
+                  match Pa_type_conv.Gen.find_record_default loc with
                   | Some _ -> mk_default loc
                   | None ->
                       has_nonopt_fields := true;
@@ -1082,9 +1108,9 @@ module Generate_of_sexp = struct
               >>
           | <:ctyp@loc< $lid:nm$ : mutable $_$ >>
           | <:ctyp@loc< $lid:nm$ : $_$ >> ->
-              begin match Record_defaults.lookup loc with
+              begin match Pa_type_conv.Gen.find_record_default loc with
               | None -> <:rec_binding@loc< $lid:nm$ = $lid:nm ^ "_value"$ >>
-              | Some (default, _) ->
+              | Some default ->
                   <:rec_binding@loc<
                     $lid:nm$ =
                       match $lid:nm ^ "_value"$ with
@@ -1390,27 +1416,3 @@ let () =
         $Generate_of_sexp.of_sexp tds$; $Generate_sexp_of.sexp_of tds$
       >>
     )
-
-EXTEND Gram
-  GLOBAL: label_declaration;
-
-  label_declaration:
-    [[
-          s = a_LIDENT; ":"; t = poly_type;
-          "sexp_default"; "("; e = expr; ")" ->
-            Record_defaults.add _loc e;
-            <:ctyp< $lid:s$ : $t$ >>
-        | "mutable"; s = a_LIDENT; ":"; t = poly_type;
-          "sexp_default"; "("; e = expr; ")" ->
-            Record_defaults.add _loc e;
-            <:ctyp< $lid:s$ : mutable $t$ >>
-        | s = a_LIDENT; ":"; t = poly_type;
-          "sexp_default"; "("; e = expr; ")"; "!" ->
-            Record_defaults.add _loc ~do_not_emit:true e;
-            <:ctyp< $lid:s$ : $t$ >>
-        | "mutable"; s = a_LIDENT; ":"; t = poly_type;
-          "sexp_default"; "("; e = expr; ")"; "!" ->
-            Record_defaults.add _loc ~do_not_emit:true e;
-            <:ctyp< $lid:s$ : mutable $t$ >>
-    ]];
-END

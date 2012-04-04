@@ -83,9 +83,13 @@ let exn_generators = Hashtbl.create 0
 (* Map of "with"-generators for exceptions in signatures *)
 let sig_exn_generators = Hashtbl.create 0
 
-(* Check that there is no argument for generators that do not expect
-   arguments *)
-let no_arg id e typ arg =
+(* Map of "with"-generators for record fields *)
+type record_generator = Loc.t -> unit
+
+let record_generators = Hashtbl.create 0
+
+(* Check that there is no argument for generators that do not expect any *)
+let no_arg id e arg typ =
   if arg = None then e typ
   else
     failwith (
@@ -104,7 +108,7 @@ let ignore_tokens = Gram.Entry.of_parser "ignore_tokens" ignore
 let safe_add_gen gens id entry e =
   if Hashtbl.mem gens id then
     failwith ("Pa_type_conv: generator '" ^ id ^ "' defined multiple times")
-  else Hashtbl.add gens id (fun typ arg -> e typ (parse_with entry arg))
+  else Hashtbl.add gens id (fun arg typ -> e (parse_with entry arg) typ)
 
 (* Register a "with"-generator for types in structures *)
 let add_generator_with_arg ?(is_exn = false) id entry e =
@@ -114,7 +118,7 @@ let add_generator_with_arg ?(is_exn = false) id entry e =
 let add_generator ?is_exn id e =
   add_generator_with_arg ?is_exn id ignore_tokens (no_arg id e)
 
-(* Removes a "with"-generator for types in structures *)
+(* Remove a "with"-generator for types in structures *)
 let rm_generator ?(is_exn = false) id =
   let gens = if is_exn then exn_generators else generators in
   Hashtbl.remove gens id
@@ -127,15 +131,31 @@ let add_sig_generator_with_arg ?(is_exn = false) id entry e =
 let add_sig_generator ?is_exn id e =
   add_sig_generator_with_arg ?is_exn id ignore_tokens (no_arg id e)
 
-(* Removes a "with"-generator for types in signatures *)
+(* Remove a "with"-generator for types in signatures *)
 let rm_sig_generator ?(is_exn = false) id =
   let gens = if is_exn then sig_exn_generators else sig_generators in
   Hashtbl.remove gens id
+
+(* Register a "with"-generator for record fields *)
+let add_record_generator_with_arg id entry e =
+  safe_add_gen record_generators id entry e
+
+let add_record_generator id e =
+  add_record_generator_with_arg id ignore_tokens (no_arg id e)
+
+(* Remove a "with"-generator for record fields *)
+let rm_record_generator id = Hashtbl.remove record_generators id
 
 
 (* General purpose code generation module *)
 
 module Gen = struct
+  (* Map of record field source locations to their default expression *)
+  let record_defaults = Hashtbl.create 0
+
+  let find_record_default loc =
+    try Some (Hashtbl.find record_defaults loc) with Not_found -> None
+
   let gensym =
     let cnt = ref 0 in
     fun ?(prefix = "_x") () ->
@@ -320,7 +340,7 @@ end
 
 (* Functions for interpreting derivation types *)
 
-let find_generator ~name haystack = (); fun tp (needle, arg) ->
+let find_generator ~name haystack = (); fun entry (needle, arg) ->
   let genf =
     try Hashtbl.find haystack needle
     with Not_found ->
@@ -336,7 +356,7 @@ let find_generator ~name haystack = (); fun tp (needle, arg) ->
       in
       failwith msg
   in
-  genf tp arg
+  genf arg entry
 
 let generate = find_generator ~name:"type" generators
 
@@ -356,11 +376,19 @@ let gen_derived_sigs _loc tp drvs =
   let coll drv der_sis = <:sig_item< $der_sis$; $sig_generate tp drv$ >> in
   List.fold_right coll drvs (SgNil _loc)
 
-let sig_exn_generate = find_generator ~name:"signature exception" sig_exn_generators
+let sig_exn_generate =
+  find_generator ~name:"signature exception" sig_exn_generators
 
 let gen_derived_exn_sigs _loc tp drvs =
   let coll drv der_sis = <:sig_item< $der_sis$; $sig_exn_generate tp drv$ >> in
   List.fold_right coll drvs (SgNil _loc)
+
+let remember_record_generators el drvs =
+  let act drv =
+    let gen = find_generator ~name:"record field" record_generators in
+    gen el drv
+  in
+  List.iter act drvs
 
 
 (* Syntax extension *)
@@ -421,7 +449,7 @@ let generator_arg =
 DELETE_RULE Gram str_item: "module"; a_UIDENT; module_binding0 END;
 
 EXTEND Gram
-  GLOBAL: str_item sig_item;
+  GLOBAL: str_item sig_item label_declaration;
 
   str_item:
     [[
@@ -447,6 +475,13 @@ EXTEND Gram
         <:str_item< exception $tds$; $gen_derived_exn_defs _loc tds drvs$ >>
     ]];
 
+  str_item:
+    [[
+      "module"; i = found_module_name; mb = module_binding0 ->
+        pop_conv_path ();
+        <:str_item< module $i$ = $mb$ >>
+    ]];
+
   sig_item:
     [[
       "type"; tds = type_declaration; "with"; drvs = LIST1 generator SEP "," ->
@@ -455,18 +490,35 @@ EXTEND Gram
     ]];
 
   sig_item:
-   [[
-     "exception"; cd = constructor_declaration; "with";
-     drvs = LIST1 generator SEP "," ->
-       set_conv_path_if_not_set _loc;
-       <:sig_item< exception $cd$; $gen_derived_exn_sigs _loc cd drvs$ >>
-    ]];
-
-  str_item:
     [[
-      "module"; i = found_module_name; mb = module_binding0 ->
-        pop_conv_path ();
-        <:str_item< module $i$ = $mb$ >>
+      "exception"; cd = constructor_declaration; "with";
+      drvs = LIST1 generator SEP "," ->
+        set_conv_path_if_not_set _loc;
+        <:sig_item< exception $cd$; $gen_derived_exn_sigs _loc cd drvs$ >>
     ]];
 
+  label_declaration:
+    [[
+      name = a_LIDENT; ":"; tp = poly_type;
+      "with"; drvs = LIST1 generator SEP "," ->
+        remember_record_generators _loc drvs;
+        <:ctyp< $lid:name$ : $tp$ >>
+    | "mutable"; name = a_LIDENT; ":"; tp = poly_type;
+      "with"; drvs = LIST1 generator SEP "," ->
+        remember_record_generators _loc drvs;
+        <:ctyp< $lid:name$ : mutable $tp$ >>
+    ]];
 END
+
+(* Record field defaults *)
+
+(* Add "default" to set of record field generators *)
+let () =
+  add_record_generator_with_arg "default" Syntax.expr
+    (fun expr_opt loc ->
+      let default =
+        match expr_opt with
+        | Some expr -> expr
+        | None -> Loc.raise loc (Failure "could not parse expression")
+      in
+      Hashtbl.replace Gen.record_defaults loc default)
