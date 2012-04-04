@@ -1171,7 +1171,7 @@ module Generate_of_sexp = struct
               match field_name with
               [ $mc_no_args_fields$ ];
               iter tail }
-        | [sexp :: _] ->
+        | [((Sexplib.Sexp.Atom _ | Sexplib.Sexp.List _) as sexp) :: _] ->
             Sexplib.Conv_error.record_only_pairs_expected _tp_loc sexp
         | [] -> () ]
       in
