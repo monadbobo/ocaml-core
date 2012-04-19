@@ -222,7 +222,7 @@ which indicates that a record field should be optional. E.g.:
       {
         x : int option;
         y : int sexp_option;
-      }
+      } with sexp
 >>
   
   The type 'sexp_option' is equivalent to ordinary options, but is treated
@@ -262,6 +262,36 @@ field should be defined.
   The types 'sexp_list', 'sexp_array', and 'sexp_bool' can be used in ways
 similar to the type 'sexp_option'. They assume the empty list, empty array,
 and false value respectively as default values.
+  
+  More complex default values can be specified explicitly using several
+constructs, e.g.:
+<<  let z_test v = v > 42
+  
+    type t =
+      {
+        x : int with default(42);
+        y : int with default(3), sexp_drop_default;
+        z : int with default(3), sexp_drop_if(z_test);
+      } with sexp
+>>
+  
+  The 'default' record field extension above is supported by the underlying
+preprocessor library 'type_conv' and specifies the intended default value for
+a record field in its argument. Sexplib will use this information to generate
+code which will set this record field to the default value if an S-expression
+omits this field. If a record is converted to an S-expression, record fields
+with default values will be emitted as usual. Specifying 'sexp_drop_default'
+will add a test for polymorphic equality to the generated code such that a
+record field containing its default value will be suppressed in the resulting
+S-expression. This option requires the presence of a default value.
+'sexp_drop_if' on the other hand does not require a default. Its argument must
+be a function, which will receive the current record value. If the result of
+this function is 'true', then the record field will be suppressed in the
+resulting S-expression.
+  
+  The above extensions can be quite creatively used together with manifest
+types, functors, and first-class modules to make the emission of record fields
+or the definition of their default values configurable at runtime.
   
 
 4.7  Conversion of sum types
