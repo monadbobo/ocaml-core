@@ -145,7 +145,6 @@ glob:base/bin_prot/doc/README.pdf
 glob:base/bin_prot/doc/README.txt
 glob:base/bin_prot/lib/META
 glob:base/bin_prot/lib/bin_prot.mlpack
-glob:base/bin_prot/lib/bin_prot.odocl
 glob:base/bin_prot/lib/libbin_prot.clib
 glob:base/bin_prot/lib_test/example.pp.ml
 glob:base/bin_prot/lib_test/mac_test
@@ -253,6 +252,7 @@ glob:base/sexplib/_build
 glob:base/sexplib/_oasis
 glob:base/sexplib/_tags
 glob:base/sexplib/configure
+glob:base/sexplib/conv_test.byte
 glob:base/sexplib/lib/META
 glob:base/sexplib/lib/lexer.ml
 glob:base/sexplib/lib/parser.ml
@@ -265,6 +265,7 @@ glob:base/sexplib/myocamlbuild.ml
 glob:base/sexplib/setup.data
 glob:base/sexplib/setup.log
 glob:base/sexplib/setup.ml
+glob:base/sexplib/sexp_test.byte
 glob:base/sexplib/syntax/pa_sexp_conv.mllib
 glob:base/sexplib/top/sexplib_top.mllib
 glob:base/type_conv/INSTALL
@@ -280,7 +281,6 @@ glob:base/type_conv/myocamlbuild.ml
 glob:base/type_conv/setup.data
 glob:base/type_conv/setup.log
 glob:base/type_conv/setup.ml
-glob:base/type_conv/syntax/type_conv.odocl
 glob:base/typehash/INSTALL
 glob:base/typehash/Makefile
 glob:base/typehash/_build
