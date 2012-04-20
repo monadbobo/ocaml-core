@@ -32,7 +32,7 @@
   Copyright \quad (C) \quad \theyear \quad \janeshort \quad\\
   Author: Markus Mottl
 }
-\date{New York, 2012-03-20}
+\date{New York, 2012-04-20}
 
 % DOCUMENT
 \begin{document}
@@ -148,16 +148,20 @@ E.g.\ when using OCamlMakefile just add it to the \verb=PACKS=-variable.
 
 \subsection{Lexical conventions of S-expression}
 
-Whitespace, which consists of space, newline, carriage return, horizontal
-tab and form feed, is ignored unless within an OCaml-string, where it
-is treated according to OCaml-conventions.  The semicolon introduces
-comments.  Comments are ignored, and range up to the next newline
-character.  The left parenthesis opens a new list, the right parenthesis
-closes it again.  Lists can be empty.  The double quote denotes the
-beginning and end of a string following the lexical conventions of OCaml
-(see OCaml-manual for details).  All characters other than double quotes,
-left- and right parentheses, and whitespace are considered part of a
-contiguous string.
+Whitespace, which consists of space, newline, carriage return, horizontal tab,
+and form feed, is ignored unless within an OCaml-string, where it is treated
+according to OCaml-conventions.  The left parenthesis opens a new list, the
+right one closes it again.  Lists can be empty.  The double quote denotes
+the beginning and end of a string following the lexical conventions of OCaml
+(see the OCaml-manual for details).  All characters other than double quotes,
+left- and right parentheses, whitespace, and comment-introducing characters
+or sequences (see next paragraph) are considered part of a contiguous string.\\
+\\
+A line comment is introduced using a semicolon, which comments out all
+text up to the end of the next newline character.  The sequence \verb=%;=
+introduces an S-expression comment.  This means that the next S-expression
+following this two-character sequence will be ignored.  Whitespace or other
+comments between this sequence and the subsequent S-expression are ignored.
 
 \subsection{Grammar of S-expressions}
 
