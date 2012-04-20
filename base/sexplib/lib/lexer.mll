@@ -52,6 +52,7 @@ rule main buf = parse
   | space+ | ';' [^ '\n' '\r']* { main buf lexbuf }
   | '(' { LPAREN }
   | ')' { RPAREN }
+  | "#;" { SEXP_COMMENT }
   | '"'
       {
         scan_string buf lexbuf;

@@ -12,7 +12,7 @@
 %}
 
 %token <string> STRING
-%token LPAREN RPAREN EOF
+%token LPAREN RPAREN SEXP_COMMENT EOF
 
 %start sexp
 %type <Type.t> sexp
@@ -34,13 +34,22 @@ sexp
   | LPAREN rev_sexps_aux RPAREN { Type.List (List.rev $2) }
   | error { parse_failure "sexp" }
 
+sexp_comment : SEXP_COMMENT sexp { () }
+
+sexp_comments
+  : sexp_comment { () }
+  | sexp_comments sexp_comment { () }
+
 sexp_opt
   : sexp { Some $1 }
+  | sexp_comments sexp { Some $2 }
   | EOF { None }
 
 rev_sexps_aux
   : sexp { [$1] }
+  | sexp_comment { [] }
   | rev_sexps_aux sexp { $2 :: $1 }
+  | rev_sexps_aux sexp_comment { $1 }
 
 rev_sexps
   : rev_sexps_aux { $1 }

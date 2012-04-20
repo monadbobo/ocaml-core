@@ -456,8 +456,7 @@ let raise_unexpected_char parse_state location buf_pos c =
     if pos_len > str_len then invalid_arg (loc ^ ": pos + len > str_len"); \
     pos_len - 1 \
   \
-  let mk_cont name cont state = \
-    let ws_only = GET_PSTACK = [] && Buffer.length state.pbuf = 0 in \
+  let mk_cont_ws name cont state ~ws_only = \
     let parse_fun = \
       let used_ref = ref false in \
       fun ~pos ~len str -> \
@@ -470,6 +469,9 @@ let raise_unexpected_char parse_state location buf_pos c =
         end \
     in \
     Cont (ws_only, parse_fun) \
+  let mk_cont name cont state = \
+    mk_cont_ws name cont state \
+      ~ws_only:(GET_PSTACK = [] && Buffer.length state.pbuf = 0) \
   \
   let rec PARSE state str ~max_pos ~pos = \
     if pos > max_pos then mk_cont "parse" PARSE state \
@@ -503,7 +505,10 @@ let raise_unexpected_char parse_state location buf_pos c =
           bump_pos_cont state str ~max_pos ~pos parse_quoted \
       | c -> \
           REGISTER_POS \
-          add_bump_pos state str ~max_pos ~pos c parse_atom \
+          let parse = \
+            if c = '#' then maybe_parse_sexp_comment else parse_atom \
+          in \
+          add_bump_pos state str ~max_pos ~pos c parse \
   \
   and parse_nl state str ~max_pos ~pos = \
     if pos > max_pos then mk_cont "parse_nl" parse_nl state \
@@ -519,6 +524,36 @@ let raise_unexpected_char parse_state location buf_pos c =
       | '\013' -> bump_line_cont state str ~max_pos ~pos parse_nl \
       | _ -> bump_pos_cont state str ~max_pos ~pos parse_comment \
   \
+  and maybe_parse_sexp_comment state str ~max_pos ~pos = \
+    if pos > max_pos then \
+      mk_cont "maybe_parse_sexp_comment" maybe_parse_sexp_comment state \
+    else \
+      match GET_CHAR with \
+      | ';' -> bump_pos_cont state str ~max_pos ~pos parse_sexp_comment \
+      | _ -> parse_atom state str ~max_pos ~pos \
+  \
+  and parse_sexp_comment state str ~max_pos ~pos = \
+    let pbuf_str = "" in \
+    ignore (MK_ATOM); \
+    let old_pstack = GET_PSTACK in \
+    let pstack = [] in \
+    SET_PSTACK; \
+    let rec loop parse state str ~max_pos ~pos = \
+      Buffer.clear state.pbuf; \
+      match parse state str ~max_pos ~pos with \
+      | Done (_sexp, parse_pos) -> \
+          Buffer.clear state.pbuf; \
+          let pstack = old_pstack in \
+          SET_PSTACK; \
+          PARSE state str ~max_pos ~pos:parse_pos.Parse_pos.buf_pos \
+      | Cont (_, cont_parse) -> \
+          let parse _state str ~max_pos ~pos = \
+            let len = max_pos - pos + 1 in \
+            cont_parse ~pos ~len str \
+          in \
+          mk_cont_ws "parse_sexp_comment" (loop parse) state ~ws_only:false \
+    in \
+    loop PARSE state str ~max_pos ~pos \
   and parse_atom state str ~max_pos ~pos = \
     if pos > max_pos then mk_cont "parse_atom" parse_atom state \
     else \
