@@ -181,7 +181,7 @@ module Generate_sexp_of = struct
   let () =
     Pa_type_conv.add_record_generator "sexp_drop_default" (fun loc ->
       check_record_field_handler loc;
-      Hashtbl.replace record_field_handlers loc `drop_default)
+      Hashtbl.replace record_field_handlers ~key:loc ~data:`drop_default)
 
   let () =
     Pa_type_conv.add_record_generator_with_arg "sexp_drop_if"
@@ -192,7 +192,7 @@ module Generate_sexp_of = struct
           | Some expr -> expr
           | None -> Loc.raise loc (Failure "could not parse expression")
         in
-        Hashtbl.replace record_field_handlers loc (`drop_if test))
+        Hashtbl.replace record_field_handlers ~key:loc ~data:(`drop_if test))
 
   (* Make abstract calls *)
   let mk_abst_call loc tn rev_path =

@@ -275,7 +275,7 @@ let scan_sexps ?buf lexbuf = Parser.sexps (Lexer.main ?buf) lexbuf
 let get_main_buf buf =
   let buf =
     match buf with
-    | None -> Buffer.create 64
+    | None -> Buffer.create 128
     | Some buf -> buf in
   Lexer.main ~buf
 
@@ -376,11 +376,11 @@ type parse_error =
 
 exception Parse_error of parse_error
 
-let bump_text_line { parse_pos } =
+let bump_text_line { parse_pos; _ } =
   parse_pos.Parse_pos.text_line <- parse_pos.Parse_pos.text_line + 1;
   parse_pos.Parse_pos.text_char <- 0
 
-let bump_text_pos { parse_pos } =
+let bump_text_pos { parse_pos; _ } =
   parse_pos.Parse_pos.text_char <- parse_pos.Parse_pos.text_char + 1
 
 let bump_pos_cont state str ~max_pos ~pos cont =
@@ -407,14 +407,14 @@ let set_parse_pos parse_pos buf_pos =
   parse_pos.Parse_pos.buf_pos <- buf_pos;
   parse_pos.Parse_pos.global_offset <- parse_pos.Parse_pos.global_offset + len
 
-let mk_parse_pos { parse_pos } buf_pos =
+let mk_parse_pos { parse_pos; _ } buf_pos =
   set_parse_pos parse_pos buf_pos;
   parse_pos
 
 let raise_parse_error parse_state location buf_pos err_msg =
   begin
     match parse_state with
-    | `Sexp { parse_pos } | `Annot { parse_pos } ->
+    | `Sexp { parse_pos; _ } | `Annot { parse_pos; _ } ->
         set_parse_pos parse_pos buf_pos;
         parse_pos.Parse_pos.text_char <- parse_pos.Parse_pos.text_char + 1;
   end;
@@ -709,21 +709,21 @@ let get_glob_ofs parse_pos pos =
   parse_pos.Parse_pos.global_offset + pos - parse_pos.Parse_pos.buf_pos
 
 let mk_annot_pos
-      ({ Parse_pos.text_line = line; text_char = col } as parse_pos) pos =
+      ({ Parse_pos.text_line = line; text_char = col; _ } as parse_pos) pos =
   { Annot.line; col; offset = get_glob_ofs parse_pos pos }
 
 let mk_annot_pos1
-      ({ Parse_pos.text_line = line; text_char = col } as parse_pos) pos =
+      ({ Parse_pos.text_line = line; text_char = col; _ } as parse_pos) pos =
   { Annot.line; col = col + 1; offset = get_glob_ofs parse_pos pos }
 
-let add_annot_pos { parse_pos; pstack } pos =
+let add_annot_pos { parse_pos; pstack; _ } pos =
   pstack.Annot.positions <- mk_annot_pos parse_pos pos :: pstack.Annot.positions
 
-let add_annot_pos1 { parse_pos; pstack } pos =
+let add_annot_pos1 { parse_pos; pstack; _ } pos =
   pstack.Annot.positions <-
     mk_annot_pos1 parse_pos pos :: pstack.Annot.positions
 
-let get_annot_range { parse_pos; pstack } pos =
+let get_annot_range { parse_pos; pstack; _ } pos =
   let start_pos =
     match pstack.Annot.positions with
     | [] -> assert false  (* impossible *)
@@ -809,7 +809,7 @@ let gen_input_rev_sexps my_parse ?parse_pos ?(buf = String.create 8192) ic =
   let rec loop this_parse ~pos ~len ~is_incomplete =
     if len > 0 then
       match this_parse ~pos ~len buf with
-      | Done (sexp, ({ Parse_pos.buf_pos } as parse_pos)) ->
+      | Done (sexp, ({ Parse_pos.buf_pos; _ } as parse_pos)) ->
           rev_sexps_ref := sexp :: !rev_sexps_ref;
           let n_parsed = buf_pos - pos in
           let this_parse = mk_this_parse ~parse_pos my_parse in
@@ -842,7 +842,7 @@ let input_sexps ?parse_pos ?buf ic =
 
 let of_string_bigstring loc this_parse ws_buf get_len get_sub str =
   match this_parse str with
-  | Done (_, { Parse_pos.buf_pos }) when buf_pos <> get_len str ->
+  | Done (_, { Parse_pos.buf_pos; _ }) when buf_pos <> get_len str ->
       let prefix_len = min (get_len str - buf_pos) 20 in
       let prefix = get_sub str buf_pos prefix_len in
       let msg =
@@ -903,7 +903,7 @@ let gen_load_sexp my_parse ?(strict = true) ?(buf = String.create 8192) file =
       failwith (sprintf "Sexplib.Sexp.gen_load_sexp: end of file: %s" file)
     else
       match this_parse ~pos:0 ~len buf with
-      | Done (sexp, ({ Parse_pos.buf_pos } as parse_pos))
+      | Done (sexp, ({ Parse_pos.buf_pos; _ } as parse_pos))
         when strict ->
           let rec strict_loop this_parse ~pos ~len =
             match this_parse ~pos ~len buf with
@@ -967,7 +967,7 @@ module Annotated = struct
 
   let get_conv_exn ~file ~exc annot_sexp =
     let range = get_range annot_sexp in
-    let { start_pos = { line; col } } = range in
+    let { start_pos = { line; col; _ }; _ } = range in
     let loc = sprintf "%s:%d:%d" file line col in
     Of_sexp_error (Annot.Conv_exn (loc, exc), get_sexp annot_sexp)
 end

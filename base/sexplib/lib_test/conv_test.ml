@@ -73,7 +73,7 @@ end
 
 type labeled = string -> foo : unit -> ?bar : int -> float -> float with sexp
 
-let f str ~foo ?(bar = 3) n = float_of_string str +. n +. float bar
+let f str ~foo:_ ?(bar = 3) n = float_of_string str +. n +. float bar
 
 let labeled_sexp : Sexp.t = sexp_of_labeled f
 let labeled : labeled lazy_t = lazy (labeled_of_sexp (labeled_sexp : Sexp.t))
