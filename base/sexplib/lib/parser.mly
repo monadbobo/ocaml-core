@@ -34,7 +34,9 @@ sexp
   | LPAREN rev_sexps_aux RPAREN { Type.List (List.rev $2) }
   | error { parse_failure "sexp" }
 
-sexp_comment : SEXP_COMMENT sexp { () }
+sexp_comment
+  : SEXP_COMMENT sexp { () }
+  | SEXP_COMMENT sexp_comments sexp { () }
 
 sexp_comments
   : sexp_comment { () }
