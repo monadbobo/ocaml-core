@@ -45,7 +45,7 @@
 let newline = ('\010' | '\013' | "\013\010")
 let space = [' ' '\009' '\012']
 let whitespace = [' ' '\010' '\013' '\009' '\012']
-let backslash_escapes = ['\\' '"' '\'' 'n' 't' 'b' 'r']
+let backslash_escapes = ['\\' '\'' '"' 'n' 't' 'b' 'r' ' ']
 
 rule main buf = parse
   | newline { found_newline lexbuf 1; main buf lexbuf }
