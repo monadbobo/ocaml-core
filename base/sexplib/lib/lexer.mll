@@ -10,9 +10,9 @@
     | 't' -> '\t'
     | 'b' -> '\b'
     | 'r' -> '\r'
-    | c   -> c
+    | c -> c
 
-  let double_nl = "\013\010"
+  let dos_newline = "\013\010"
 
   let dec_code c1 c2 c3 =
     100 * (Char.code c1 - 48) + 10 * (Char.code c2 - 48) + (Char.code c3 - 48)
@@ -30,114 +30,175 @@
       else d2 - 48 in
     val1 * 16 + val2
 
-  let found_newline lexbuf diff =
-    let curr_p = lexbuf.lex_curr_p in
+  let found_newline ({ lex_curr_p; _ } as lexbuf) diff =
     lexbuf.lex_curr_p <-
       {
-        curr_p with
-        pos_lnum = curr_p.pos_lnum + 1;
-        pos_bol = max 1 (curr_p.pos_cnum - diff);
+        lex_curr_p with
+        pos_lnum = lex_curr_p.pos_lnum + 1;
+        pos_bol = lex_curr_p.pos_cnum - diff;
       }
 
-  let get_lexeme_len lexbuf = lexbuf.lex_curr_pos - lexbuf.lex_start_pos
+  let lexeme_len lexbuf = lexeme_end lexbuf - lexeme_start lexbuf
+
+  let main_failure lexbuf msg =
+    let { pos_lnum; pos_bol; pos_cnum; _ } = lexeme_start_p lexbuf in
+    let msg =
+      sprintf
+        "Sexplib.Lexer.main: %s at line %d char %d"
+        msg pos_lnum (pos_cnum - pos_bol)
+    in
+    failwith msg
 }
 
-let newline = ('\010' | '\013' | "\013\010")
-let space = [' ' '\009' '\012']
-let whitespace = [' ' '\010' '\013' '\009' '\012']
-let backslash_escapes = ['\\' '\'' '"' 'n' 't' 'b' 'r' ' ']
+let lf_cr = ['\010' '\013']
+let dos_newline = "\013\010"
+let newline = lf_cr | dos_newline
+let blank = [' ' '\009' '\012']
+let unquoted = [^ ';' '(' ')' '"'] # blank # lf_cr
+let digit = ['0'-'9']
+let hexdigit = digit | ['a'-'f' 'A'-'F']
+
+let unquoted_start =
+  unquoted # ['#' '|'] | '#' unquoted # ['|'] | '|' unquoted # ['#']
 
 rule main buf = parse
-  | newline { found_newline lexbuf 1; main buf lexbuf }
-  | space+ | ';' [^ '\n' '\r']* { main buf lexbuf }
+  | newline { found_newline lexbuf 0; main buf lexbuf }
+  | blank+ | ';' (_ # lf_cr)* { main buf lexbuf }
   | '(' { LPAREN }
   | ')' { RPAREN }
-  | "#;" { SEXP_COMMENT }
   | '"'
       {
-        scan_string buf lexbuf;
+        scan_string buf (lexeme_start_p lexbuf) lexbuf;
         let str = Buffer.contents buf in
         Buffer.clear buf;
         STRING str
       }
-  | ([^ ';' '(' ')' '"'] # whitespace)+ as str { STRING str }
+  | "#;" { SEXP_COMMENT }
+  | "#|"
+      {
+        scan_block_comment buf [lexeme_start_p lexbuf] lexbuf;
+        main buf lexbuf
+      }
+  | "|#" { main_failure lexbuf "illegal end of comment" }
+  | unquoted_start unquoted* ("#|" | "|#") unquoted*
+      { main_failure lexbuf "comment tokens in unquoted atom" }
+  | "#" | unquoted_start unquoted* as str { STRING str }
   | eof { EOF }
 
-and scan_string buf = parse
+and scan_string buf start = parse
   | '"' { () }
-  | '\\' ['\010' '\013'] [' ' '\009']*
+  | '\\' lf_cr [' ' '\t']*
       {
-        let len = get_lexeme_len lexbuf in
-        found_newline lexbuf (len - 2);
-        scan_string buf lexbuf
+        found_newline lexbuf (lexeme_len lexbuf - 2);
+        scan_string buf start lexbuf
       }
-  | '\\' "\013\010" [' ' '\009']*
+  | '\\' dos_newline [' ' '\t']*
       {
-        let len = get_lexeme_len lexbuf in
-        found_newline lexbuf (len - 3);
-        scan_string buf lexbuf
+        found_newline lexbuf (lexeme_len lexbuf - 3);
+        scan_string buf start lexbuf
       }
-  | '\\' (backslash_escapes as c)
+  | '\\' (['\\' '\'' '"' 'n' 't' 'b' 'r' ' '] as c)
       {
         Buffer.add_char buf (char_for_backslash c);
-        scan_string buf lexbuf
+        scan_string buf start lexbuf
       }
-  | '\\' (['0'-'9'] as c1) (['0'-'9'] as c2) (['0'-'9']  as c3)
+  | '\\' (digit as c1) (digit as c2) (digit as c3)
       {
         let v = dec_code c1 c2 c3 in
         if v > 255 then (
-          let pos = lexbuf.lex_curr_p in
+          let { pos_lnum; pos_bol; pos_cnum; _ } = lexeme_end_p lexbuf in
           let msg =
             sprintf
               "Sexplib.Lexer.scan_string: \
                illegal escape at line %d char %d: `\\%c%c%c'"
-              pos.pos_lnum (pos.pos_cnum - pos.pos_bol - 3)
+              pos_lnum (pos_cnum - pos_bol - 3)
               c1 c2 c3 in
           failwith msg);
         Buffer.add_char buf (Char.chr v);
-        scan_string buf lexbuf
+        scan_string buf start lexbuf
       }
-  | '\\' 'x' (['0'-'9' 'a'-'f' 'A'-'F'] as c1) (['0'-'9' 'a'-'f' 'A'-'F'] as c2)
+  | '\\' 'x' (hexdigit as c1) (hexdigit as c2)
       {
         let v = hex_code c1 c2 in
-        if v > 255 then (
-          let pos = lexbuf.lex_curr_p in
-          let msg =
-            sprintf
-              "Sexplib.Lexer.scan_string: \
-               illegal escape at line %d char %d: `\\x%c%c'"
-              pos.pos_lnum (pos.pos_cnum - pos.pos_bol - 3)
-              c1 c2 in
-          failwith msg);
         Buffer.add_char buf (Char.chr v);
-        scan_string buf lexbuf
+        scan_string buf start lexbuf
       }
   | '\\' (_ as c)
       {
         Buffer.add_char buf '\\';
         Buffer.add_char buf c;
-        scan_string buf lexbuf
+        scan_string buf start lexbuf
       }
-  | ['\010' '\013'] as c
+  | lf_cr as c
       {
-        found_newline lexbuf 1;
+        found_newline lexbuf 0;
         Buffer.add_char buf c;
-        scan_string buf lexbuf
+        scan_string buf start lexbuf
       }
-  | "\013\010"
+  | dos_newline
       {
-        found_newline lexbuf 2;
-        Buffer.add_string buf double_nl;
-        scan_string buf lexbuf
+        found_newline lexbuf 0;
+        Buffer.add_string buf dos_newline;
+        scan_string buf start lexbuf
       }
-  | [^ '\\' '"']+
+  | ([^ '\\' '"'] # lf_cr)+
       {
-        let ofs = lexbuf.lex_start_pos in
-        let len = lexbuf.lex_curr_pos - ofs in
+        let ofs = lexeme_start lexbuf in
+        let len = lexeme_end lexbuf - ofs in
         Buffer.add_substring buf lexbuf.lex_buffer ofs len;
-        scan_string buf lexbuf
+        scan_string buf start lexbuf
       }
-  | eof { failwith "Sexplib.Lexer.scan_string: unterminated string" }
+  | eof
+      {
+        let msg =
+          sprintf
+            "Sexplib.Lexer.scan_string: unterminated string at line %d char %d"
+            start.pos_lnum (start.pos_cnum - start.pos_bol)
+        in
+        failwith msg
+      }
+
+and scan_block_comment buf locs = parse
+  | ('#'* | '|'*) newline
+      {
+        found_newline lexbuf 0;
+        scan_block_comment buf locs lexbuf;
+      }
+  | (('#'* | '|'*) [^ '"' '#' '|'] # lf_cr)+
+      { scan_block_comment buf locs lexbuf }
+  | ('#'* | '|'*) '"'
+      {
+        let cur = lexeme_end_p lexbuf in
+        let start = { cur with pos_cnum = cur.pos_cnum - 1 } in
+        scan_string buf start lexbuf;
+        Buffer.clear buf;
+        scan_block_comment buf locs lexbuf
+      }
+  | '#'+ '|'
+    {
+      let cur = lexeme_end_p lexbuf in
+      let start = { cur with pos_cnum = cur.pos_cnum - 2 } in
+      scan_block_comment buf (start :: locs) lexbuf
+    }
+  | '|'+ '#'
+      {
+        match locs with
+        | [_] -> ()
+        | _ :: t -> scan_block_comment buf t lexbuf
+        | [] -> assert false  (* impossible *)
+      }
+  | eof
+      {
+        match locs with
+        | [] -> assert false
+        | { pos_lnum; pos_bol; pos_cnum; _ } :: _ ->
+            let msg =
+              sprintf "Sexplib.Lexer.scan_block_comment: \
+                unterminated block comment at line %d char %d"
+                pos_lnum (pos_cnum - pos_bol)
+            in
+            failwith msg
+      }
 
 {
   let main ?buf =

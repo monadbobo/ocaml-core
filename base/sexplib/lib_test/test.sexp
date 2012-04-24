@@ -11,4 +11,14 @@
 
   "This string contains decimal \255, hex \xff codes, \
    and other \\ \n escapes."
+
+  A# # ## #x|
 )
+
+; Line comment
+
+#; (
+  S-expression comment
+)
+
+#| #| Nested |# block comment "|#" |#

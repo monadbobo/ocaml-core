@@ -91,16 +91,30 @@ module type S = sig
         [buf_pos] is set to [pos]. *)
   end
 
+  module Cont_state : sig
+    (** State of parser continuations *)
+    type t = Pre_sexp.Cont_state.t =
+      | Parsing_whitespace
+      | Parsing_atom
+      | Parsing_list
+      | Parsing_sexp_comment
+      | Parsing_block_comment
+
+    val to_string : t -> string
+    (** [to_string cont_state] converts state of parser continuation
+        [cont_state] to a string. *)
+  end
+
   (** Type of result from calling {!Sexp.parse}. *)
   type ('a, 't) parse_result = ('a, 't) Pre_sexp.parse_result =
     | Done of 't * Parse_pos.t  (** [Done (t, parse_pos)] finished parsing
                                     an S-expression.  Current parse position
                                     is [parse_pos]. *)
-    | Cont of bool * ('a, 't) parse_fun
-      (** [Cont (ws_only, parse_fun)] met the end of input before completely
+    | Cont of Cont_state.t * ('a, 't) parse_fun
+      (** [Cont (cont_state, parse_fun)] met the end of input before completely
           parsing an S-expression.  The user has to call [parse_fun] to
-          continue parsing the S-expression in another buffer.  If [ws_only]
-          is true, only whitespace has been parsed so far (or comments!).
+          continue parsing the S-expression in another buffer.  [cont_state]
+          is the current parsing state of the continuation.
           NOTE: the continuation may only be called once and will raise
           [Failure] otherwise! *)
 
