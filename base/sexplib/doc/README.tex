@@ -159,9 +159,15 @@ or sequences (see next paragraph) are considered part of a contiguous string.\\
 \\
 A line comment is introduced using a semicolon, which comments out all
 text up to the end of the next newline character.  The sequence \verb=%;=
-introduces an S-expression comment.  This means that the next S-expression
-following this two-character sequence will be ignored.  Whitespace or other
-comments between this sequence and the subsequent S-expression are ignored.
+introduces an S-expression comment.  This means that the next S-expression,
+which must be syntactically correct and may be an atom (quoted or unquoted)
+or list, following this two-character sequence will be ignored.  Whitespace
+or other comments between this sequence and the subsequent S-expression are
+ignored.  Block comments are opened with \verb=#|= and closed with \verb=|#=.
+They can be nested and require that double-quotes within the block balance
+and contain syntactically correct OCaml-strings, similar to quoted atoms.
+These OCaml-strings may contain comment characters without causing parsing
+problems.
 
 \subsection{Grammar of S-expressions}
 
