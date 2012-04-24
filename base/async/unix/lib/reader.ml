@@ -418,32 +418,34 @@ let space = Bigstring.of_string " "
 
 let gen_read_sexp ?parse_pos t parse =
   Deferred.create (fun result ->
-    let rec loop ~ws_only parse_fun =
+    let rec loop ~cont_state parse_fun =
       nonempty_buffer t (function
         | `Eof ->
-          if ws_only then Ivar.fill result `Eof
-          else begin
-            (* The sexp parser doesn't know that a token ends at EOF, so we add a space to
-               be sure. *)
+          begin
+            (* The sexp parser doesn't know that a token ends at EOF, so we
+               add a space to be sure. *)
             match parse_fun ~pos:0 ~len:1 space with
             | Sexp.Done (sexp, parse_pos) ->
-              Ivar.fill result (`Ok (sexp, parse_pos))
+                Ivar.fill result (`Ok (sexp, parse_pos))
+            | Sexp.Cont (Sexp.Cont_state.Parsing_whitespace, _) ->
+                Ivar.fill result `Eof
             | Sexp.Cont _ ->
-              failwiths "Reader.read_sexp got unexpected eof" t <:sexp_of< t >>
+                failwiths "Reader.read_sexp got unexpected eof"
+                  t <:sexp_of< t >>
           end
         | `Ok ->
           match parse_fun ~pos:t.pos ~len:t.available t.buf with
           | Sexp.Done (sexp, parse_pos) ->
-            consume t (parse_pos.Sexp.Parse_pos.buf_pos - t.pos);
-            Ivar.fill result (`Ok (sexp, parse_pos));
-          | Sexp.Cont (ws_only, parse_fun) ->
-            t.available <- 0;
-            loop ~ws_only parse_fun)
+              consume t (parse_pos.Sexp.Parse_pos.buf_pos - t.pos);
+              Ivar.fill result (`Ok (sexp, parse_pos));
+          | Sexp.Cont (cont_state, parse_fun) ->
+              t.available <- 0;
+              loop ~cont_state parse_fun)
     in
     let parse ~pos ~len buf =
-      (* [parse_pos] will be threaded through the entire reading process by the sexplib
-         code.  Every occurrence of [parse_pos] above will be identical to the [parse_pos]
-         defined here. *)
+      (* [parse_pos] will be threaded through the entire reading process by
+         the sexplib code.  Every occurrence of [parse_pos] above will be
+         identical to the [parse_pos] defined here. *)
       let parse_pos =
         match parse_pos with
         | None -> Sexp.Parse_pos.create ~buf_pos:pos ()
@@ -451,7 +453,7 @@ let gen_read_sexp ?parse_pos t parse =
       in
       parse ?parse_pos:(Some parse_pos) ?len:(Some len) buf
     in
-    loop ~ws_only:true parse)
+    loop ~cont_state:Sexp.Cont_state.Parsing_whitespace parse)
 ;;
 
 type 'a read = ?parse_pos : Sexp.Parse_pos.t -> 'a
