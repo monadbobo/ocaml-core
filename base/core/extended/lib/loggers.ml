@@ -68,7 +68,7 @@ module MakeChannelSpec (ChannelSpec : CHANNEL_SPEC) : SPEC = struct
     let
         {
           tm_year = m_year; tm_mon = m_month; tm_mday = m_mday;
-          tm_hour = m_hour; tm_min = m_min; tm_sec = m_sec;
+          tm_hour = m_hour; tm_min = m_min; tm_sec = m_sec; _
         } = localtime mtime in
     let m_sec = float m_sec +. mod_float mtime 1. in
     sprintf "%04d-%02d-%02d/%02d:%02d:%05.2f"

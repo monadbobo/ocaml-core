@@ -323,8 +323,8 @@ end = struct
     | `Ok tbl -> (fun flag ->
       match partial_match tbl flag with
       | `Exact (_, v)
-      | `Partial (_, ({full_flag_required = false} as v)) -> Some v.spec
-      | `Partial (_, ({full_flag_required = true} as v)) ->
+      | `Partial (_, ({full_flag_required = false; _} as v)) -> Some v.spec
+      | `Partial (_, ({full_flag_required = true; _} as v)) ->
         eprintf "Note: cannot abbreviate flag \"%s\".\n%!" v.name; None
       | `Ambiguous l ->
         eprintf "Note: flag \"%s\" is an ambiguous prefix: %s\n%!"
@@ -333,7 +333,7 @@ end = struct
       | `None -> None)
   ;;
 
-  let help { name = name; doc = doc; aliases = aliases}  =
+  let help { name = name; doc = doc; aliases = aliases; _}  =
     if String.is_prefix doc ~prefix:" " then
       (name, String.lstrip doc) ::
         List.map aliases
