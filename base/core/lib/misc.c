@@ -176,7 +176,7 @@ WRAP_TIME_FUN(gmtime, "gmtime")
 /* Fix the broken close_(in/out) function which does not release the
    caml lock. */
 
-#define IO_BUFFER_SIZE 4096
+#define IO_BUFFER_SIZE 65536
 
 typedef long file_offset;
 

@@ -253,7 +253,7 @@ CAMLprim value bigstring_recvfrom_assume_fd_is_nonblocking_stub(
 
 typedef off_t file_offset;
 
-#define IO_BUFFER_SIZE 4096
+#define IO_BUFFER_SIZE 65536
 
 struct channel {
   int fd;                       /* Unix file descriptor */

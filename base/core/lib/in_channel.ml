@@ -35,8 +35,8 @@ let unsafe_input_value t = may_eof (fun () -> Pervasives.input_value t)
 let set_binary_mode = Pervasives.set_binary_mode_in
 
 let input_all t =
-  (* We use 4096 because that is the size of OCaml's IO buffers. *)
-  let buf_size = 4096 in
+  (* We use 65536 because that is the size of OCaml's IO buffers. *)
+  let buf_size = 65536 in
   let buf = String.create buf_size in
   let buffer = Buffer.create buf_size in
   let rec loop () =
