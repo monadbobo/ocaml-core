@@ -6,10 +6,10 @@
   open Parser
 
   let char_for_backslash = function
-    | 'n' -> '\n'
-    | 't' -> '\t'
-    | 'b' -> '\b'
-    | 'r' -> '\r'
+    | 'n' -> '\010'
+    | 'r' -> '\013'
+    | 'b' -> '\008'
+    | 't' -> '\009'
     | c -> c
 
   let dos_newline = "\013\010"
