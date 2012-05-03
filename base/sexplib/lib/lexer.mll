@@ -12,7 +12,7 @@
     | 't' -> '\009'
     | c -> c
 
-  let dos_newline = "\013\010"
+  let lf = '\010'
 
   let dec_code c1 c2 c3 =
     100 * (Char.code c1 - 48) + 10 * (Char.code c2 - 48) + (Char.code c3 - 48)
@@ -50,9 +50,9 @@
     failwith msg
 }
 
+let lf = '\010'
 let lf_cr = ['\010' '\013']
 let dos_newline = "\013\010"
-let newline = lf_cr | dos_newline
 let blank = [' ' '\009' '\012']
 let unquoted = [^ ';' '(' ')' '"'] # blank # lf_cr
 let digit = ['0'-'9']
@@ -62,7 +62,7 @@ let unquoted_start =
   unquoted # ['#' '|'] | '#' unquoted # ['|'] | '|' unquoted # ['#']
 
 rule main buf = parse
-  | newline { found_newline lexbuf 0; main buf lexbuf }
+  | lf | dos_newline { found_newline lexbuf 0; main buf lexbuf }
   | blank+ | ';' (_ # lf_cr)* { main buf lexbuf }
   | '(' { LPAREN }
   | ')' { RPAREN }
@@ -87,7 +87,7 @@ rule main buf = parse
 
 and scan_string buf start = parse
   | '"' { () }
-  | '\\' lf_cr [' ' '\t']*
+  | '\\' lf [' ' '\t']*
       {
         found_newline lexbuf (lexeme_len lexbuf - 2);
         scan_string buf start lexbuf
@@ -129,19 +129,13 @@ and scan_string buf start = parse
         Buffer.add_char buf c;
         scan_string buf start lexbuf
       }
-  | lf_cr as c
+  | lf
       {
         found_newline lexbuf 0;
-        Buffer.add_char buf c;
+        Buffer.add_char buf lf;
         scan_string buf start lexbuf
       }
-  | dos_newline
-      {
-        found_newline lexbuf 0;
-        Buffer.add_string buf dos_newline;
-        scan_string buf start lexbuf
-      }
-  | ([^ '\\' '"'] # lf_cr)+
+  | ([^ '\\' '"'] # lf)+
       {
         let ofs = lexeme_start lexbuf in
         let len = lexeme_end lexbuf - ofs in
@@ -159,13 +153,9 @@ and scan_string buf start = parse
       }
 
 and scan_block_comment buf locs = parse
-  | ('#'* | '|'*) newline
-      {
-        found_newline lexbuf 0;
-        scan_block_comment buf locs lexbuf;
-      }
-  | (('#'* | '|'*) [^ '"' '#' '|'] # lf_cr)+
-      { scan_block_comment buf locs lexbuf }
+  | ('#'* | '|'*) lf
+      { found_newline lexbuf 0; scan_block_comment buf locs lexbuf }
+  | (('#'* | '|'*) [^ '"' '#' '|'] # lf)+ { scan_block_comment buf locs lexbuf }
   | ('#'* | '|'*) '"'
       {
         let cur = lexeme_end_p lexbuf in

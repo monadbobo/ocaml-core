@@ -520,7 +520,7 @@ let mk_cont_parser cont_parse = (); fun _state str ~max_pos ~pos ->
                   bump_pos_cont state str ~max_pos ~pos PARSE) \
       | ' ' | '\009' | '\012' -> bump_pos_cont state str ~max_pos ~pos PARSE \
       | '\010' -> bump_line_cont state str ~max_pos ~pos PARSE \
-      | '\013' -> bump_line_cont state str ~max_pos ~pos parse_nl \
+      | '\013' -> bump_pos_cont state str ~max_pos ~pos parse_nl \
       | ';' -> bump_pos_cont state str ~max_pos ~pos parse_comment \
       | '"' -> \
           REGISTER_POS1 \
@@ -538,15 +538,16 @@ let mk_cont_parser cont_parse = (); fun _state str ~max_pos ~pos ->
   and parse_nl state str ~max_pos ~pos = \
     if pos > max_pos then mk_cont "parse_nl" parse_nl state \
     else \
-      let pos = if GET_CHAR = '\010' then pos + 1 else pos in \
-      PARSE state str ~max_pos ~pos \
+      let c = GET_CHAR in \
+      if c = '\010' then bump_line_cont state str ~max_pos ~pos PARSE \
+      else raise_unexpected_char (MK_PARSE_STATE state) "parse_nl" pos c \
   \
   and parse_comment state str ~max_pos ~pos = \
     if pos > max_pos then mk_cont "parse_comment" parse_comment state \
     else \
       match GET_CHAR with \
       | '\010' -> bump_line_cont state str ~max_pos ~pos PARSE \
-      | '\013' -> bump_line_cont state str ~max_pos ~pos parse_nl \
+      | '\013' -> bump_pos_cont state str ~max_pos ~pos parse_nl \
       | _ -> bump_pos_cont state str ~max_pos ~pos parse_comment \
   \
   and maybe_parse_comment state str ~max_pos ~pos = \
@@ -600,8 +601,6 @@ let mk_cont_parser cont_parse = (); fun _state str ~max_pos ~pos ->
         else \
           match GET_CHAR with \
           | '\010' -> bump_line_cont state str ~max_pos ~pos parse_block_depth \
-          | '\013' -> \
-              bump_line_cont state str ~max_pos ~pos parse_block_depth_nl \
           | '"' -> \
               let rec parse_block_quote parse state str ~max_pos ~pos = \
                 match parse state str ~max_pos ~pos with \
@@ -619,12 +618,6 @@ let mk_cont_parser cont_parse = (); fun _state str ~max_pos ~pos ->
           | '#' -> bump_pos_cont state str ~max_pos ~pos parse_open_block \
           | '|' -> bump_pos_cont state str ~max_pos ~pos parse_close_block \
           | _ -> bump_pos_cont state str ~max_pos ~pos parse_block_depth \
-      and parse_block_depth_nl state str ~max_pos ~pos = \
-        if pos > max_pos then \
-          mk_cont "parse_block_depth_nl" parse_block_depth_nl state \
-        else \
-          let pos = if GET_CHAR = '\010' then pos + 1 else pos in \
-          parse_block_depth state str ~max_pos ~pos \
       and parse_open_block state str ~max_pos ~pos = \
         if pos > max_pos then \
           mk_cont "parse_open_block" parse_open_block state \
@@ -687,7 +680,7 @@ let mk_cont_parser cont_parse = (); fun _state str ~max_pos ~pos ->
                   bump_pos_cont state str ~max_pos ~pos PARSE) \
       | '\010' -> bump_found_atom bump_text_line state str ~max_pos ~pos PARSE \
       | '\013' -> \
-          bump_found_atom bump_text_line state str ~max_pos ~pos parse_nl \
+          bump_found_atom bump_text_pos state str ~max_pos ~pos parse_nl \
       | ';' -> \
           bump_found_atom bump_text_pos state str ~max_pos ~pos parse_comment \
       | '"' -> \
@@ -738,28 +731,14 @@ let mk_cont_parser cont_parse = (); fun _state str ~max_pos ~pos ->
               bump_pos_cont state str ~max_pos ~pos PARSE) \
       | '\\' -> bump_pos_cont state str ~max_pos ~pos parse_escaped \
       | '\010' as c -> add_bump_line state str ~max_pos ~pos c parse_quoted \
-      | '\013' as c -> add_bump_line state str ~max_pos ~pos c parse_quoted_nl \
       | c -> add_bump_pos state str ~max_pos ~pos c parse_quoted \
-  \
-  and parse_quoted_nl state str ~max_pos ~pos = \
-    if pos > max_pos then mk_cont "parse_quoted_nl" parse_quoted_nl state \
-    else \
-      let pos = \
-        let c = '\010' in \
-        if GET_CHAR = c then ( \
-          Buffer.add_char state.pbuf c; \
-          pos + 1 \
-        ) \
-        else pos \
-      in \
-      parse_quoted state str ~max_pos ~pos \
   \
   and parse_escaped state str ~max_pos ~pos = \
     if pos > max_pos then mk_cont "parse_escaped" parse_escaped state \
     else \
       match GET_CHAR with \
       | '\010' -> bump_line_cont state str ~max_pos ~pos parse_skip_ws \
-      | '\013' -> bump_line_cont state str ~max_pos ~pos parse_skip_ws_nl \
+      | '\013' -> bump_pos_cont state str ~max_pos ~pos parse_skip_ws_nl \
       | '0' .. '9' as c -> \
           bump_text_pos state; \
           let d = Char.code c - 48 in \
@@ -787,8 +766,12 @@ let mk_cont_parser cont_parse = (); fun _state str ~max_pos ~pos ->
   and parse_skip_ws_nl state str ~max_pos ~pos = \
     if pos > max_pos then mk_cont "parse_skip_ws_nl" parse_skip_ws_nl state \
     else \
-      let pos = if GET_CHAR = '\010' then pos + 1 else pos in \
-      parse_skip_ws state str ~max_pos ~pos \
+      if GET_CHAR = '\010' then \
+        bump_line_cont state str ~max_pos ~pos parse_skip_ws \
+      else begin \
+        Buffer.add_char state.pbuf '\013'; \
+        parse_quoted state str ~max_pos ~pos \
+      end \
   \
   and parse_dec state str ~max_pos ~pos ~count ~d = \
     if pos > max_pos then mk_cont "parse_dec" (parse_dec ~count ~d) state \
