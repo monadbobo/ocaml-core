@@ -148,13 +148,13 @@ E.g.\ when using OCamlMakefile just add it to the \verb=PACKS=-variable.
 
 \subsection{Lexical conventions of S-expression}
 
-Whitespace, which consists of space, newline, carriage return, horizontal tab,
-and form feed, is ignored unless within an OCaml-string, where it is treated
-according to OCaml-conventions.  The left parenthesis opens a new list, the
-right one closes it again.  Lists can be empty.  The double quote denotes
-the beginning and end of a string following the lexical conventions of OCaml
-(see the OCaml-manual for details).  All characters other than double quotes,
-left- and right parentheses, whitespace, and comment-introducing characters
+Whitespace, which consists of space, newline, horizontal tab, and form feed,
+is ignored unless within an OCaml-string, where it is treated according to
+OCaml-conventions.  The left parenthesis opens a new list, the right one closes
+it again.  Lists can be empty.  The double quote denotes the beginning and end
+of a string following the lexical conventions of OCaml (see the OCaml-manual
+for details).  All characters other than double quotes, left- and right
+parentheses, whitespace, carriage return, and comment-introducing characters
 or sequences (see next paragraph) are considered part of a contiguous string.\\
 \\
 A line comment is introduced using a semicolon, which comments out all
