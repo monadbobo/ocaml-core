@@ -56,7 +56,7 @@ esac
 
 # in dependency topological order
 libraries="
-type-conv
+type_conv
 pipebang
 compare
 typehash

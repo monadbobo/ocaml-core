@@ -10,4 +10,5 @@ _oasis
 _build
 _tags
 lib/META
-lib/libcore.clib
+lib/libpa_type_conv.clib
+lib/type_conv.odocl
