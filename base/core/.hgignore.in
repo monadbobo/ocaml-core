@@ -12,3 +12,4 @@ _build
 _tags
 lib/META
 lib/libcore.clib
+lib/libcore_stubs.clib

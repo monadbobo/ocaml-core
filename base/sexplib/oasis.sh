@@ -116,5 +116,3 @@ EOF
 cd $HERE
 rm -f setup.ml
 oasis setup
-
-./configure "$@"

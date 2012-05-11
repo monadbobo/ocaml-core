@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -u -o pipefail
 
+. build-common.sh
+
 function usage {
     echo "usage: ${BASH_SOURCE[0]} [-j <JOBS>] [tree]"
     echo "         -h, --help       Display this help"
@@ -54,43 +56,37 @@ case $# in
     *) echo "too many anonymous arguments: $@"; exit 1 ;;
 esac
 
-# in dependency topological order
-libraries="
-type_conv
-pipebang
-compare
-typehash
-fieldslib
-variantslib
-pa_ounit
-bin-prot
-sexplib
-core
-core/extended
-async/core
-async/unix
-async/extra
-async
-"
-
-# tac is non-standard
-function tac { cat -n | sort -nr | cut -f2; }
-
 if $uninstall; then
-  libraries=$(echo "$libraries" | gtac)
+  rev_build_order=( )
+  for i in `seq $(( ${#build_order[@]} - 1 )) -1 0`; do
+      rev_build_order+=( "${build_order[$i]}" )
+  done
+  build_order=( "${rev_build_order[@]}" )
 fi
 
 cd "$tree"
-for dir in $libraries; do
+
+function findlibname {
+    local dir="$1"
+    (grep FindlibParent: "$dir"/oasis.sh || grep FindlibName: "$dir"/oasis.sh) \
+    | awk '{print $2}' | head -1
+}
+
+function uninstall {
+    local lib=$(findlibname "$1")
+    ocamlfind remove "$lib" || true;
+}
+
+for dir in "${build_order[@]}"; do
   echo "------ base/$dir ------"
   pushd base/$dir
   optflags=
-  
+
   if $uninstall; then
-    make uninstall || true
+    uninstall .
     popd; continue
   fi
-  
+
   case $dir in
       core|core/extended) optflags="$linuxflag $timerflag" ;;
       async/scheduler)    optflags="$linuxflag" ;;
@@ -104,13 +100,15 @@ for dir in $libraries; do
           trap "rm -r '$dest'" EXIT
           ;;
   esac
-  ./oasis.sh $optflags "${configopts[@]:+${configopts[@]}}"
+  ./oasis.sh
+  ./configure $optflags "${configopts[@]:+${configopts[@]}}"
   make build BUILDFLAGS="$makeflags"
-  make install || true
+  uninstall .
+  make install
 
   case $dir in
       async) # copy the generated setup.ml and setup.data back
-        cp -rp "$dest"/base/async/{Makefile,setup.ml,setup.data,myocamlbuild.ml} "$src"/
+        cp -rp "$dest"/base/async/{configure,Makefile,setup.ml,setup.data,myocamlbuild.ml} "$src"/
       ;;
   esac
   popd

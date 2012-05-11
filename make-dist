@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -e -u -o pipefail
+
+. build-common.sh
+
+function usage {
+    echo "usage: ${BASH_SOURCE[0]} <dest-dir> [packages...]"
+}
+
+if [[ $# -lt 1 ]]; then usage; exit 1; fi
+
+destdir="$1"
+shift
+if [[ $# -gt 0 ]]; then
+    packages="$@"
+else
+    packages="${build_order[@]}"
+fi
+
+function file_included {
+    case "$1" in
+        oasis.sh)             false;;
+        _build)               false;;
+        setup.log|setup.data) false;;
+        *) [[ ! -e "$1"/oasis.sh ]];;
+    esac
+}
+excluded=(
+    oasis.sh
+    _build
+    setup.log
+    setup.data
+)
+
+hgroot=$(hg root)
+
+for dir in $packages; do
+    pushd "base/$dir"
+
+    ./oasis.sh
+    name=$(oasis query name)
+    version=$(oasis query version)
+    dest="$destdir/${name}-${version}"
+    mkdir "$dest"
+
+    for f in *; do
+        if file_included "$f"; then
+            cp -rp "$f" "$dest/$f"
+        fi
+    done
+    cp -p "$hgroot/licensing/"* "$dest/"
+
+    popd
+done

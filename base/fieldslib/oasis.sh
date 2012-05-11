@@ -8,7 +8,7 @@ cat >$HERE/_oasis <<EOF
 OASISFormat:  0.3
 OCamlVersion: >= 3.12
 Name:         fieldslib
-Version:      107.01
+Version:      $core_version
 Synopsis:     OCaml record fields as first class values.
 Authors:      Jane street capital
 Copyrights:   (C) 2009-2011 Jane Street Capital LLC
@@ -55,6 +55,3 @@ EOF
 cd $HERE
 rm -f setup.ml
 oasis setup
-
-./configure "$@"
-

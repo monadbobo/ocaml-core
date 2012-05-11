@@ -12,6 +12,8 @@ lib/META
 lib/core-extended.odocl
 lib/core-extended.mllib
 lib/libcore_extended.clib
+lib/libcore_extended_stubs.clib
 lib/core_extended.mlpack
+lib/config.h
 lib/config.mlh
 lib/version_defaults.mlh

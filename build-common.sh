@@ -1,5 +1,26 @@
 #!/bin/bash
 
+core_version=108.00-pre1
+
+# in dependency-topological order
+build_order=(
+    type_conv
+    pipebang
+    compare
+    typehash
+    fieldslib
+    variantslib
+    pa_ounit
+    bin-prot
+    sexplib
+    core
+    core/extended
+    async/core
+    async/unix
+    async/extra
+    async
+)
+
 function my_join {
     sep=","
     if [[ $# -gt 0 ]]; then sep="$1"; fi
@@ -26,6 +47,14 @@ function mod_names {
     done
 }
 
+function list_mods {
+    find "$1" -name '*.ml' -print | mod_names | sort -u | my_join
+}
+
+function list_stubs {
+    find "$1" -name "*.[ch]" -exec basename \{\} \; | sort -u | my_join
+}
+
 function make_tags {
     cat >"$1" <<EOF
 # OASIS_START
@@ -42,58 +71,19 @@ EOF
     cat >>"$1"
 }
 
-function check_linux_enabled {
-    enable_linux=false
-    enable_linux_default="--disable-linux"
-    case $(ocamlc -config | awk '$1 == "system:" {print $2}') in
-        linux|linux_elf)
-            enable_linux=true
-            enable_linux_default="--enable-linux"
-            ;;
-    esac
+function make_setup_ml {
+    cat >"$1" <<EOF
+(* OASIS_START *)
+(* OASIS_STOP *)
+let _ = setup
 
-    for opt in "$@"; do
-        case "$opt" in
-            --enable-linux)  enable_linux=true;  enable_linux_default= ;;
-            --disable-linux) enable_linux=false; enable_linux_default= ;;
-        esac
-    done
-}
-
-function getconf_or_zero {
-    local ret=$(getconf "$@" 2>/dev/null)
-    case "$ret" in
-	[0-9][0-9]*) echo "$ret" ;;
-	*) echo 0 ;;
-    esac
-}
-
-function check_posix_timers_enabled {
-    enable_timers=false
-    enable_timers_default="--disable-posix-timers"
-    if [[ $(getconf_or_zero _POSIX_TIMERS) -ge 200112 ]]; then
-        enable_timers=true
-        enable_timers_default="--enable-posix-timers"
-    fi
-
-    for opt in "$@"; do
-        case "$opt" in
-            --enable-posix-timers)  enable_timers=true;  enable_timers_default= ;;
-            --disable-posix-timers) enable_timers=false; enable_timers_default= ;;
-        esac
-    done
-}
-
-function declare_tests_flag {
-  # prior to oasis version 0.3.0, the "tests" flag is not built in
-  # and, the "version" argument is not supported.
-  if ! oasis version 2>/dev/null >/dev/null; then
-    cat <<EOF
-Flag tests
-  Description: Build and run tests
-  Default:     false
 EOF
-  fi
+    cat >> "$1"
+    cat >> "$1" <<EOF
+
+let () = BaseSetup.setup setup_t
+EOF
 }
 
-HERE=$(dirname "$0")
+HERE=$(dirname -- "$0")
+

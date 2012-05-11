@@ -146,6 +146,7 @@ glob:base/bin-prot/doc/README.txt
 glob:base/bin-prot/lib/META
 glob:base/bin-prot/lib/bin_prot.mlpack
 glob:base/bin-prot/lib/libbin_prot.clib
+glob:base/bin-prot/lib/libbin_prot_stubs.clib
 glob:base/bin-prot/lib_test/example.pp.ml
 glob:base/bin-prot/lib_test/mac_test
 glob:base/bin-prot/lib_test/test_runner
@@ -184,11 +185,13 @@ glob:base/core/extended/_oasis
 glob:base/core/extended/_tags
 glob:base/core/extended/configure
 glob:base/core/extended/lib/META
+glob:base/core/extended/lib/config.h
 glob:base/core/extended/lib/config.mlh
 glob:base/core/extended/lib/core-extended.mllib
 glob:base/core/extended/lib/core-extended.odocl
 glob:base/core/extended/lib/core_extended.mlpack
 glob:base/core/extended/lib/libcore_extended.clib
+glob:base/core/extended/lib/libcore_extended_stubs.clib
 glob:base/core/extended/lib/sexp_pos_parser.ml
 glob:base/core/extended/lib/sexp_pos_parser.mli
 glob:base/core/extended/lib/version_defaults.mlh
@@ -202,6 +205,7 @@ glob:base/core/lib/config.mlh
 glob:base/core/lib/core.mlpack
 glob:base/core/lib/core.odocl
 glob:base/core/lib/libcore.clib
+glob:base/core/lib/libcore_stubs.clib
 glob:base/core/myocamlbuild.ml
 glob:base/core/setup.data
 glob:base/core/setup.log
@@ -273,8 +277,7 @@ glob:base/type_conv/_oasis
 glob:base/type_conv/_tags
 glob:base/type_conv/configure
 glob:base/type_conv/lib/META
-glob:base/type_conv/lib/core.mlpack
-glob:base/type_conv/lib/libpa_type_conv.clib
+glob:base/type_conv/lib/pa_type_conv.mllib
 glob:base/type_conv/lib/type_conv.odocl
 glob:base/type_conv/myocamlbuild.ml
 glob:base/type_conv/setup.data

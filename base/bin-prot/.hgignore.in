@@ -2,6 +2,7 @@ INSTALL
 configure
 lib/bin_prot.mlpack
 lib/libbin_prot.clib
+lib/libbin_prot_stubs.clib
 lib/META
 setup.ml
 setup.log

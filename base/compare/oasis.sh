@@ -49,5 +49,3 @@ echo >$HERE/lib/comparelib_dummy.ml
 
 cd $HERE
 oasis setup
-./configure "$@"
-

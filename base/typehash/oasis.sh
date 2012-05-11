@@ -45,5 +45,3 @@ EOF
 
 cd $HERE
 oasis setup
-./configure "$@"
-

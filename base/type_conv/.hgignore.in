@@ -2,7 +2,6 @@ INSTALL
 Makefile
 myocamlbuild.ml
 configure
-lib/core.mlpack
 setup.ml
 setup.log
 setup.data
@@ -10,5 +9,5 @@ _oasis
 _build
 _tags
 lib/META
-lib/libpa_type_conv.clib
+lib/pa_type_conv.mllib
 lib/type_conv.odocl
