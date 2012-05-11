@@ -7,3 +7,4 @@ configure
 myocamlbuild.ml
 setup.data
 setup.ml
+lib/META

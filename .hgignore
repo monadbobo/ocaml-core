@@ -301,6 +301,7 @@ glob:base/variantslib/_build
 glob:base/variantslib/_oasis
 glob:base/variantslib/_tags
 glob:base/variantslib/configure
+glob:base/variantslib/lib/META
 glob:base/variantslib/myocamlbuild.ml
 glob:base/variantslib/sample/generated_test.ml
 glob:base/variantslib/sample/generated_test.mli
