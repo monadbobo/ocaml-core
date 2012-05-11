@@ -75,3 +75,5 @@ val raise : t -> _
 
     [failwiths s a f] = [Error.raise (Error.create s a f)] *)
 val failwiths : string -> 'a -> ('a -> Sexp.t) -> _
+
+val pp : Format.formatter -> t -> unit

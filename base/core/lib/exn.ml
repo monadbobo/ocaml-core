@@ -70,7 +70,10 @@ let protectx ~f x ~(finally : _ -> unit) =
 
 let protect ~f ~finally = protectx ~f () ~finally
 
-let pp ppf t = Sexp.pp_hum ppf (sexp_of_exn t)
+let pp ppf t =
+  match sexp_of_exn_opt t with
+  | Some sexp -> Sexp.pp_hum ppf sexp
+  | None -> Format.fprintf ppf "%s" (Printexc.to_string t)
 
 let backtrace = Printexc.get_backtrace
 

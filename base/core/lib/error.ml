@@ -167,6 +167,9 @@ let raise t = raise (Error t)
 
 let failwiths message a sexp_of_a = raise (create message a sexp_of_a)
 
+let pp ppf t = Format.fprintf ppf "\"%s\"" (to_string_hum t)
+let () = Pretty_printer.register "Core.Error.pp"
+
 TEST_MODULE "error" = struct
   TEST = to_string_hum (tag (of_string "b") "a") = "a: b"
   TEST = to_string_hum (of_list (List.map ~f:of_string [ "a"; "b"; "c" ])) = "a; b; c"

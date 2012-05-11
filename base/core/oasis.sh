@@ -56,6 +56,14 @@ Library core
                       unix,
                       threads
 
+Library core_top
+  Path:               top
+  FindlibName:        top
+  FindlibParent:      core
+  Modules:            Install_printers
+  XMETARequires:      core
+  XMETADescription:   Toplevel printers for Core
+
 Executable test_runner
   Path:               lib_test
   MainIs:             test_runner.ml
