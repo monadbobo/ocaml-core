@@ -3,6 +3,8 @@
    Much of this module is taken from the OCaml source.
 */
 
+#include "config.h"
+#ifdef JSC_LINUX_EXT
 
 #include <caml/memory.h>
 #include <caml/misc.h>
@@ -278,3 +280,5 @@ backtrace_dump_stderr(void)
   fflush(stderr);
   extensible_buffer_free(buf);
 }
+
+#endif /* JSC_LINUX_EXT */

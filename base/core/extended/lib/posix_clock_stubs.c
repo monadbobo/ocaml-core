@@ -1,3 +1,6 @@
+#include "config.h"
+#ifdef JSC_POSIX_TIMERS
+
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -10,6 +13,12 @@
 #include <caml/unixsupport.h>
 
 #include <time.h>
+
+#ifdef JSC_ARCH_SIXTYFOUR
+#  define caml_alloc_int63(v) Val_long(v)
+#else
+#  define caml_alloc_int63(v) caml_copy_int64(v)
+#endif
 
 clockid_t caml_clockid_t_of_caml (value clock_type) {
   switch (Int_val(clock_type)) {
@@ -25,13 +34,13 @@ clockid_t caml_clockid_t_of_caml (value clock_type) {
 value caml_clock_getres (value clock_type) {
   struct timespec tp;
   clock_getres (caml_clockid_t_of_caml (clock_type), &tp);
-  return (Val_int (((__int64_t)tp.tv_sec * 1000 * 1000 * 1000) + (__int64_t)tp.tv_nsec));
+  return (caml_alloc_int63 (((__int64_t)tp.tv_sec * 1000 * 1000 * 1000) + (__int64_t)tp.tv_nsec));
 }
 
 value caml_clock_gettime (value clock_type) {
   struct timespec tp;
   clock_gettime (caml_clockid_t_of_caml (clock_type), &tp);
-  return (Val_int (((__int64_t)tp.tv_sec * 1000 * 1000 * 1000) + (__int64_t)tp.tv_nsec));
+  return (caml_alloc_int63 (((__int64_t)tp.tv_sec * 1000 * 1000 * 1000) + (__int64_t)tp.tv_nsec));
 }
 
 /*
@@ -61,3 +70,5 @@ value caml_clock_nanosleep (value clock_type, value nanoseconds_v) {
   };
 }
 */
+
+#endif /* JSC_POSIX_TIMERS */

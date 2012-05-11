@@ -1,3 +1,7 @@
+#include "config.h"
+
+#ifdef JSC_LINUX_EXT
+
 #define _GNU_SOURCE
 
 #include <string.h>
@@ -162,7 +166,7 @@ CAMLprim value linux_statfs_stub(value v_path)
     uerror("statfs", Nothing);
 
   res = caml_alloc_tuple(8);
-  Store_field(res, 0, Val_long(sfs.f_type));
+  Store_field(res, 0, caml_copy_int32(sfs.f_type));
   Store_field(res, 1, Val_long(sfs.f_bsize));
   Store_field(res, 2, Val_long(sfs.f_blocks));
   Store_field(res, 3, Val_long(sfs.f_bfree));
@@ -172,3 +176,5 @@ CAMLprim value linux_statfs_stub(value v_path)
   Store_field(res, 7, Val_long(sfs.f_namelen));
   CAMLreturn(res);
 }
+
+#endif /* JSC_LINUX_EXT */

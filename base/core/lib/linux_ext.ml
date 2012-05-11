@@ -25,6 +25,16 @@ module Clock0 = struct
   type t
 end
 
+module Clock_unimplemented = struct
+  include Clock0
+  let get               = unimplemented "Linux_ext.Clock.get"
+  let get_time          = unimplemented "Linux_ext.Clock.get_time"
+  let set_time          = unimplemented "Linux_ext.Clock.set_time"
+  let get_resolution    = unimplemented "Linux_ext.Clock.get_resolution"
+  let get_process_clock = unimplemented "Linux_ext.Clock.get_process_clock"
+  let get_thread_clock  = unimplemented "Linux_ext.Clock.get_thread_clock"
+end
+
 (* If you update this type, you also must update linux_tcpopt_bool, in the C stubs. (And
    do make sure you get the order correct) *)
 type tcp_bool_option = TCP_CORK with sexp, bin_io
@@ -191,6 +201,8 @@ module Clock = struct
   let get_thread_clock  = Ok get_thread_clock
 
 end
+ELSE
+module Clock = Clock_unimplemented
 ENDIF
 
 external pr_set_pdeathsig : Signal.t -> unit = "linux_pr_set_pdeathsig_stub"
@@ -281,15 +293,7 @@ module Sysinfo = struct
   let sysinfo = unimplemented "Linux_ext.Sysinfo.sysinfo"
 end
 
-module Clock = struct
-  include Clock0
-  let get               = unimplemented "Linux_ext.Clock.get"
-  let get_time          = unimplemented "Linux_ext.Clock.get_time"
-  let set_time          = unimplemented "Linux_ext.Clock.set_time"
-  let get_resolution    = unimplemented "Linux_ext.Clock.get_resolution"
-  let get_process_clock = unimplemented "Linux_ext.Clock.get_process_clock"
-  let get_thread_clock  = unimplemented "Linux_ext.Clock.get_thread_clock"
-end
+module Clock = Clock_unimplemented
 
 let cores                          = unimplemented "Linux_ext.cores"
 let file_descr_realpath            = unimplemented "Linux_ext.file_descr_realpath"

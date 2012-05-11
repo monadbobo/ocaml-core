@@ -1,6 +1,6 @@
-(*pp camlp4o -I `ocamlfind query sexplib` -I `ocamlfind query type-conv` -I `ocamlfind query bin_prot` pa_type_conv.cmo pa_sexp_conv.cmo pa_bin_prot.cmo *)
-open Sexplib.Std
-open Bin_prot.Std
+open Core.Std
+
+INCLUDE "config.mlh"
 
 type mallinfo = {
   arena : int;
@@ -15,8 +15,6 @@ type mallinfo = {
   keepcost : int;
 } with sexp, bin_io
 
-external mallinfo : unit -> mallinfo = "malloc_mallinfo_stub"
-
 type opt =
   | TRIM_THRESHOLD
   | TOP_PAD
@@ -26,8 +24,23 @@ type opt =
 (*   | PERTURB *)
 with sexp, bin_io
 
-external mallopt : opt -> int -> unit = "malloc_mallopt_stub"
+IFDEF LINUX_EXT THEN
 
-external malloc_trim : int -> unit = "malloc_trim_stub"
+external mallinfo     : unit -> mallinfo   = "malloc_mallinfo_stub"
+external mallopt      : opt -> int -> unit = "malloc_mallopt_stub"
+external malloc_trim  : int -> unit        = "malloc_trim_stub"
+external malloc_stats : unit -> unit       = "malloc_stats_stub"
 
-external malloc_stats : unit -> unit = "malloc_stats_stub"
+let mallinfo     = Ok mallinfo
+let mallopt      = Ok mallopt
+let malloc_trim  = Ok malloc_trim
+let malloc_stats = Ok malloc_stats
+
+ELSE
+
+let mallinfo     = unimplemented "Malloc.mallinfo"
+let mallopt      = unimplemented "Malloc.mallopt"
+let malloc_trim  = unimplemented "Malloc.malloc_trim"
+let malloc_stats = unimplemented "Malloc.malloc_stats"
+
+ENDIF

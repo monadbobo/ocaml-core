@@ -1,6 +1,5 @@
 open Core.Std
 
-
 module Test : sig
   type t
   val create : ?name:string -> ?size:int -> (unit -> unit) -> t
@@ -11,11 +10,11 @@ end
 module Result : sig
   module Stat : sig
     type t = {
-      run_time : int;
-      gc_time : int;
+      run_time    : Int63.t;
+      gc_time     : Int63.t;
       sample_size : int;
       compactions : int;
-      allocated : int;
+      allocated   : int;
     }
 
     val empty : t
@@ -76,18 +75,10 @@ type 'a with_print_flags =
   ?time_format:[`Ns | `Ms | `Us | `S | `Auto]
   -> 'a
 
-val bench : (Test.t list -> unit) with_benchmark_flags with_print_flags
+val bench : (Test.t list -> unit) with_benchmark_flags with_print_flags Or_error.t
 
 (* Returns a list documenting the runtimes rather than printing to stdout. These can be
    fed to print for results identical to calling bench. *)
-val bench_raw : (Test.t list -> Result.t list) with_benchmark_flags
+val bench_raw : (Test.t list -> Result.t list) with_benchmark_flags Or_error.t
 
 val print : (Result.t list -> unit) with_print_flags
-
-module Bundle : sig
-  type 'a t
-
-  val create : 'a -> 'a t
-  val (>>|) : 'a t -> ('a -> 'b) -> 'b t
-  val bench : 'a t -> unit
-end

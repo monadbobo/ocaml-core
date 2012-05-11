@@ -1,5 +1,3 @@
-INCLUDE "config.mlh"
-
 include Extended_common
 
 module Array = struct
@@ -9,9 +7,7 @@ end
 module Ascii_table = Ascii_table
 module Alternating_primary_backup_assignment = Alternating_primary_backup_assignment
 module Atomic_edit = Atomic_edit
-IFDEF POSIX_TIMERS THEN
 module Bench = Bench
-ENDIF
 module Bin_io_utils = Bin_io_utils
 module Bitarray = Bitarray
 module Cache = Cache
@@ -92,12 +88,10 @@ module Lazy_list = Lazy_list
 module Lazy_m = Lazy_m
 module Linebuf = Linebuf
 
-IFDEF LINUX_EXT THEN
 module Linux_ext = struct
   include Core.Std.Linux_ext
   include Extended_linux
 end
-ENDIF
 
 module List = struct
   include Core.Std.List
@@ -116,9 +110,7 @@ module Pp = Pp
 module Printc = Printc
 module Process = Process
 module Procfs = Procfs
-IFDEF POSIX_TIMERS THEN
 module Posix_clock = Posix_clock
-ENDIF
 module Readline = Readline
 module Result = struct
   include Core.Std.Result

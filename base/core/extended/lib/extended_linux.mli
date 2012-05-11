@@ -8,8 +8,8 @@ type uids = {
   suid:int
 } with sexp,bin_io
 
-val setresuid : ?ruid:int -> ?euid:int -> ?suid:int -> unit -> unit
-val getresuid : unit -> uids
+val setresuid : (?ruid:int -> ?euid:int -> ?suid:int -> unit -> unit) Or_error.t
+val getresuid : (unit -> uids) Or_error.t
 
 (** {6 Splicing - zero-copies between kernel buffers} *)
 
@@ -81,12 +81,13 @@ module Splice : sig
   (** {6 Splice functions} *)
 
   val splice :
-    ?assume_fd_is_nonblocking : bool ->
-    fd_in : File_descr.t -> ?off_in : int ->
-    fd_out : File_descr.t -> ?off_out : int ->
-    len : int ->
-    flags
-    -> int * int * int
+    (?assume_fd_is_nonblocking : bool ->
+     fd_in : File_descr.t -> ?off_in : int ->
+     fd_out : File_descr.t -> ?off_out : int ->
+     len : int ->
+     flags
+     -> int * int * int)
+    Or_error.t
   (** [splice ?assume_fd_is_nonblocking ~fd_in ?off_in ~fd_out ?off_out
       ~len flags] see man-page for details.  @return the triple [(ret,
       ret_off_in, ret_off_out)], where [ret] corresponds to the return
@@ -102,8 +103,9 @@ module Splice : sig
   *)
 
   val tee :
-    ?assume_fd_is_nonblocking : bool ->
-    fd_in : File_descr.t -> fd_out : File_descr.t -> int -> flags -> int
+    (?assume_fd_is_nonblocking : bool ->
+     fd_in : File_descr.t -> fd_out : File_descr.t -> int -> flags -> int)
+    Or_error.t
   (** [tee ?assume_fd_is_nonblocking ~fd_in ~fd_out len flags] see man-page
       for details.
 
@@ -114,8 +116,9 @@ module Splice : sig
   *)
 
   val vmsplice :
-    ?assume_fd_is_nonblocking : bool ->
-    File_descr.t -> Bigstring.t IOVec.t array -> ?count : int -> flags -> int
+    (?assume_fd_is_nonblocking : bool ->
+     File_descr.t -> Bigstring.t IOVec.t array -> ?count : int -> flags -> int)
+    Or_error.t
   (** [vmsplice ?assume_fd_is_nonblocking fd iovecs ?count flags]
       see man-page for details.
 
@@ -136,7 +139,7 @@ module Statfs : sig
       | HUGETLBFS_MAGIC | ISOFS_SUPER_MAGIC | JFFS2_SUPER_MAGIC | JFS_SUPER_MAGIC
       | MINIX_SUPER_MAGIC | MINIX_SUPER_MAGIC2 | MINIX2_SUPER_MAGIC | MINIX2_SUPER_MAGIC2
       | MSDOS_SUPER_MAGIC | NCP_SUPER_MAGIC | NFS_SUPER_MAGIC | NTFS_SB_MAGIC
-      | UNKNOWN_SUPER_MAGIC of int
+      | UNKNOWN_SUPER_MAGIC of Int32.t
   ;;
   type t =
     {
@@ -152,4 +155,4 @@ module Statfs : sig
   ;;
 end
 
-val statfs : string -> Statfs.t
+val statfs : (string -> Statfs.t) Or_error.t

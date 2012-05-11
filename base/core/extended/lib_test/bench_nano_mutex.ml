@@ -28,7 +28,7 @@ module Nano_mutex : Mutex = struct
 end
 
 let () =
-  Bench.bench
+  Or_error.ok_exn Bench.bench
     (List.map ~f:(fun (name, thunk) -> Bench.Test.create ~name thunk)
        (
          make ~name:"Caml.Mutex" (module Caml.Mutex : Mutex)

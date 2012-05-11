@@ -1,3 +1,7 @@
+#include "config.h"
+
+#ifdef JSC_LINUX_EXT
+
 #include <malloc.h>
 #include "ocaml_utils.h"
 
@@ -48,3 +52,5 @@ CAMLprim value malloc_stats_stub(value __unused v_unit)
   caml_leave_blocking_section();
   return Val_unit;
 }
+
+#endif /* JSC_LINUX_EXT */

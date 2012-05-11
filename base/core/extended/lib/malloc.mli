@@ -1,6 +1,9 @@
+open Core.Std
+
 (** Malloc bindings
 
-    Allows you to set/query the behaviour of malloc.
+    Allows you to set/query the behaviour of malloc. The functions in this
+    module may not be implemented on your platform.
 *)
 
 type mallinfo = {
@@ -15,10 +18,6 @@ type mallinfo = {
   fordblks : int;  (** total free space *)
   keepcost : int;  (** top-most, releasable (via malloc_trim) space *)
 } with sexp, bin_io
-
-(** [mallinfo ()] @return information on the state of malloced memory
-    (C-heap). *)
-external mallinfo : unit -> mallinfo = "malloc_mallinfo_stub"
 
 (** Malloc options *)
 type opt =
@@ -36,15 +35,19 @@ type opt =
 (*   | PERTURB  (** ??? *) *)
 with sexp, bin_io
 
+(** [mallinfo ()]
+    @return information on the state of malloced memory (C-heap). *)
+val mallinfo : (unit -> mallinfo) Or_error.t
+
 (** [mallopt opt n] sets malloc configuration option [opt] to [n]. *)
-external mallopt : opt -> int -> unit = "malloc_mallopt_stub"
+val mallopt : (opt -> int -> unit) Or_error.t
 
 (** [malloc_trim n] release all but [n] bytes of freed top-most memory
     back to the system.
 
     @raise Failure if unsuccessful.
 *)
-external malloc_trim : int -> unit = "malloc_trim_stub"
+val malloc_trim : (int -> unit) Or_error.t
 
 (** [malloc_stats ()] prints brief summary statistics on stderr. *)
-external malloc_stats : unit -> unit = "malloc_stats_stub"
+val malloc_stats : (unit -> unit) Or_error.t
