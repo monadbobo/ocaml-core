@@ -8,7 +8,7 @@ cat >$HERE/_oasis <<EOF
 OASISFormat:  0.3
 OCamlVersion: >= 3.12
 Name:         pipebang
-Version:      0.1.1
+Version:      $core_version
 Synopsis:     Syntax extension to transform x |! f into f x
 Authors:      Jane street capital
 Copyrights:   (C) 2009-2011 Jane Street Capital LLC

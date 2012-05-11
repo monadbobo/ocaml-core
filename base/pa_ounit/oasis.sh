@@ -8,7 +8,7 @@ cat >$HERE/_oasis <<EOF
 OASISFormat:  0.3
 OCamlVersion: >= 3.12
 Name:         pa_ounit
-Version:      0.1.1
+Version:      $core_version
 Synopsis:     OCaml inline testing.
 Authors:      Jane street capital
 Copyrights:   (C) 2009-2011 Jane Street Capital LLC

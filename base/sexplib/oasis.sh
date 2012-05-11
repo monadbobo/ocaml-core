@@ -8,7 +8,7 @@ cat >$HERE/_oasis <<EOF
 OASISFormat:  0.3
 OCamlVersion: >= 3.12
 Name:         sexplib
-Version:      7.0.4
+Version:      $core_version
 Synopsis:     automated S-expression conversion
 Authors:      Markus Mottl,
               Martin Sandin

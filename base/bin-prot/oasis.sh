@@ -8,7 +8,7 @@ cat >$HERE/_oasis <<EOF
 OASISFormat:  0.3
 OCamlVersion: >= 3.12
 Name:         bin_prot
-Version:      2.0.7
+Version:      $core_version
 Synopsis:     binary protocol generator
 Authors:      Markus Mottl,
               Jane Street Holding LLC

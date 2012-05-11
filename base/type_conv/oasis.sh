@@ -8,7 +8,7 @@ cat >$HERE/_oasis <<EOF
 OASISFormat:  0.3
 OCamlVersion: >= 3.12
 Name:         type_conv
-Version:      3.0.5
+Version:      $core_version
 Synopsis:     support library for preprocessor type conversions
 Authors:      Martin Sandin,
               Markus Mottl,
