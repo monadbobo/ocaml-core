@@ -63,6 +63,7 @@ Library core_top
   Modules:            Install_printers
   XMETARequires:      core
   XMETADescription:   Toplevel printers for Core
+  BuildDepends:       core
 
 Executable test_runner
   Path:               lib_test
@@ -99,23 +100,26 @@ make_tags "$HERE/_tags" <<EOF
 EOF
 
 make_myocamlbuild "$HERE/myocamlbuild.ml" <<EOF
-let endswith x s =
-  let len_x = String.length x and len_s = String.length s in
-  (len_x <= len_s) && x = String.sub s (len_s - len_x) len_x
-
-let select_files dir ext =
-  List.map (Pathname.concat dir)
-    (List.filter (endswith ext)
-      (Array.to_list (Sys.readdir dir)))
-
-let mlh_files = select_files "lib/" ".mlh"
+$useful_ocaml_functions
 
 let dispatch = function
   | After_rules as e ->
-    dep  ["ocaml"; "ocamldep"; "mlh"] mlh_files;
-    List.iter (fun tag ->
-      flag ["mlh"; "ocaml"; tag] (S[A"-ppopt"; A"-Ilib/"]))
-      ["ocamldep"; "compile"];
+
+    dep  ["ocaml"; "ocamldep"; "mlh"] (select_files "lib/" ".mlh");
+
+    flag ["mlh"; "ocaml"; "ocamldep"] (S[A"-ppopt"; A"-Ilib/"]);
+    flag ["mlh"; "ocaml"; "compile"]  (S[A"-ppopt"; A"-Ilib/"]);
+
+    begin match getconf "LFS64_CFLAGS" with
+    | None -> ()
+    | Some flags -> flag ["compile"; "c"] (S[A"-ccopt"; A flags])
+    end;
+
+    if test "ld -lrt -shared -o /dev/null 2>/dev/null" then begin
+      flag ["ocamlmklib"; "c"]                      (S[A"-lrt"]);
+      flag ["use_libcore_stubs"; "link"] (S[A"-cclib"; A"-lrt"]);
+    end;
+
     dispatch_default e
   | e -> dispatch_default e
 
@@ -123,36 +127,15 @@ let () = Ocamlbuild_plugin.dispatch dispatch
 EOF
 
 make_setup_ml "$HERE/setup.ml" <<EOF
-let test cmd =
-  match Sys.command (cmd ^ " 2>/dev/null") with
-  | 0 -> true
-  | 1 -> false
-  | _ -> failwith ("command '"^cmd^"' failed.")
+$useful_ocaml_functions
 
-let getconf var =
-  let f_exit_code = ignore in
-  let ctxt = !BaseContext.default in
-  OASISExec.run_read_output ~f_exit_code ~ctxt "getconf" [var]
-
-let use_librt = test "ld -lrt -shared -o /dev/null"
 let linux_possible = test "uname | grep -q -i linux"
 let timers_possible =
   match getconf "_POSIX_TIMERS" with
-  | [x] -> (try int_of_string x >= 200112 with _ -> false)
-  |  _  -> false
-
-let cc_libs =
-  if use_librt then ["-lrt"] else []
-
-let cc_opts =
-  getconf "LFS64_CFLAGS"
+  | None   -> false
+  | Some x -> (try int_of_string x >= 200112 with _ -> false)
 
 let map_section = function
-  | Library (cs, bs, libs) when cs.cs_name = "core" ->
-    Library (cs, { bs with
-                   bs_ccopt     = [(OASISExpr.EBool true, cc_opts)];
-                   bs_cclib     = [(OASISExpr.EBool true, cc_libs)]; },
-             libs)
   | Flag (cs, flag) when cs.cs_name = "linux" ->
     Flag (cs, { flag with
                 flag_default = [OASISExpr.EBool true,      linux_possible;

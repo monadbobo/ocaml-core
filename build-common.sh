@@ -85,5 +85,47 @@ let () = BaseSetup.setup setup_t
 EOF
 }
 
+useful_ocaml_functions='
+let protectx x ~f ~finally =
+  let r = try f x with exn -> finally x; raise exn in
+  finally x; r
+
+let read_lines ic =
+  let rec loop acc =
+    match try Some (input_line ic) with End_of_file -> None with
+    | Some line -> loop (line :: acc)
+    | None -> List.rev acc
+  in loop []
+
+let test cmd =
+  match Sys.command cmd with
+  | 0 -> true
+  | 1 -> false
+  | _ -> failwith ("command '"^cmd^"' failed.")
+
+let sh_lines cmd =
+  protectx (Filename.temp_file "ocamlbuild_cmd" ".txt")
+    ~f:(fun fn ->
+      ignore (Sys.command ("(" ^ cmd ^ ") >" ^ fn) : int);
+      protectx (open_in fn) ~f:read_lines ~finally:close_in)
+    ~finally:Sys.remove
+
+let getconf var =
+  let cmd = Printf.sprintf "getconf %S" var in
+  match sh_lines cmd with
+  | []  -> None
+  | [x] -> Some x
+  | _   -> failwith ("`"^cmd^"` returned multiple lines")
+
+let endswith x s =
+  let len_x = String.length x and len_s = String.length s in
+  (len_x <= len_s) && x = String.sub s (len_s - len_x) len_x
+
+let select_files dir ext =
+  List.map (Filename.concat dir)
+    (List.filter (endswith ext)
+      (Array.to_list (Sys.readdir dir)))
+'
+
 HERE=$(dirname -- "$0")
 

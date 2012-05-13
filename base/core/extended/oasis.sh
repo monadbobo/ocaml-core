@@ -117,23 +117,21 @@ make_tags "$HERE/_tags" <<EOF
 EOF
 
 make_myocamlbuild "$HERE/myocamlbuild.ml" <<EOF
-let endswith x s =
-  let len_x = String.length x and len_s = String.length s in
-  (len_x <= len_s) && x = String.sub s (len_s - len_x) len_x
-
-let select_files dir ext =
-  List.map (Pathname.concat dir)
-    (List.filter (endswith ext)
-      (Array.to_list (Sys.readdir dir)))
-
-let mlh_files = select_files "lib/" ".mlh"
+$useful_ocaml_functions
 
 let dispatch = function
   | After_rules as e ->
-    dep  ["ocaml"; "ocamldep"; "mlh"] mlh_files;
-    List.iter (fun tag ->
-      flag ["mlh"; "ocaml"; tag] (S[A"-ppopt"; A"-Ilib/"]))
-      ["ocamldep"; "compile"];
+
+    dep  ["ocaml"; "ocamldep"; "mlh"] (select_files "lib/" ".mlh");
+
+    flag ["mlh"; "ocaml"; "ocamldep"] (S[A"-ppopt"; A"-Ilib/"]);
+    flag ["mlh"; "ocaml"; "compile"]  (S[A"-ppopt"; A"-Ilib/"]);
+
+    begin match getconf "LFS64_CFLAGS" with
+    | None -> ()
+    | Some flags -> flag ["compile"; "c"] (S[A"-ccopt"; A flags])
+    end;
+
     dispatch_default e
   | e -> dispatch_default e
 
@@ -141,22 +139,13 @@ let () = Ocamlbuild_plugin.dispatch dispatch
 EOF
 
 make_setup_ml "$HERE/setup.ml" <<EOF
-let test cmd =
-  match Sys.command (cmd ^ " 2>/dev/null") with
-  | 0 -> true
-  | 1 -> false
-  | _ -> failwith ("command '"^cmd^"' failed.")
-
-let getconf var =
-  let f_exit_code = ignore in
-  let ctxt = !BaseContext.default in
-  OASISExec.run_read_output ~f_exit_code ~ctxt "getconf" [var]
+$useful_ocaml_functions
 
 let linux_possible = test "uname | grep -q -i linux"
 let timers_possible =
   match getconf "_POSIX_TIMERS" with
-  | [x] -> (try int_of_string x >= 200112 with _ -> false)
-  |  _  -> false
+  | None   -> false
+  | Some x -> (try int_of_string x >= 200112 with _ -> false)
 
 let map_section = function
   | Flag (cs, flag) when cs.cs_name = "linux" ->
