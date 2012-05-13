@@ -34,12 +34,25 @@ excluded=(
 
 hgroot=$(hg root)
 
+cp "$hgroot/build-and-install" "$destdir/"
+cat >"$destdir/build-common.sh" <<EOF
+#!/bin/bash
+
+core_version=$core_version
+
+# in dependency-topological order
+build_order=(
+EOF
+
 for dir in $packages; do
     pushd "base/$dir"
 
     ./oasis.sh
     name=$(oasis query name)
     version=$(oasis query version)
+
+    echo "    $name-$version" >>"$destdir/build-common.sh"
+
     dest="$destdir/${name}-${version}"
     mkdir "$dest"
 
@@ -52,3 +65,9 @@ for dir in $packages; do
 
     popd
 done
+
+cat >>"$destdir/build-common.sh" <<EOF
+)
+
+BASE=\$(dirname -- \$0)
+EOF

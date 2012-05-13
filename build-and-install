@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 set -u -o pipefail
 
-. build-common.sh
-
 function usage {
-    echo "usage: ${BASH_SOURCE[0]} [-j <JOBS>] [tree]"
+    echo "usage: ${BASH_SOURCE[0]} [-s] [-j <JOBS>]"
     echo "         -h, --help       Display this help"
+    echo "         -s, --sudo       Install with sudo"
     echo "         -j N             Run at most N jobs in parallel"
     echo "         -u               Don't install, uninstall"
 }
@@ -19,10 +18,10 @@ disable-posix-timers
 
 opts=
 if getopt -V | grep -q enhanced; then
-  opts=$(getopt -n ${BASH_SOURCE[0]} -o "j:uh" \
-                -l "jobs:,help,$(echo -n $configflags | tr ' ' ,)" -- "$@")
+  opts=$(getopt -n ${BASH_SOURCE[0]} -o "j:uhs" \
+                -l "jobs:,help,sudo,$(echo -n $configflags | tr ' ' ,)" -- "$@")
 else
-  opts=$(getopt "j:uh" $*)
+  opts=$(getopt "j:uhs" $*)
 fi
 
 if [[ $? != 0 ]]; then usage; exit 1; fi
@@ -35,11 +34,13 @@ timerflag=
 makeflags=""
 configopts=( )
 uninstall=false
+use_sudo=false
 while true; do
     case "$1" in
         -h|--help) usage; exit 0;;
         -j|--jobs) makeflags="$makeflags -j $2";      shift 2;;
-        -u) uninstall=true; shift;;
+        -u)        uninstall=true;                    shift  ;;
+        -s|--sudo) use_sudo=true;                     shift  ;;
         --enable-linux)  linuxflag="--enable-linux";  shift  ;;
         --disable-linux) linuxflag="--disable-linux"; shift  ;;
         --enable-posix-timers)  timerflag="--enable-posix-timers";  shift ;;
@@ -49,12 +50,10 @@ while true; do
     esac
 done
 
-tree=""
-case $# in
-    0) tree="."  ;;
-    1) tree="$1" ;;
-    *) echo "too many anonymous arguments: $@"; exit 1 ;;
-esac
+tree=$(dirname -- "$0")
+
+cd "$tree"
+. build-common.sh
 
 if $uninstall; then
   rev_build_order=( )
@@ -64,53 +63,68 @@ if $uninstall; then
   build_order=( "${rev_build_order[@]}" )
 fi
 
-cd "$tree"
+function maybe_sudo {
+    if $use_sudo; then sudo "$@"; else "$@"; fi
+}
 
 function findlibname {
     local dir="$1"
-    (grep FindlibParent: "$dir"/oasis.sh || grep FindlibName: "$dir"/oasis.sh) \
+    local fn=""
+    case $dir in
+        *-$core_version) fn="$dir/_oasis"   ;;
+        *)               fn="$dir/oasis.sh" ;;
+    esac
+    (grep FindlibParent: "$fn" || grep FindlibName: "$fn") \
     | awk '{print $2}' | head -1
 }
 
 function uninstall {
     local lib=$(findlibname "$1")
-    ocamlfind remove "$lib" || true;
+    maybe_sudo ocamlfind remove "$lib" || true;
 }
 
 for dir in "${build_order[@]}"; do
-  echo "------ base/$dir ------"
-  pushd base/$dir
+  echo "------ $BASE/$dir ------"
   optflags=
 
-  if $uninstall; then
-    uninstall .
-    popd; continue
-  fi
+  uninstall "$BASE/$dir" || true
+  if $uninstall; then continue; fi
+
+  pushd $BASE/$dir
 
   case $dir in
-      core|core/extended) optflags="$linuxflag $timerflag" ;;
-      async/scheduler)    optflags="$linuxflag" ;;
+      core|core/extended|core-$core_version|core_extended-$core_version)
+          optflags="$linuxflag $timerflag" ;;
       async) # horrible hack (avoids rebuilding async_{core,scheduler,extra})
           src=$(pwd)
           dest=$(mktemp -d -t ocaml-core-async.XXXXXX)
-          mkdir -p "$dest/base/async"
-          cp -rp ../../build-common.sh "$dest/"
-          cp -rp lib oasis.sh "$dest/base/async/"
-          cd $dest/base/async
+          mkdir -p "$dest/$BASE/async"
+          cp -rp "$tree/build-common.sh" "$dest/"
+          cp -rp lib oasis.sh "$dest/$BASE/async/"
+          cd $dest/$BASE/async
           trap "rm -r '$dest'" EXIT
           ;;
   esac
-  ./oasis.sh
+
+  case $dir in
+      *-$core_version) ;;
+      *) ./oasis.sh    ;;
+  esac
+
   ./configure $optflags "${configopts[@]:+${configopts[@]}}"
   make build BUILDFLAGS="$makeflags"
-  uninstall .
-  make install
+
+  if ! maybe_sudo make install; then
+      echo "*** ERROR: couldn't install '$dir'" 1>&2
+      exit 1
+  fi
+
+  popd
 
   case $dir in
       async) # copy the generated setup.ml and setup.data back
-        cp -rp "$dest"/base/async/{configure,Makefile,setup.ml,setup.data,myocamlbuild.ml} "$src"/
+        cp -rp "$dest"/$BASE/async/{configure,Makefile,setup.ml,setup.data,myocamlbuild.ml} "$src"/
       ;;
   esac
-  popd
 
 done

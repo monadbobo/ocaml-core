@@ -128,4 +128,4 @@ let select_files dir ext =
 '
 
 HERE=$(dirname -- "$0")
-
+BASE=$HERE/base
