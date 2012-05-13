@@ -1,5 +1,4 @@
 INCLUDE "config.mlh"
-IFDEF LINUX_EXT THEN
 
 open Sexplib.Conv
 open Result.Export
@@ -79,18 +78,6 @@ let skip ?pos bstr =
     else next_pos
 ;;
 
-let marshal_to_sock ?buf ?flags sock v =
-  let buf, len =
-    match buf with
-    | None ->
-        let buf = marshal ?flags v in
-        buf, length buf
-    | Some buf -> buf, marshal_blit ?flags v buf
-  in
-  let f = Or_error.ok_exn really_send_no_sigpipe in
-  f sock buf ~len
-;;
-
 let unmarshal_from_sock ?buf sock =
   match buf with
   | None ->
@@ -119,26 +106,34 @@ let unmarshal_from_sock ?buf sock =
       unsafe_unmarshal ~pos:0 ~len:all_len buf
 ;;
 
-let marshal             = Ok marshal
-let marshal_blit        = Ok marshal_blit
-let marshal_data_size   = Ok marshal_data_size
-let marshal_to_sock     = Ok marshal_to_sock
-let skip                = Ok skip
-let unmarshal           = Ok unmarshal
-let unmarshal_from_sock = Ok unmarshal_from_sock
-let unmarshal_next      = Ok unmarshal_next
+let marshal_to_gen ?buf ?flags dest v ~f =
+  let buf, len =
+    match buf with
+    | None ->
+        let buf = marshal ?flags v in
+        buf, length buf
+    | Some buf -> buf, marshal_blit ?flags v buf
+  in
+  f dest buf ~len
+;;
+
+let marshal_to_fd ?buf ?flags fd v =
+  marshal_to_gen ?buf ?flags fd v ~f:(fun fd buf ~len ->
+    Bigstring.really_write fd buf ~len)
+
+IFDEF LINUX_EXT THEN
+
+let marshal_to_sock_no_sigpipe ?buf ?flags fd v =
+  marshal_to_gen ?buf ?flags fd v ~f:(fun fd buf ~len ->
+    Bigstring.really_send_no_sigpipe fd buf ~len)
+
+let marshal_to_sock_no_sigpipe = Ok marshal_to_sock_no_sigpipe
 
 ELSE
 
 open Std_internal
 
-let marshal             = unimplemented "Bigstring_marshal.marshal"
-let marshal_blit        = unimplemented "Bigstring_marshal.marshal_blit"
-let marshal_data_size   = unimplemented "Bigstring_marshal.marshal_data_size"
-let marshal_to_sock     = unimplemented "Bigstring_marshal.marshal_to_sock"
-let skip                = unimplemented "Bigstring_marshal.skip"
-let unmarshal           = unimplemented "Bigstring_marshal.unmarshal"
-let unmarshal_from_sock = unimplemented "Bigstring_marshal.unmarshal_from_sock"
-let unmarshal_next      = unimplemented "Bigstring_marshal.unmarshal_next"
+let marshal_to_sock_no_sigpipe =
+  unimplemented "Bigstring_marshal.marshal_to_sock_no_sigpipe"
 
 ENDIF

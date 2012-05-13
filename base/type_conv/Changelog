@@ -22,7 +22,7 @@
 
 2010-07-07:  Major changes for compatibility with OCaml 3.12.
 
-2010-06-03:  Improved determination of type-conv paths.
+2010-06-03:  Improved determination of type_conv paths.
              Thanks to Jacques Le Normand <rathereasy@gmail.com> for this
              patch!
 

@@ -1,7 +1,6 @@
 (** Conv_test: module for testing automated S-expression conversions and
     path substitutions *)
 
-
 open Format
 
 open Sexplib
@@ -72,9 +71,14 @@ end
 
 (* Test labeled arguments in functions *)
 
-type labeled = foo : unit -> unit with sexp
+type labeled = string -> foo : unit -> ?bar : int -> float -> float with sexp
 
-type rec_labeled = { a :(foo : unit -> unit) } with sexp_of
+let f str ~foo ?(bar = 3) n = float_of_string str +. n +. float bar
+
+let labeled_sexp : Sexp.t = sexp_of_labeled f
+let labeled : labeled lazy_t = lazy (labeled_of_sexp (labeled_sexp : Sexp.t))
+
+type rec_labeled = { a : (foo : unit -> unit) } with sexp_of
 
 (* Test recursive types *)
 
@@ -114,9 +118,6 @@ with sexp_of
 (* Test function types *)
 type fun_test = int -> unit with sexp_of
 
-(*type fun_test2 = int -> unit with sexp_of
-type fun_test3 = int -> unit with sexp_of *)
-
 open Path
 
 let main () =
@@ -136,9 +137,9 @@ let main () =
         };
     }
   in
-  let v = `B (5,5) in
+  let v = `B (5, 5) in
   let v_sexp = <:sexp_of<[ `A | `B of int * int ] >> v in
-  assert ((<:of_sexp< [ `A | `B of int * int ] >> v_sexp) = v);
+  assert (<:of_sexp< [ `A | `B of int * int ] >> v_sexp = v);
   let u = { t = make_t (`V1 (Some (`X (`Y (7, "bla"))))) } in
   let u_sexp = sexp_of_u u in
   printf "Original:      %a@\n@." pp u_sexp;

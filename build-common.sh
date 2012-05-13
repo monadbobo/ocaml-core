@@ -11,7 +11,7 @@ build_order=(
     fieldslib
     variantslib
     pa_ounit
-    bin-prot
+    bin_prot
     sexplib
     core
     core/extended

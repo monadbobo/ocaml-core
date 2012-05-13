@@ -94,8 +94,8 @@ external is_mmapped : t -> bool = "bigstring_is_mmapped_stub" "noalloc"
 
 (** {6 Blitting} *)
 
-(** [blit ~src ?src_pos ?src_len ~dst ?dst_pos ()] blits [src_len] characters from
-    [src] starting at position [src_pos] to [dst] at position [dst_pos].
+(** [blit ~src ?src_pos ?src_len ~dst ?dst_pos ()] blits [src_len] characters
+    from [src] starting at position [src_pos] to [dst] at position [dst_pos].
 
     @raise Invalid_argument if the designated ranges are out of bounds.
 *)
@@ -249,8 +249,8 @@ val really_write : file_descr -> ?pos : int -> ?len : int -> t -> unit
     @param pos default = 0
     @param len default = [length bstr - pos]
 
-    [really_send_no_sigpipe] is not implemented on some platforms, in which case it is an
-    [Error] value that indicates that it is unimplemented. *)
+    [really_send_no_sigpipe] is not implemented on some platforms, in which
+    case it is an [Error] value that indicates that it is unimplemented. *)
 val really_send_no_sigpipe
   : (file_descr -> ?pos : int -> ?len : int -> t -> unit) Or_error.t
 
@@ -269,7 +269,8 @@ val send_nonblocking_no_sigpipe :
 *)
 
 val sendto_nonblocking_no_sigpipe :
-  (file_descr -> ?pos : int -> ?len : int -> t -> sockaddr -> int option) Or_error.t
+  (file_descr -> ?pos : int -> ?len : int -> t ->
+    sockaddr -> int option) Or_error.t
 (** [sendto_nonblocking_no_sigpipe sock ?pos ?len bstr sockaddr] tries
     to send [len] bytes in bigstring [bstr] starting at position [pos]
     to socket [sock] using address [addr].  @return [Some bytes_written],
@@ -333,7 +334,8 @@ val writev_assume_fd_is_nonblocking :
 *)
 
 val sendmsg_nonblocking_no_sigpipe :
-  (file_descr -> ?count : int -> t Core_unix.IOVec.t array -> int option) Or_error.t
+  (file_descr -> ?count : int ->
+    t Core_unix.IOVec.t array -> int option) Or_error.t
 (** [sendmsg_nonblocking_no_sigpipe sock ?count iovecs] sends
     [count] [iovecs] of bigstrings to socket [sock].  @return [Some
     bytes_written], or [None] if the operation would have blocked.

@@ -30,8 +30,8 @@ module Unpack_one : sig
 
   val map : ('a, 'partial_unpack) t -> f:('a -> 'b) -> ('b, 'partial_unpack) t
 
-  (** [create_bin_prot reader] returns an unpacker that reads the "size-prefixed" bin-prot
-      encoding, in which a value is encoded by first writing the length of the bin-prot
+  (** [create_bin_prot reader] returns an unpacker that reads the "size-prefixed" bin_prot
+      encoding, in which a value is encoded by first writing the length of the bin_prot
       data as a 64-bit int, and then writing the data itself.  This encoding makes it
       trivial to know if enough data is available in the buffer, so there is no need to
       represent partially unpacked values, and hence ['partial_unpack = unit]. *)
@@ -50,8 +50,8 @@ val create
   -> ('value, 'partial_unpack) t
 
 (** [create_bin_prot reader] returns an unpack buffer that unpacks the "size-prefixed"
-    bin-prot encoding, in which a value is encoded by first writing the length of the
-    bin-prot data as a 64-bit int, and then writing the bin-prot data itself.  This
+    bin_prot encoding, in which a value is encoded by first writing the length of the
+    bin_prot data as a 64-bit int, and then writing the bin_prot data itself.  This
     encoding makes it trivial to know if enough data is available in the buffer, so there
     is no need to represent partially unpacked values, and hence ['partial_unpack =
     unit]. *)

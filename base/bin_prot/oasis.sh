@@ -22,7 +22,6 @@ XStdFilesAUTHORS: false
 XStdFilesINSTALLFilename: INSTALL
 XStdFilesREADME: false
 
-
 PreBuildCommand: mkdir -p _build; cp lib/*.mlh lib/*.h _build/
 
 Library bin_prot
@@ -95,10 +94,11 @@ Executable example
   MainIs:             example.ml
   Build\$:            flag(tests)
   Install:            false
+  CompiledObject:     best
   BuildDepends:       bin_prot,bin_prot.syntax
 
-Document "bin-prot"
-  Title:                API reference for bin-prot
+Document "bin_prot"
+  Title:                API reference for bin_prot
   Type:                 ocamlbuild (0.3)
   BuildTools+:          ocamldoc
   XOCamlbuildPath:      lib
@@ -106,7 +106,7 @@ Document "bin-prot"
 EOF
 
 make_tags $HERE/_tags <<EOF
-<lib/{size,write_ml,read_ml,unsafe_read_c,type_class}.ml{i,}>: pp(cpp -undef -traditional -Werror -I.)
+<lib/{size,write_ml,read_ml,unsafe_read_c,type_class}.ml{i,}>: pp(cpp -undef -traditional -I.)
 <lib/{write,read}_ml.ml{,i}>:mlh
 <lib_test/*.ml{,i}>: syntax_camlp4o,pkg_type_conv.syntax
 <syntax/pa_bin_prot.ml>: syntax_camlp4o
@@ -114,7 +114,7 @@ EOF
 
 make_myocamlbuild $HERE/myocamlbuild.ml <<EOF
 (* We probably will want to set this up in the \`configure\` script at some
-   point.*)
+   point. *)
 let is_darwin =
   Ocamlbuild_pack.My_unix.run_and_open "uname -s" input_line = "Darwin"
 
@@ -133,7 +133,7 @@ Ocamlbuild_plugin.dispatch
           dep ["ocaml"; "ocamldep"; "mlh"] ["lib/int_codes.mlh"];
 
           flag ["ocamldep"; "ocaml"; "use_pa_bin_prot"]
-            (S [A "-ppopt"; P"syntax/pa_bin_prot.cma"]);
+            (S [A "-ppopt"; P "syntax/pa_bin_prot.cma"]);
 
           flag ["compile"; "ocaml"; "use_pa_bin_prot"]
             (S [A "-ppopt"; P "syntax/pa_bin_prot.cma"]);
@@ -155,7 +155,7 @@ Ocamlbuild_plugin.dispatch
                 "-pedantic";
                 "-Wextra";
                 "-Wunused";
-                "-Werror";
+(*                "-Werror"; *)
                 "-Wno-long-long";
               ]
             in
@@ -164,6 +164,7 @@ Ocamlbuild_plugin.dispatch
             List.concat (List.map f flags)
           in
           flag ["compile"; "c"] (S cflags);
+
           dispatch_default e
       | e -> dispatch_default e
   end

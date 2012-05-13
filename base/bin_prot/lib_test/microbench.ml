@@ -12,15 +12,15 @@ type t6 = t5 with bin_io
 type t7 = t6 with bin_io
 
 let io
-    {Type_class.writer=
-      {Type_class.write=write; size=size; _};
-     reader=
-       {Type_class.read=read; _}}
+    { Type_class.
+      writer = { Type_class.write; size; _ };
+      reader = { Type_class.read; _ }
+    }
     v
     =
   let buf = Common.create_buf (size v) in
   let before = Unix.gettimeofday () in
-  for i=1 to 10_000_000 do
+  for i = 1 to 10_000_000 do
     ignore (write buf v ~pos:0 : int)
   done;
   Printf.printf "Write took %f sec\n%!" (Unix.gettimeofday () -. before);

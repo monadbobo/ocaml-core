@@ -37,7 +37,6 @@ Library sexplib
                       Exn_magic,
                       Std
   BuildDepends:       unix,bigarray,num
-#  XMETAType:          library
   XMETARequires:      unix,bigarray,num
 
 Library pa_sexp_conv
@@ -64,7 +63,7 @@ Executable sexp_test
   MainIs:             sexp_test.ml
   Build\$:            flag(tests)
   Install:            false
-  BuildDepends:       sexplib, sexplib.syntax
+  BuildDepends:       sexplib
 
 Executable conv_test
   Path:               lib_test
@@ -92,7 +91,7 @@ Document "sexplib"
 EOF
 
 make_tags $HERE/_tags <<EOF
-<lib/pre_sexp.ml>: pp(cpp -undef -traditional -Werror -I$HERE/syntax)
+<lib/pre_sexp.ml>: pp(cpp -undef -traditional -I$HERE/syntax)
 <lib_test/*.ml{,i}>: syntax_camlp4o, pkg_type_conv.syntax
 <lib_test/conv_test.byte>: use_sexplib, pkg_unix, pkg_num, pkg_bigarray
 <syntax/pa_sexp_conv.ml>: syntax_camlp4o

@@ -32,7 +32,7 @@
   Copyright \quad (C) \quad \theyear \quad \janeshort \quad\\
   Author: Markus Mottl
 }
-\date{New York, 2010-03-31}
+\date{New York, 2012-03-20}
 
 % DOCUMENT
 \begin{document}
@@ -71,7 +71,7 @@ replace sub-expressions in S-expressions.
 
 \section{How can you use it?}
 
-Make sure you have installed the \verb=type-conv= package on your system,
+Make sure you have installed the \verb=type_conv= package on your system,
 too.  It should be obtainable at the same site as \verb=sexplib=.\\
 \\
 The API (.mli-files) in the \verb=sexplib= library directory is
@@ -118,18 +118,18 @@ To compile a file you will have to add a preprocessing flag to the
 compiler invocation, e.g. for foo.ml:
 
 \begin{verbatim}
-  ocamlc -pp "camlp4o -I {path to type-conv} \
+  ocamlc -pp "camlp4o -I {path to type_conv} \
     -I {path to sexplib} pa_type_conv.cmo pa_sexp_conv.cmo" \
     -I {path to sexplib} foo.ml
 \end{verbatim}
 
 If you are using OCamlMakefile, just put the following line at the
-top of the file, assuming you have installed both \verb=type-conv= and
+top of the file, assuming you have installed both \verb=type_conv= and
 \verb=sexplib= with ocamlfind.  The comment must start at the beginning of
 the line, and you must not break lines (here broken for readability only):
 
 \begin{verbatim}
-  (*pp camlp4o -I `ocamlfind query type-conv` \
+  (*pp camlp4o -I `ocamlfind query type_conv` \
     -I `ocamlfind query sexplib` \
     pa_type_conv.cmo pa_sexp_conv.cmo *)
 \end{verbatim}

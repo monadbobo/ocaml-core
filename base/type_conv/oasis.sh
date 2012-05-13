@@ -32,7 +32,7 @@ Library pa_type_conv
   XMETADescription:   Syntax extension for type_conv
 
 Document "type_conv"
-  Title:                API reference for type_conv
+  Title:                API reference for Type_conv
   Type:                 ocamlbuild (0.3)
   BuildTools+:          ocamldoc
   XOCamlbuildPath:      lib

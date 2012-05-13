@@ -9,7 +9,7 @@ open Camlp4.PreCast
 
    Since we are trying to play nicely with other extensions we try to not
    override any rules in the grammar. In particular we cannot override the
-   module creation rule the way type-conv does it. In order to collect all tests
+   module creation rule the way type_conv does it. In order to collect all tests
    we insert "breadcrumbs" items in the modules that have a very particular
    shape when generating the tests and then collect those breadcrumbs by folding
    over the AST.

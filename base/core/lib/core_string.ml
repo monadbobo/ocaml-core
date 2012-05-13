@@ -782,8 +782,7 @@ module Escaping = struct
         done;
         true
       with e ->
-        raise e;
-        false
+        raise e
 
     TEST = random_test 1000 ~escapeworthy_map:['%','p';'^','c'] ~escape_char:'_'
     TEST = random_test 1000 ~escapeworthy_map:['_','.';'%','p';'^','c'] ~escape_char:'_'

@@ -120,6 +120,28 @@ let dispatch = function
       flag ["use_libcore_stubs"; "link"] (S[A"-cclib"; A"-lrt"]);
     end;
 
+    let cflags =
+      let flags =
+        [
+          "-pipe";
+          "-g";
+          "-fPIC";
+          "-O2";
+          "-fomit-frame-pointer";
+          "-fsigned-char";
+          "-Wall";
+          "-pedantic";
+          "-Wextra";
+          "-Wunused";
+(*          "-Werror"; *)
+          "-Wno-long-long";
+        ]
+      in
+      let f flag = [A "-ccopt"; A flag] in
+      List.concat (List.map f flags)
+    in
+    flag ["compile"; "c"] (S cflags);
+
     dispatch_default e
   | e -> dispatch_default e
 

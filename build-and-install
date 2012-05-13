@@ -69,13 +69,13 @@ function maybe_sudo {
 
 function findlibname {
     local dir="$1"
-    local fn=""
-    case $dir in
-        *-$core_version) fn="$dir/_oasis"   ;;
-        *)               fn="$dir/oasis.sh" ;;
-    esac
-    (grep FindlibParent: "$fn" || grep FindlibName: "$fn") \
-    | awk '{print $2}' | head -1
+    (cd "$dir"
+     case $dir in
+        *-$core_version) ;;
+        *) [[ -e _oasis ]] || ./oasis.sh >/dev/null;;
+     esac
+     grep 'FindlibParent:' _oasis || grep 'FindlibName:' _oasis) \
+    | head -1 | awk '{print $2}'
 }
 
 function uninstall {
