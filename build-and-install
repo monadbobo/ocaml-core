@@ -50,10 +50,9 @@ while true; do
     esac
 done
 
-tree=$(dirname -- "$0")
-
-cd "$tree"
-. build-common.sh
+source $(dirname -- "$0")/build-common.sh
+root="$HERE";
+cd "$root"
 
 if $uninstall; then
   rev_build_order=( )
@@ -99,7 +98,7 @@ for dir in "${build_order[@]}"; do
           src=$(pwd)
           dest=$(mktemp -d -t ocaml-core-async.XXXXXX)
           mkdir -p "$dest/$BASE/async"
-          cp -rp "$tree/build-common.sh" "$dest/"
+          cp -rp "$root/build-common.sh" "$dest/"
           cp -rp lib oasis.sh "$dest/$BASE/async/"
           cd $dest/$BASE/async
           trap "rm -r '$dest'" EXIT

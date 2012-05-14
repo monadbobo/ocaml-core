@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -e -u -o pipefail
 
-. build-common.sh
+source $(dirname -- "$0")/../build-common.sh
+root=$(cd "$HERE"; hg root)
 
 function usage {
     echo "usage: ${BASH_SOURCE[0]} <dest-dir> [packages...]"
@@ -32,9 +33,7 @@ excluded=(
     setup.data
 )
 
-hgroot=$(hg root)
-
-cp "$hgroot/build-and-install" "$destdir/"
+cp "$root/build-and-install" "$destdir/"
 cat >"$destdir/build-common.sh" <<EOF
 #!/bin/bash
 
@@ -45,7 +44,7 @@ build_order=(
 EOF
 
 for dir in $packages; do
-    pushd "base/$dir"
+    pushd "$root/$BASE/$dir"
 
     ./oasis.sh
     name=$(oasis query name)
@@ -61,7 +60,7 @@ for dir in $packages; do
             cp -rp "$f" "$dest/$f"
         fi
     done
-    cp -p "$hgroot/licensing/"* "$dest/"
+    cp -p "$root/licensing/"* "$dest/"
 
     popd
 done
@@ -69,5 +68,6 @@ done
 cat >>"$destdir/build-common.sh" <<EOF
 )
 
-BASE=\$(dirname -- \$0)
+HERE=\$(cd "$(dirname -- "\$0")"; pwd);
+BASE=.
 EOF

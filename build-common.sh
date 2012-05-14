@@ -127,5 +127,5 @@ let select_files dir ext =
       (Array.to_list (Sys.readdir dir)))
 '
 
-HERE=$(dirname -- "$0")
-BASE=$HERE/base
+HERE=$(cd "$(dirname -- "$0")"; pwd);
+BASE=base

@@ -145,6 +145,7 @@ glob:base/bin_prot/doc/README.pdf
 glob:base/bin_prot/doc/README.txt
 glob:base/bin_prot/lib/META
 glob:base/bin_prot/lib/bin_prot.mlpack
+glob:base/bin_prot/lib/bin_prot.odocl
 glob:base/bin_prot/lib/libbin_prot.clib
 glob:base/bin_prot/lib/libbin_prot_stubs.clib
 glob:base/bin_prot/lib_test/example.pp.ml

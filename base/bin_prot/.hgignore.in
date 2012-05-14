@@ -1,6 +1,7 @@
 INSTALL
 configure
 lib/bin_prot.mlpack
+lib/bin_prot.odocl
 lib/libbin_prot.clib
 lib/libbin_prot_stubs.clib
 lib/META
