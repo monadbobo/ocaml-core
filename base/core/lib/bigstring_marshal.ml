@@ -1,8 +1,6 @@
-INCLUDE "config.mlh"
-
 open Sexplib.Conv
-open Result.Export
 open Bigstring
+open Std_internal
 
 (* Marshalling to/from bigstrings *)
 
@@ -121,19 +119,17 @@ let marshal_to_fd ?buf ?flags fd v =
   marshal_to_gen ?buf ?flags fd v ~f:(fun fd buf ~len ->
     Bigstring.really_write fd buf ~len)
 
-IFDEF LINUX_EXT THEN
-
-let marshal_to_sock_no_sigpipe ?buf ?flags fd v =
-  marshal_to_gen ?buf ?flags fd v ~f:(fun fd buf ~len ->
-    Bigstring.really_send_no_sigpipe fd buf ~len)
-
-let marshal_to_sock_no_sigpipe = Ok marshal_to_sock_no_sigpipe
-
-ELSE
-
-open Std_internal
-
 let marshal_to_sock_no_sigpipe =
-  unimplemented "Bigstring_marshal.marshal_to_sock_no_sigpipe"
+  let f really_send_no_sigpipe
+    :  ?buf : t
+    -> ?flags : Marshal.extern_flags list
+    -> Unix.file_descr
+    -> 'a
+    -> unit
+    = fun ?buf ?flags fd v ->
+      marshal_to_gen ?buf ?flags fd v ~f:(fun fd buf ~len ->
+        really_send_no_sigpipe fd ?pos:None ?len:(Some len) buf)
+  in
+  (* Work-around for the overly-conservative value restriction *)
+  Obj.magic (Or_error.map Bigstring.really_send_no_sigpipe ~f)
 
-ENDIF
