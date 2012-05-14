@@ -13,9 +13,9 @@ if [[ $# -lt 1 ]]; then usage; exit 1; fi
 destdir="$1"
 shift
 if [[ $# -gt 0 ]]; then
-    packages="$@"
+    dirs="$@"
 else
-    packages="${build_order[@]}"
+    dirs="${build_order[@]}"
 fi
 
 function file_included {
@@ -34,22 +34,16 @@ excluded=(
 )
 
 cp "$root/build-and-install" "$destdir/"
-cat >"$destdir/build-common.sh" <<EOF
-#!/bin/bash
 
-core_version=$core_version
-
-# in dependency-topological order
-build_order=(
-EOF
-
-for dir in $packages; do
-    pushd "$root/$BASE/$dir"
+packages=( )
+for dir in $dirs; do
+    pushd "$root/$dir"
 
     ./oasis.sh
     name=$(oasis query name)
     version=$(oasis query version)
 
+    packages+=( "${name}-${version}" )
     echo "    $name-$version" >>"$destdir/build-common.sh"
 
     dest="$destdir/${name}-${version}"
@@ -60,14 +54,53 @@ for dir in $packages; do
             cp -rp "$f" "$dest/$f"
         fi
     done
-    cp -p "$root/licensing/"* "$dest/"
+    cp -p "$root"/licensing/* "$dest/"
 
     popd
 done
 
-cat >>"$destdir/build-common.sh" <<EOF
+cat >"$destdir/build-common.sh" <<EOF
+#!/bin/bash
+
+core_version=$core_version
+
+# in dependency-topological order
+build_order=(
+$(for pkg in "${packages[@]}"; do
+    echo "    $pkg"
+  done)
 )
 
 HERE=\$(cd "$(dirname -- "\$0")"; pwd);
-BASE=.
+EOF
+
+cat >"$destdir/README" <<EOF
+This package contains the following libraries from
+https://bitbucket.org/yminsky/ocaml-core/:
+
+$(for pkg in "${packages[@]}"; do
+    echo "* $pkg"
+  done)
+
+Dependencies
+============
+
+In order to compile this package, you will need:
+* ocaml      (>= 3.12)
+* findlib    (>= 1.2.7)
+* pcre-ocaml (http://www.ocaml.info/home/ocaml_sources.html#pcre-ocaml)
+* res        (http://www.ocaml.info/home/ocaml_sources.html#res)
+* oUnit      (http://forge.ocamlcore.org/projects/ounit)
+
+Installing
+==========
+
+1. Go to the root of the package
+2. Run ./build-and-install -s
+
+Uninstalling
+============
+
+1. Go to the root of the package
+2. Run ./build-and-install -u -s
 EOF

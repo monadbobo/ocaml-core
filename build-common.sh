@@ -4,21 +4,21 @@ core_version=108.00-pre1
 
 # in dependency-topological order
 build_order=(
-    type_conv
-    pipebang
-    compare
-    typehash
-    fieldslib
-    variantslib
-    pa_ounit
-    bin_prot
-    sexplib
-    core
-    core/extended
-    async/core
-    async/unix
-    async/extra
-    async
+    base/type_conv
+    base/pipebang
+    base/compare
+    base/typehash
+    base/fieldslib
+    base/variantslib
+    base/pa_ounit
+    base/bin_prot
+    base/sexplib
+    base/core
+    base/core/extended
+    base/async/core
+    base/async/unix
+    base/async/extra
+    base/async
 )
 
 function my_join {
@@ -128,4 +128,3 @@ let select_files dir ext =
 '
 
 HERE=$(cd "$(dirname -- "$0")"; pwd);
-BASE=base

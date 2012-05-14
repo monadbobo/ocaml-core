@@ -2,53 +2,43 @@
 set -u -o pipefail
 
 function usage {
-    echo "usage: ${BASH_SOURCE[0]} [-s] [-j <JOBS>]"
+    echo "usage: ${BASH_SOURCE[0]} [-s] [-v] [-j <JOBS>]"
     echo "         -h, --help       Display this help"
     echo "         -s, --sudo       Install with sudo"
+    echo "         -v, --verbose    Log to the terminal"
     echo "         -j N             Run at most N jobs in parallel"
     echo "         -u               Don't install, uninstall"
 }
 
-configflags="
- enable-linux
-disable-linux
- enable-posix-timers
-disable-posix-timers
-"
-
 opts=
 if getopt -V | grep -q enhanced; then
-  opts=$(getopt -n ${BASH_SOURCE[0]} -o "j:uhs" \
-                -l "jobs:,help,sudo,$(echo -n $configflags | tr ' ' ,)" -- "$@")
+  opts=$(getopt -n ${BASH_SOURCE[0]} -o "j:uhsv" \
+                -l "jobs:,help,sudo,verbose" -- "$@")
 else
-  opts=$(getopt "j:uhs" $*)
+  opts=$(getopt "j:uhsv" $*)
 fi
 
 if [[ $? != 0 ]]; then usage; exit 1; fi
 
-set -e
 eval set -- "$opts"
 
-linuxflag=
-timerflag=
 makeflags=""
-configopts=( )
 uninstall=false
 use_sudo=false
+verbose=false
 while true; do
     case "$1" in
         -h|--help) usage; exit 0;;
         -j|--jobs) makeflags="$makeflags -j $2";      shift 2;;
         -u)        uninstall=true;                    shift  ;;
         -s|--sudo) use_sudo=true;                     shift  ;;
-        --enable-linux)  linuxflag="--enable-linux";  shift  ;;
-        --disable-linux) linuxflag="--disable-linux"; shift  ;;
-        --enable-posix-timers)  timerflag="--enable-posix-timers";  shift ;;
-        --disable-posix-timers) timerflag="--disable-posix-timers"; shift ;;
+        -v|--verbose) verbose=true    ;               shift  ;;
         --) shift; break ;;
-         *) configopts+=( "$1" )
+         *) echo "unexpected flag '$1'"; usage; exit 1 ;;
     esac
 done
+
+if [[ $# -gt 0 ]]; then echo "unexpected arguments $@"; usage; exit 1; fi
 
 source $(dirname -- "$0")/build-common.sh
 root="$HERE";
@@ -66,64 +56,64 @@ function maybe_sudo {
     if $use_sudo; then sudo "$@"; else "$@"; fi
 }
 
-function findlibname {
-    local dir="$1"
-    (cd "$dir"
-     case $dir in
-        *-$core_version) ;;
-        *) [[ -e _oasis ]] || ./oasis.sh >/dev/null;;
-     esac
-     grep 'FindlibParent:' _oasis || grep 'FindlibName:' _oasis) \
-    | head -1 | awk '{print $2}'
+function maybe_verbose {
+    if $verbose; then "$@"; else
+        local output=''
+        output=$("$@" 2>&1)
+        if [[ $? -ne 0 ]]; then
+            echo "$output"
+            return $ret
+        fi
+    fi
 }
 
-function uninstall {
-    local lib=$(findlibname "$1")
-    maybe_sudo ocamlfind remove "$lib" || true;
+function findlibname {
+    local oasis=$1
+    local output=''
+    (grep 'FindlibParent:' "$oasis"   \
+     || grep 'FindlibName:' "$oasis") | head -1 | awk '{print $2}'
 }
+
+function die { echo "*** ERROR: $1"; exit 1; }
 
 for dir in "${build_order[@]}"; do
-  echo "------ $BASE/$dir ------"
-  optflags=
+  echo "=> $dir"
 
-  uninstall "$BASE/$dir" || true
-  if $uninstall; then continue; fi
-
-  pushd $BASE/$dir
+  pushd $dir >/dev/null
 
   case $dir in
-      core|core/extended|core-$core_version|core_extended-$core_version)
-          optflags="$linuxflag $timerflag" ;;
-      async) # horrible hack (avoids rebuilding async_{core,scheduler,extra})
-          src=$(pwd)
-          dest=$(mktemp -d -t ocaml-core-async.XXXXXX)
-          mkdir -p "$dest/$BASE/async"
-          cp -rp "$root/build-common.sh" "$dest/"
-          cp -rp lib oasis.sh "$dest/$BASE/async/"
-          cd $dest/$BASE/async
-          trap "rm -r '$dest'" EXIT
-          ;;
+      *-$core_version) ;; # no need to do anything for released packages
+      *) maybe_verbose ./oasis.sh || die "Error generating $dir/_oasis";;
   esac
 
-  case $dir in
-      *-$core_version) ;;
-      *) ./oasis.sh    ;;
-  esac
-
-  ./configure $optflags "${configopts[@]:+${configopts[@]}}"
-  make build BUILDFLAGS="$makeflags"
-
-  if ! maybe_sudo make install; then
-      echo "*** ERROR: couldn't install '$dir'" 1>&2
-      exit 1
+  lib=$(findlibname '_oasis')
+  if [[ $? -ne 0 ]]; then
+      die "Couldn't figure out the library name from $dir/_oasis"
   fi
 
-  popd
+  if ocamlfind query "$lib" 2>/dev/null >/dev/null; then
+      echo "   * uninstalling"
+      maybe_verbose maybe_sudo ocamlfind remove "$lib" \
+          || die "Couldn't uninstall $lib"
+  fi
 
-  case $dir in
-      async) # copy the generated setup.ml and setup.data back
-        cp -rp "$dest"/$BASE/async/{configure,Makefile,setup.ml,setup.data,myocamlbuild.ml} "$src"/
-      ;;
-  esac
+  if ! $uninstall; then
 
+      echo "   * configuring"
+      maybe_verbose ./configure \
+          || die "Couldn't configure $lib"
+
+      echo "   * compiling"
+      maybe_verbose make build BUILDFLAGS="$makeflags" \
+          || die "Couldn't compile $lib"
+
+      echo "   * installing"
+      maybe_verbose maybe_sudo make install \
+          || die "Couldn't install $lib"
+
+  fi
+  popd >/dev/null
 done
+
+echo "All finished!"
+
