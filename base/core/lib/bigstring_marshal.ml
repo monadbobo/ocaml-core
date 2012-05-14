@@ -119,17 +119,21 @@ let marshal_to_fd ?buf ?flags fd v =
   marshal_to_gen ?buf ?flags fd v ~f:(fun fd buf ~len ->
     Bigstring.really_write fd buf ~len)
 
-let marshal_to_sock_no_sigpipe =
-  let f really_send_no_sigpipe
-    :  ?buf : t
-    -> ?flags : Marshal.extern_flags list
-    -> Unix.file_descr
-    -> 'a
-    -> unit
-    = fun ?buf ?flags fd v ->
-      marshal_to_gen ?buf ?flags fd v ~f:(fun fd buf ~len ->
-        really_send_no_sigpipe fd ?pos:None ?len:(Some len) buf)
-  in
-  (* Work-around for the overly-conservative value restriction *)
-  Obj.magic (Or_error.map Bigstring.really_send_no_sigpipe ~f)
+INCLUDE "config.mlh"
 
+IFDEF MSG_NOSIGNAL THEN
+
+let really_send_no_sigpipe = Or_error.ok_exn Bigstring.really_send_no_sigpipe
+
+let marshal_to_sock_no_sigpipe ?buf ?flags fd v =
+  marshal_to_gen ?buf ?flags fd v ~f:(fun fd buf ~len ->
+    really_send_no_sigpipe fd ?pos:None ?len:(Some len) buf)
+
+let marshal_to_sock_no_sigpipe = Ok marshal_to_sock_no_sigpipe
+
+ELSE
+
+let marshal_to_sock_no_sigpipe =
+  unimplemented "Bigstring_marshal.marshal_to_sock_no_sigpipe"
+
+ENDIF

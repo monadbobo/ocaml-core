@@ -92,6 +92,7 @@ make_tags "$HERE/_tags" <<EOF
 <lib{,_test}/*.ml{,i}>     : syntax_camlp4o
 "lib/backtrace.ml"         : mlh, pkg_camlp4.macro
 "lib/bigstring.ml"         : mlh, pkg_camlp4.macro
+"lib/bigstring_marshal.ml" : mlh, pkg_camlp4.macro
 "lib/core_int63.ml"        : mlh, pkg_camlp4.macro
 "lib/core_mutex.ml"        : mlh, pkg_camlp4.macro
 "lib/core_unix.ml"         : mlh, pkg_camlp4.macro
