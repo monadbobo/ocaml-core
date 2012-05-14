@@ -58,9 +58,11 @@ function maybe_sudo {
 
 function maybe_verbose {
     if $verbose; then "$@"; else
+        local ret=0
         local output=''
         output=$("$@" 2>&1)
-        if [[ $? -ne 0 ]]; then
+        ret=$?
+        if [[ $ret -ne 0 ]]; then
             echo "$output"
             return $ret
         fi
