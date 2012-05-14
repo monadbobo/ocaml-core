@@ -1,6 +1,6 @@
 #!/bin/bash
 
-core_version=108.00-pre1
+core_version=108.00-pre2
 
 # in dependency-topological order
 build_order=(
