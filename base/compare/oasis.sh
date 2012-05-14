@@ -44,6 +44,8 @@ make_tags $HERE/_tags <<EOF
 <syntax/pa_compare.ml>: syntax_camlp4o
 EOF
 
+make_myocamlbuild_default "$HERE/myocamlbuild.ml"
+
 mkdir -p $HERE/lib
 echo >$HERE/lib/comparelib_dummy.ml
 

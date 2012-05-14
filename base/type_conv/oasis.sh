@@ -43,17 +43,7 @@ make_tags $HERE/_tags <<EOF
 <lib/pa_type_conv.ml>: syntax_camlp4o
 EOF
 
-make_myocamlbuild $HERE/myocamlbuild.ml <<EOF
-Ocamlbuild_plugin.dispatch
-  begin
-    function
-      | After_rules as e ->
-          flag ["compile"; "ocaml"] (S [A "-w"; A "@Ae" ]);
-          dispatch_default e
-      | e -> dispatch_default e
-  end
-;;
-EOF
+make_myocamlbuild_default "$HERE/myocamlbuild.ml"
 
 cd $HERE
 oasis setup

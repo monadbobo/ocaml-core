@@ -102,11 +102,11 @@ Ocamlbuild_plugin.dispatch
   begin
     function
       | After_rules as e ->
+          setup_standard_build_flags ();
           flag ["ocamldep"; "ocaml"; "use_pa_sexp_conv"]
             (S [A "-ppopt"; P "syntax/pa_sexp_conv.cma"]);
           flag ["compile"; "ocaml"; "use_pa_sexp_conv"]
             (S [A "-ppopt"; P "syntax/pa_sexp_conv.cma"]);
-          flag ["compile"; "ocaml"] (S [A "-w"; A "@Ae" ]);
           dispatch_default e
       | e -> dispatch_default e
   end

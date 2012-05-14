@@ -43,5 +43,7 @@ make_tags $HERE/_tags <<EOF
 <syntax/pa_typehash.ml>: syntax_camlp4o,pkg_camlp4.extend
 EOF
 
+make_myocamlbuild_default "$HERE/myocamlbuild.ml"
+
 cd $HERE
 oasis setup

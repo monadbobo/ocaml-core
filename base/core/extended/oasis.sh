@@ -117,43 +117,14 @@ make_tags "$HERE/_tags" <<EOF
 EOF
 
 make_myocamlbuild "$HERE/myocamlbuild.ml" <<EOF
-$useful_ocaml_functions
-
 let dispatch = function
   | After_rules as e ->
+    setup_standard_build_flags ();
 
     dep  ["ocaml"; "ocamldep"; "mlh"] (select_files "lib/" ".mlh");
 
     flag ["mlh"; "ocaml"; "ocamldep"] (S[A"-ppopt"; A"-Ilib/"]);
     flag ["mlh"; "ocaml"; "compile"]  (S[A"-ppopt"; A"-Ilib/"]);
-
-    begin match getconf "LFS64_CFLAGS" with
-    | None -> ()
-    | Some flags -> flag ["compile"; "c"] (S[A"-ccopt"; A flags])
-    end;
-
-    let cflags =
-      let flags =
-        [
-          "-pipe";
-          "-g";
-          "-fPIC";
-          "-O2";
-          "-fomit-frame-pointer";
-          "-fsigned-char";
-          "-Wall";
-          "-pedantic";
-          "-Wextra";
-          "-Wunused";
-(*          "-Werror"; *)
-          "-Wno-long-long";
-        ]
-      in
-      let f flag = [A "-ccopt"; A flag] in
-      List.concat (List.map f flags)
-    in
-    flag ["compile"; "c"] (S cflags);
-    flag ["compile"; "ocaml"] (S [A "-w"; A "@Ae" ]);
 
     dispatch_default e
   | e -> dispatch_default e
@@ -162,8 +133,6 @@ let () = Ocamlbuild_plugin.dispatch dispatch
 EOF
 
 make_setup_ml "$HERE/setup.ml" <<EOF
-$useful_ocaml_functions
-
 let linux_possible = test "uname | grep -q -i linux"
 let timers_possible =
   match getconf "_POSIX_TIMERS" with

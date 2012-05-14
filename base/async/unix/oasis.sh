@@ -46,6 +46,8 @@ make_tags "$HERE/_tags" <<EOF
 <lib/*.ml{,i}>: syntax_camlp4o
 EOF
 
+make_myocamlbuild_default "$HERE/myocamlbuild.ml"
+
 cd $HERE
 rm -f setup.ml
 oasis setup

@@ -112,7 +112,7 @@ make_tags $HERE/_tags <<EOF
 <syntax/pa_bin_prot.ml>: syntax_camlp4o
 EOF
 
-make_myocamlbuild $HERE/myocamlbuild.ml <<EOF
+make_myocamlbuild "$HERE/myocamlbuild.ml" <<EOF
 (* We probably will want to set this up in the \`configure\` script at some
    point. *)
 let is_darwin =
@@ -130,6 +130,8 @@ Ocamlbuild_plugin.dispatch
   begin
     function
       | After_rules as e ->
+          setup_standard_build_flags ();
+
           dep ["ocaml"; "ocamldep"; "mlh"] ["lib/int_codes.mlh"];
 
           flag ["ocamldep"; "ocaml"; "use_pa_bin_prot"]
@@ -144,28 +146,8 @@ Ocamlbuild_plugin.dispatch
 
           flag ["compile"; "ocaml"] (S [A "-w"; A "@Ae" ]);
 
-          let cflags =
-            let flags =
-              [
-                "-pipe";
-                "-g";
-                "-fPIC";
-                "-O2";
-                "-fomit-frame-pointer";
-                "-fsigned-char";
-                "-Wall";
-                "-pedantic";
-                "-Wextra";
-                "-Wunused";
-(*                "-Werror"; *)
-                "-Wno-long-long";
-              ]
-            in
-            let flags = if is_darwin then "-DOS_DARWIN" :: flags else flags in
-            let f flag = [A "-ccopt"; A flag] in
-            List.concat (List.map f flags)
-          in
-          flag ["compile"; "c"] (S cflags);
+          if is_darwin then
+            flag ["compile"; "c"] (S [A "-ccopt"; A "-DOS_DARWIN"]);
 
           dispatch_default e
       | e -> dispatch_default e

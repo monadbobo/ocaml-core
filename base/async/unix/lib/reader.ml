@@ -418,7 +418,7 @@ let space = Bigstring.of_string " "
 
 let gen_read_sexp ?parse_pos t parse =
   Deferred.create (fun result ->
-    let rec loop ~cont_state parse_fun =
+    let rec loop parse_fun =
       nonempty_buffer t (function
         | `Eof ->
           begin
@@ -438,9 +438,9 @@ let gen_read_sexp ?parse_pos t parse =
           | Sexp.Done (sexp, parse_pos) ->
               consume t (parse_pos.Sexp.Parse_pos.buf_pos - t.pos);
               Ivar.fill result (`Ok (sexp, parse_pos));
-          | Sexp.Cont (cont_state, parse_fun) ->
+          | Sexp.Cont (_, parse_fun) ->
               t.available <- 0;
-              loop ~cont_state parse_fun)
+              loop parse_fun)
     in
     let parse ~pos ~len buf =
       (* [parse_pos] will be threaded through the entire reading process by
@@ -453,7 +453,7 @@ let gen_read_sexp ?parse_pos t parse =
       in
       parse ?parse_pos:(Some parse_pos) ?len:(Some len) buf
     in
-    loop ~cont_state:Sexp.Cont_state.Parsing_whitespace parse)
+    loop parse)
 ;;
 
 type 'a read = ?parse_pos : Sexp.Parse_pos.t -> 'a

@@ -63,28 +63,6 @@ EOF
     cat >>"$1"
 }
 
-function make_myocamlbuild {
-    cat >"$1" <<EOF
-(* OASIS_START *)
-(* OASIS_STOP *)
-EOF
-    cat >>"$1"
-}
-
-function make_setup_ml {
-    cat >"$1" <<EOF
-(* OASIS_START *)
-(* OASIS_STOP *)
-let _ = setup
-
-EOF
-    cat >> "$1"
-    cat >> "$1" <<EOF
-
-let () = BaseSetup.setup setup_t
-EOF
-}
-
 useful_ocaml_functions='
 let protectx x ~f ~finally =
   let r = try f x with exn -> finally x; raise exn in
@@ -125,6 +103,75 @@ let select_files dir ext =
   List.map (Filename.concat dir)
     (List.filter (endswith ext)
       (Array.to_list (Sys.readdir dir)))
+;;
 '
+
+function make_setup_ml {
+    cat >"$1" <<EOF
+(* OASIS_START *)
+(* OASIS_STOP *)
+let _ = setup
+
+$useful_ocaml_functions
+
+EOF
+    cat >> "$1"
+    cat >> "$1" <<EOF
+
+let () = BaseSetup.setup setup_t
+EOF
+}
+
+function make_myocamlbuild {
+    cat >"$1" <<EOF
+(* OASIS_START *)
+(* OASIS_STOP *)
+
+$useful_ocaml_functions
+
+let setup_standard_build_flags () =
+    begin match getconf "LFS64_CFLAGS" with
+    | None -> ()
+    | Some flags -> flag ["compile"; "c"] (S[A"-ccopt"; A flags])
+    end;
+    let cflags =
+      let flags =
+        [
+          "-pipe";
+          "-g";
+          "-fPIC";
+          "-O2";
+          "-fomit-frame-pointer";
+          "-fsigned-char";
+          "-Wall";
+          "-pedantic";
+          "-Wextra";
+          "-Wunused";
+(*          "-Werror"; *)
+          "-Wno-long-long";
+        ]
+      in
+      let f flag = [A "-ccopt"; A flag] in
+      List.concat (List.map f flags)
+    in
+    flag ["compile"; "c"] (S cflags);
+    flag ["compile"; "ocaml"] (S [A "-w"; A "@Aemr-28"; A "-strict-sequence" ])
+;;
+
+EOF
+    cat >>"$1"
+}
+
+function make_myocamlbuild_default {
+    make_myocamlbuild "$1" <<EOF
+let dispatch = function
+  | After_rules as e ->
+    setup_standard_build_flags ();
+    dispatch_default e
+  | e -> dispatch_default e
+
+let () = Ocamlbuild_plugin.dispatch dispatch
+EOF
+}
 
 HERE=$(cd "$(dirname -- "$0")"; pwd);
