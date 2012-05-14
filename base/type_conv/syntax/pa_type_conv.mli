@@ -60,24 +60,26 @@ val rm_sig_generator : ?is_exn : bool -> string -> unit
     @param is_exn = [false]
 *)
 
-(** Type of record code generators *)
-type record_generator = Loc.t -> unit
+(** Type of record field code generators *)
+type record_field_generator = Loc.t -> unit
 
-val add_record_generator : string -> record_generator -> unit
-(** [add_record_generator gen_name gen] adds the record field code generator
-    [gen_name], which acts on a record field location [loc], a record field
-    [name], and the record field type [tp]. *)
+val add_record_field_generator : string -> record_field_generator -> unit
+(** [add_record_field_generator gen_name gen] adds the record field code
+    generator [gen] with name [gen_name], which acts on the location
+    identifiying the record field. *)
 
-val add_record_generator_with_arg :
+val add_record_field_generator_with_arg :
   string -> 'a Camlp4.PreCast.Gram.Entry.t ->
-  ('a option -> record_generator) -> unit
-(** [add_record_generator_with_arg name entry generator] same as
-    [add_record_generator], but the generator may accept an argument, which
-    is parsed with [entry]. *)
+  ('a option -> record_field_generator) -> unit
+(** [add_record_field_generator_with_arg name entry generator] same as
+    [add_record_field_generator], but the [generator] takes an argument,
+    which is parsed with [entry].  If [None] is passed to the generator,
+    parsing of the argument failed, otherwise [Some arg] will be passed,
+    where [arg] is the successfully parsed argument. *)
 
-val rm_record_generator : string -> unit
-(** [rm_record_generator name] removes the record field code generator named
-    [name]. *)
+val rm_record_field_generator : string -> unit
+(** [rm_record_field_generator name] removes the record field code generator
+    named [name]. *)
 
 
 (** {6 Utility functions} *)

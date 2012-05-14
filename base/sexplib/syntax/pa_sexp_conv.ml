@@ -179,12 +179,12 @@ module Generate_sexp_of = struct
       Loc.raise loc (Failure "sexp record field handler defined twice")
 
   let () =
-    Pa_type_conv.add_record_generator "sexp_drop_default" (fun loc ->
+    Pa_type_conv.add_record_field_generator "sexp_drop_default" (fun loc ->
       check_record_field_handler loc;
       Hashtbl.replace record_field_handlers ~key:loc ~data:`drop_default)
 
   let () =
-    Pa_type_conv.add_record_generator_with_arg "sexp_drop_if"
+    Pa_type_conv.add_record_field_generator_with_arg "sexp_drop_if"
       Syntax.expr (fun expr_opt loc ->
         check_record_field_handler loc;
         let test =

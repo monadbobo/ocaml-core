@@ -84,9 +84,9 @@ let exn_generators = Hashtbl.create 0
 let sig_exn_generators = Hashtbl.create 0
 
 (* Map of "with"-generators for record fields *)
-type record_generator = Loc.t -> unit
+type record_field_generator = Loc.t -> unit
 
-let record_generators = Hashtbl.create 0
+let record_field_generators = Hashtbl.create 0
 
 (* Check that there is no argument for generators that do not expect any *)
 let no_arg id e arg typ =
@@ -137,14 +137,14 @@ let rm_sig_generator ?(is_exn = false) id =
   Hashtbl.remove gens id
 
 (* Register a "with"-generator for record fields *)
-let add_record_generator_with_arg id entry e =
-  safe_add_gen record_generators id entry e
+let add_record_field_generator_with_arg id entry e =
+  safe_add_gen record_field_generators id entry e
 
-let add_record_generator id e =
-  add_record_generator_with_arg id ignore_tokens (no_arg id e)
+let add_record_field_generator id e =
+  add_record_field_generator_with_arg id ignore_tokens (no_arg id e)
 
 (* Remove a "with"-generator for record fields *)
-let rm_record_generator id = Hashtbl.remove record_generators id
+let rm_record_field_generator id = Hashtbl.remove record_field_generators id
 
 
 (* General purpose code generation module *)
@@ -383,9 +383,9 @@ let gen_derived_exn_sigs _loc tp drvs =
   let coll drv der_sis = <:sig_item< $der_sis$; $sig_exn_generate tp drv$ >> in
   List.fold_right coll drvs (SgNil _loc)
 
-let remember_record_generators el drvs =
+let remember_record_field_generators el drvs =
   let act drv =
-    let gen = find_generator ~name:"record field" record_generators in
+    let gen = find_generator ~name:"record field" record_field_generators in
     gen el drv
   in
   List.iter act drvs
@@ -501,11 +501,11 @@ EXTEND Gram
     [[
       name = a_LIDENT; ":"; tp = poly_type;
       "with"; drvs = LIST1 generator SEP "," ->
-        remember_record_generators _loc drvs;
+        remember_record_field_generators _loc drvs;
         <:ctyp< $lid:name$ : $tp$ >>
     | "mutable"; name = a_LIDENT; ":"; tp = poly_type;
       "with"; drvs = LIST1 generator SEP "," ->
-        remember_record_generators _loc drvs;
+        remember_record_field_generators _loc drvs;
         <:ctyp< $lid:name$ : mutable $tp$ >>
     ]];
 END
@@ -514,11 +514,11 @@ END
 
 (* Add "default" to set of record field generators *)
 let () =
-  add_record_generator_with_arg "default" Syntax.expr
+  add_record_field_generator_with_arg "default" Syntax.expr
     (fun expr_opt loc ->
       let default =
         match expr_opt with
         | Some expr -> expr
-        | None -> Loc.raise loc (Failure "could not parse expression")
+        | None -> Loc.raise loc (Failure "could not parse default expression")
       in
       Hashtbl.replace Gen.record_defaults loc default)
