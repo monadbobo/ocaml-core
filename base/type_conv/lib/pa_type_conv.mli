@@ -4,6 +4,14 @@ open Camlp4.PreCast.Ast
 
 (** {6 Generator registration} *)
 
+val set_conv_path_if_not_set : Loc.t -> unit
+(** [set_conv_path_if_not_set loc] sets the path to the file/module being
+    converted for improved error messages. *)
+
+val get_conv_path : unit -> string
+(** [get_conv_path ()] @return the name to module containing a type
+    as required for error messages. *)
+
 val add_generator : ?is_exn : bool -> string -> (ctyp -> str_item) -> unit
 (** [add_generator ?is_exn name gen] adds the code generator [gen],
     which maps type or exception declarations to structure items, where
@@ -16,41 +24,62 @@ val add_generator : ?is_exn : bool -> string -> (ctyp -> str_item) -> unit
 
 val add_generator_with_arg :
   ?is_exn : bool -> string -> 'a Camlp4.PreCast.Gram.Entry.t ->
-  (ctyp -> 'a option -> str_item) -> unit
+  ('a option -> ctyp -> str_item) -> unit
 (** [add_generator_with_arg ?is_exn name entry generator] same as
     [add_generator], but the generator may accept an argument, which is
     parsed with [entry]. *)
 
 val rm_generator : ?is_exn : bool -> string -> unit
-(** [rm_generator ?is_exn name] removes the code generator named [name]. *)
-
-val add_sig_generator :
-  ?is_exn : bool -> string -> (ctyp -> sig_item) -> unit
-(** [add_generator ?is_exn name gen] adds the code generator [gen],
-    which maps type or exception declarations to signature items, where
-    [is_exn] specifies whether the declaration is an exception.  Note that
-    the original type/exception declarations get added automatically in
-    any case.
+(** [rm_generator ?is_exn name] removes the code generator named [name]
+    for types if [is_exn] is [false], or exceptions otherwise.
 
     @param is_exn = [false]
 *)
 
-val set_conv_path_if_not_set : Loc.t -> unit
+val add_sig_generator :
+  ?is_exn : bool -> string -> (ctyp -> sig_item) -> unit
+(** [add_sig_generator ?is_exn name gen] adds the code generator [gen],
+    which maps type or exception declarations to signature items, where
+    [is_exn] specifies whether the declaration is an exception.  Note that the
+    original type/exception declarations get added automatically in any case.
+
+    @param is_exn = [false]
+*)
 
 val add_sig_generator_with_arg :
   ?is_exn : bool -> string -> 'a Camlp4.PreCast.Gram.Entry.t ->
-  (ctyp -> 'a option -> sig_item) -> unit
+  ('a option -> ctyp -> sig_item) -> unit
 (** [add_sig_generator_with_arg ?is_exn name entry generator] same as
     [add_sig_generator], but the generator may accept an argument,
     which is parsed with [entry]. *)
 
 val rm_sig_generator : ?is_exn : bool -> string -> unit
-(** [rm_sig_generator name] removes the code signature generator named
-    [name]. *)
+(** [rm_sig_generator ?is_exn name] removes the signature code generator named
+    [name] for types if [is_exn] is [false], or exceptions otherwise.
 
-val get_conv_path : unit -> string
-(** [get_conv_path ()] @return the name to module containing a type
-    as required for error messages. *)
+    @param is_exn = [false]
+*)
+
+(** Type of record field code generators *)
+type record_field_generator = Loc.t -> unit
+
+val add_record_field_generator : string -> record_field_generator -> unit
+(** [add_record_field_generator gen_name gen] adds the record field code
+    generator [gen] with name [gen_name], which acts on the location
+    identifiying the record field. *)
+
+val add_record_field_generator_with_arg :
+  string -> 'a Camlp4.PreCast.Gram.Entry.t ->
+  ('a option -> record_field_generator) -> unit
+(** [add_record_field_generator_with_arg name entry generator] same as
+    [add_record_field_generator], but the [generator] takes an argument,
+    which is parsed with [entry].  If [None] is passed to the generator,
+    parsing of the argument failed, otherwise [Some arg] will be passed,
+    where [arg] is the successfully parsed argument. *)
+
+val rm_record_field_generator : string -> unit
+(** [rm_record_field_generator name] removes the record field code generator
+    named [name]. *)
 
 
 (** {6 Utility functions} *)
@@ -155,4 +184,8 @@ module Gen : sig
   val drop_variance_annotations : ctyp -> ctyp
   (** [drop_variance_annotations tp] @return the type resulting from dropping
       all variance annotations in [tp]. *)
+
+  val find_record_default : Loc.t -> expr option
+  (** [find_record_default loc] @return the optional default expression
+      associated with the record field at source location [loc] if defined. *)
 end

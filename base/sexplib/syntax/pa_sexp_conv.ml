@@ -8,6 +8,8 @@ open Printf
 open Camlp4
 open PreCast
 
+open Syntax
+
 module Gen = Pa_type_conv.Gen
 
 (* Utility functions *)
@@ -162,6 +164,37 @@ end
 
 (* Generator for converters of OCaml-values to S-expressions *)
 module Generate_sexp_of = struct
+  (* Handling of record defaults *)
+
+  type record_field_handler = [ `keep | `drop_default | `drop_if of Ast.expr ]
+
+  let record_field_handlers = Hashtbl.create 0
+
+  let get_record_field_handler loc =
+    try Hashtbl.find record_field_handlers loc
+    with Not_found -> `keep
+
+  let check_record_field_handler loc =
+    if Hashtbl.mem record_field_handlers loc then
+      Loc.raise loc (Failure "sexp record field handler defined twice")
+
+  let () =
+    Pa_type_conv.add_record_field_generator "sexp_drop_default" (fun loc ->
+      check_record_field_handler loc;
+      Hashtbl.replace record_field_handlers ~key:loc ~data:`drop_default)
+
+  let () =
+    Pa_type_conv.add_record_field_generator_with_arg "sexp_drop_if"
+      Syntax.expr (fun expr_opt loc ->
+        check_record_field_handler loc;
+        let test =
+          match expr_opt with
+          | Some expr -> expr
+          | None -> Loc.raise loc (Failure "could not parse expression")
+        in
+        Hashtbl.replace record_field_handlers ~key:loc ~data:(`drop_if test))
+
+  (* Make abstract calls *)
   let mk_abst_call loc tn rev_path =
     <:expr@loc<
       $id:Gen.ident_of_rev_path loc (("sexp_of_" ^ tn) :: rev_path)$
@@ -331,7 +364,7 @@ module Generate_sexp_of = struct
     let p = <:patt@loc< $lid:name$ = $lid:"v_" ^ name$ >> in
     <:patt@loc< $patt$; $p$ >>
 
-  let sexp_of_default_field patt expr name tp sexp_of empty =
+  let sexp_of_record_field patt expr name tp ?sexp_of test =
     let loc = Ast.loc_of_ctyp tp in
     let patt = mk_rec_patt loc patt name in
     let cnv_expr =
@@ -340,13 +373,18 @@ module Generate_sexp_of = struct
       | `Match matchings ->
           <:expr@loc< fun el -> match el with [ $matchings$ ] >>
     in
+    let cnv_expr =
+      match sexp_of with
+      | None -> cnv_expr
+      | Some sexp_of -> <:expr@loc< $sexp_of$ $cnv_expr$ >>
+    in
     let expr =
       let v_name = <:expr@loc< $lid: "v_" ^ name$ >> in
       <:expr@loc<
         let bnds =
-          if $v_name$ = $empty$ then bnds
+          if $test$ $v_name$ then bnds
           else
-            let arg = $sexp_of$ $cnv_expr$ $v_name$ in
+            let arg = $cnv_expr$ $v_name$ in
             let bnd =
               Sexplib.Sexp.List [Sexplib.Sexp.Atom $str:name$; arg]
             in
@@ -356,6 +394,11 @@ module Generate_sexp_of = struct
       >>
     in
     patt, expr
+
+  let sexp_of_default_field patt expr name tp ?sexp_of default =
+    let loc = Ast.loc_of_expr default in
+    sexp_of_record_field patt expr name tp ?sexp_of
+      <:expr@loc< (=) $default$ >>
 
   let sexp_of_record flds_ctyp =
     let flds = Ast.list_of_ctyp flds_ctyp [] in
@@ -398,26 +441,37 @@ module Generate_sexp_of = struct
           patt, expr
       | <:ctyp@loc< $lid:name$ : mutable sexp_list $tp$ >>
       | <:ctyp@loc< $lid:name$ : sexp_list $tp$ >> ->
-          sexp_of_default_field
-            patt expr name tp <:expr@loc< sexp_of_list >> <:expr@loc< [] >>
+          sexp_of_default_field patt expr name tp
+            ~sexp_of:<:expr@loc< sexp_of_list >> <:expr@loc< [] >>
       | <:ctyp@loc< $lid:name$ : mutable sexp_array $tp$ >>
       | <:ctyp@loc< $lid:name$ : sexp_array $tp$ >> ->
-          sexp_of_default_field
-            patt expr name tp <:expr@loc< sexp_of_array >> <:expr@loc< [||] >>
+          sexp_of_default_field patt expr name tp
+            ~sexp_of:<:expr@loc< sexp_of_array >> <:expr@loc< [||] >>
       | <:ctyp@loc< $lid:name$ : mutable $tp$ >>
       | <:ctyp@loc< $lid:name$ : $tp$ >> ->
-          let patt = mk_rec_patt loc patt name in
-          let vname = <:expr@loc< $lid:"v_" ^ name$ >> in
-          let cnv_expr = unroll_cnv_fp loc vname (sexp_of_type tp) in
-          let expr =
-            <:expr@loc<
-              let arg = $cnv_expr$ in
-              let bnd = Sexplib.Sexp.List [Sexplib.Sexp.Atom $str:name$; arg] in
-              let bnds = [ bnd :: bnds ] in
-              $expr$
-            >>
-          in
-          patt, expr
+          let opt_default = Pa_type_conv.Gen.find_record_default loc in
+          let field_handler = get_record_field_handler loc in
+          begin match opt_default, field_handler with
+          | None, `drop_default -> Loc.raise loc (Failure "no default to drop")
+          | _, `drop_if test -> sexp_of_record_field patt expr name tp test
+          | Some default, `drop_default ->
+              sexp_of_default_field patt expr name tp default
+          | _, `keep ->
+              let patt = mk_rec_patt loc patt name in
+              let vname = <:expr@loc< $lid:"v_" ^ name$ >> in
+              let cnv_expr = unroll_cnv_fp loc vname (sexp_of_type tp) in
+              let expr =
+                <:expr@loc<
+                  let arg = $cnv_expr$ in
+                  let bnd =
+                    Sexplib.Sexp.List [Sexplib.Sexp.Atom $str:name$; arg]
+                  in
+                  let bnds = [ bnd :: bnds ] in
+                  $expr$
+                >>
+              in
+              patt, expr
+          end
       | _ -> assert false  (* impossible *)
     in
     let loc = Ast.loc_of_ctyp flds_ctyp in
@@ -987,6 +1041,9 @@ module Generate_of_sexp = struct
       let rec loop (res_tpls, bi_lst, good_patts as acc) = function
         | <:ctyp@loc< $lid:nm$ : $tp$ >> ->
             let fld = <:expr@loc< $lid:nm ^ "_field"$.val >> in
+            let mk_default loc =
+              bi_lst, <:patt@loc< $lid:nm ^ "_value"$ >> :: good_patts
+            in
             let new_bi_lst, new_good_patts =
               match tp with
               | <:ctyp@loc< sexp_bool >> | <:ctyp@loc< mutable sexp_bool >>
@@ -995,16 +1052,17 @@ module Generate_of_sexp = struct
               | <:ctyp@loc< sexp_list $_$ >>
               | <:ctyp@loc< mutable sexp_list $_$ >>
               | <:ctyp@loc< sexp_array $_$ >>
-              | <:ctyp@loc< mutable sexp_array $_$ >> ->
-                  bi_lst, <:patt@loc< $lid:nm ^ "_value"$ >> :: good_patts
-              | _ ->
-                  let loc = Ast.loc_of_ctyp tp in
-                  has_nonopt_fields := true;
-                  (
-                    <:expr@loc<
-                      (Pervasives.(=) $fld$ None, $str:nm$) >> :: bi_lst,
-                    <:patt@loc< Some $lid:nm ^ "_value"$ >> :: good_patts
-                  )
+              | <:ctyp@loc< mutable sexp_array $_$ >> -> mk_default loc
+              | <:ctyp@loc< $_$ >> ->
+                  match Pa_type_conv.Gen.find_record_default loc with
+                  | Some _ -> mk_default loc
+                  | None ->
+                      has_nonopt_fields := true;
+                      (
+                        <:expr@loc<
+                          (Pervasives.(=) $fld$ None, $str:nm$) >> :: bi_lst,
+                        <:patt@loc< Some $lid:nm ^ "_value"$ >> :: good_patts
+                      )
             in
             (
               <:expr@loc< $fld$ >> :: res_tpls,
@@ -1033,20 +1091,31 @@ module Generate_of_sexp = struct
         let rec loop = function
           | <:ctyp@loc< $tp1$; $tp2$ >> ->
               <:rec_binding@loc< $loop tp1$; $loop tp2$ >>
+          | <:ctyp@loc< $lid:nm$ : mutable sexp_list $_$ >>
           | <:ctyp@loc< $lid:nm$ : sexp_list $_$ >> ->
               <:rec_binding@loc<
                 $lid:nm$ =
                   match $lid:nm ^ "_value"$ with
                   [ None -> [] | Some v -> v ]
               >>
+          | <:ctyp@loc< $lid:nm$ : mutable sexp_array $_$ >>
           | <:ctyp@loc< $lid:nm$ : sexp_array $_$ >> ->
               <:rec_binding@loc<
                 $lid:nm$ =
                   match $lid:nm ^ "_value"$ with
                   [ None -> [||] | Some v -> v ]
               >>
+          | <:ctyp@loc< $lid:nm$ : mutable $_$ >>
           | <:ctyp@loc< $lid:nm$ : $_$ >> ->
-              <:rec_binding@loc< $lid:nm$ = $lid:nm ^ "_value"$ >>
+              begin match Pa_type_conv.Gen.find_record_default loc with
+              | None -> <:rec_binding@loc< $lid:nm$ = $lid:nm ^ "_value"$ >>
+              | Some default ->
+                  <:rec_binding@loc<
+                    $lid:nm$ =
+                      match $lid:nm ^ "_value"$ with
+                      [ None -> $default$ | Some v -> v ]
+                  >>
+              end
           | _ -> assert false  (* impossible *)
         in
         <:expr@loc< { $loop flds$ } >>
@@ -1102,7 +1171,7 @@ module Generate_of_sexp = struct
               match field_name with
               [ $mc_no_args_fields$ ];
               iter tail }
-        | [sexp :: _] ->
+        | [((Sexplib.Sexp.Atom _ | Sexplib.Sexp.List _) as sexp) :: _] ->
             Sexplib.Conv_error.record_only_pairs_expected _tp_loc sexp
         | [] -> () ]
       in
@@ -1308,7 +1377,7 @@ end
 module Quotations = struct
   let of_sexp_quote loc _loc_name_opt cnt_str =
     Pa_type_conv.set_conv_path_if_not_set loc;
-    let ctyp = Gram.parse_string Syntax.ctyp_quot loc cnt_str in
+    let ctyp = Gram.parse_string ctyp_quot loc cnt_str in
     let fp = Generate_of_sexp.type_of_sexp ctyp in
     let body =
       match fp with
@@ -1326,17 +1395,14 @@ module Quotations = struct
       >>
 
   let () =
-    Syntax.Quotation.add "of_sexp" Syntax.Quotation.DynAst.expr_tag
-      of_sexp_quote
+    Quotation.add "of_sexp" Quotation.DynAst.expr_tag of_sexp_quote
 
   let sexp_of_quote loc _loc_name_opt cnt_str =
     Pa_type_conv.set_conv_path_if_not_set loc;
-    let ctyp = Gram.parse_string Syntax.ctyp_quot loc cnt_str in
+    let ctyp = Gram.parse_string ctyp_quot loc cnt_str in
     Generate_sexp_of.mk_cnv_expr ctyp
 
-  let () =
-    Syntax.Quotation.add "sexp_of" Syntax.Quotation.DynAst.expr_tag
-      sexp_of_quote
+  let () = Quotation.add "sexp_of" Quotation.DynAst.expr_tag sexp_of_quote
 end
 
 (* Add "of_sexp" and "sexp_of" as "sexp" to the set of generators *)

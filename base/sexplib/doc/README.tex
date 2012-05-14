@@ -32,7 +32,7 @@
   Copyright \quad (C) \quad \theyear \quad \janeshort \quad\\
   Author: Markus Mottl
 }
-\date{New York, 2012-03-20}
+\date{New York, 2012-04-20}
 
 % DOCUMENT
 \begin{document}
@@ -148,16 +148,26 @@ E.g.\ when using OCamlMakefile just add it to the \verb=PACKS=-variable.
 
 \subsection{Lexical conventions of S-expression}
 
-Whitespace, which consists of space, newline, carriage return, horizontal
-tab and form feed, is ignored unless within an OCaml-string, where it
-is treated according to OCaml-conventions.  The semicolon introduces
-comments.  Comments are ignored, and range up to the next newline
-character.  The left parenthesis opens a new list, the right parenthesis
-closes it again.  Lists can be empty.  The double quote denotes the
-beginning and end of a string following the lexical conventions of OCaml
-(see OCaml-manual for details).  All characters other than double quotes,
-left- and right parentheses, and whitespace are considered part of a
-contiguous string.
+Whitespace, which consists of space, newline, horizontal tab, and form feed,
+is ignored unless within an OCaml-string, where it is treated according to
+OCaml-conventions.  The left parenthesis opens a new list, the right one closes
+it again.  Lists can be empty.  The double quote denotes the beginning and end
+of a string following the lexical conventions of OCaml (see the OCaml-manual
+for details).  All characters other than double quotes, left- and right
+parentheses, whitespace, carriage return, and comment-introducing characters
+or sequences (see next paragraph) are considered part of a contiguous string.\\
+\\
+A line comment is introduced using a semicolon, which comments out all
+text up to the end of the next newline character.  The sequence \verb=%;=
+introduces an S-expression comment.  This means that the next S-expression,
+which must be syntactically correct and may be an atom (quoted or unquoted)
+or list, following this two-character sequence will be ignored.  Whitespace
+or other comments between this sequence and the subsequent S-expression are
+ignored.  Block comments are opened with \verb=#|= and closed with \verb=|#=.
+They can be nested and require that double-quotes within the block balance
+and contain syntactically correct OCaml-strings, similar to quoted atoms.
+These OCaml-strings may contain comment characters without causing parsing
+problems.
 
 \subsection{Grammar of S-expressions}
 
@@ -231,7 +241,7 @@ E.g.:
     {
       x : int option;
       y : int sexp_option;
-    }
+    } with sexp
 \end{verbatim}
 
 The type \verb=sexp_option= is equivalent to ordinary options, but is
@@ -276,7 +286,39 @@ the \verb=some=-tag must be dropped if the field should be defined.\\
 \\
 The types \verb=sexp_list=, \verb=sexp_array=, and \verb=sexp_bool= can be
 used in ways similar to the type \verb=sexp_option=.  They assume the empty
-list, empty array, and false value respectively as default values.
+list, empty array, and false value respectively as default values.\\
+\\
+More complex default values can be specified explicitly using several
+constructs, e.g.:
+
+\begin{verbatim}
+  let z_test v = v > 42
+
+  type t =
+    {
+      x : int with default(42);
+      y : int with default(3), sexp_drop_default;
+      z : int with default(3), sexp_drop_if(z_test);
+    } with sexp
+\end{verbatim}
+
+\noindent The \verb=default= record field extension above is supported by the
+underlying preprocessor library \verb=type_conv= and specifies the intended
+default value for a record field in its argument.  Sexplib will use this
+information to generate code which will set this record field to the default
+value if an S-expression omits this field.  If a record is converted to an
+S-expression, record fields with default values will be emitted as usual.
+Specifying \verb=sexp_drop_default= will add a test for polymorphic equality
+to the generated code such that a record field containing its default value
+will be suppressed in the resulting S-expression.  This option requires the
+presence of a default value.  \verb=sexp_drop_if= on the other hand does
+not require a default.  Its argument must be a function, which will receive
+the current record value.  If the result of this function is \verb=true=,
+then the record field will be suppressed in the resulting S-expression.\\
+\\
+The above extensions can be quite creatively used together with manifest
+types, functors, and first-class modules to make the emission of record
+fields or the definition of their default values configurable at runtime.
 
 \subsection{Conversion of sum types}
 

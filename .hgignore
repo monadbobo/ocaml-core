@@ -257,6 +257,7 @@ glob:base/sexplib/_build
 glob:base/sexplib/_oasis
 glob:base/sexplib/_tags
 glob:base/sexplib/configure
+glob:base/sexplib/conv_test.byte
 glob:base/sexplib/lib/META
 glob:base/sexplib/lib/lexer.ml
 glob:base/sexplib/lib/parser.ml
@@ -269,6 +270,7 @@ glob:base/sexplib/myocamlbuild.ml
 glob:base/sexplib/setup.data
 glob:base/sexplib/setup.log
 glob:base/sexplib/setup.ml
+glob:base/sexplib/sexp_test.byte
 glob:base/sexplib/syntax/pa_sexp_conv.mllib
 glob:base/sexplib/top/sexplib_top.mllib
 glob:base/type_conv/INSTALL

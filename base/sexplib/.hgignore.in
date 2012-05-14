@@ -13,3 +13,5 @@ _oasis
 _build
 _tags
 lib/sexplib.odocl
+conv_test.byte
+sexp_test.byte

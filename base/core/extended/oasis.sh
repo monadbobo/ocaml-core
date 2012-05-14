@@ -153,6 +153,7 @@ let dispatch = function
       List.concat (List.map f flags)
     in
     flag ["compile"; "c"] (S cflags);
+    flag ["compile"; "ocaml"] (S [A "-w"; A "@Ae" ]);
 
     dispatch_default e
   | e -> dispatch_default e

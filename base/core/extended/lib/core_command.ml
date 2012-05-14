@@ -128,7 +128,7 @@ module Flag = struct
             (x ^ " " ^ arg, sprintf "same as \"%s\"" name))
   end
 
-  let align {name; doc; aliases; action = _} =
+  let align {name; doc; aliases; _} =
     let (name, doc) =
       match String.lsplit2 doc ~on:' ' with
       | None | Some ("", _) -> (name, String.strip doc)

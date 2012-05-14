@@ -30,7 +30,7 @@ let create ?(listen_port = 65100) exns =
       U.set_nonblock s;
       while true do
         try
-          let { U.Select_fds.read = rd } =
+          let { U.Select_fds.read = rd; _ } =
             U.select ~read:(s :: !clients) ~write:[] ~except:[]
               ~timeout:(- 1.0) ()
           in

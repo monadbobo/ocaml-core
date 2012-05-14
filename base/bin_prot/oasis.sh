@@ -142,6 +142,8 @@ Ocamlbuild_plugin.dispatch
 
           flag ["compile"; "ocaml"; "cpp"] cpp;
 
+          flag ["compile"; "ocaml"] (S [A "-w"; A "@Ae" ]);
+
           let cflags =
             let flags =
               [
