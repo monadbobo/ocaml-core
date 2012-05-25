@@ -106,7 +106,7 @@ Document "bin_prot"
 EOF
 
 make_tags $HERE/_tags <<EOF
-<lib/{size,write_ml,read_ml,unsafe_read_c,type_class}.ml{i,}>: pp(cpp -undef -traditional -I.)
+<lib/{size,write_ml,read_ml,unsafe_read_c,type_class}.ml{i,}>:cpp
 <lib/{write,read}_ml.ml{,i}>:mlh
 <lib_test/*.ml{,i}>: syntax_camlp4o,pkg_type_conv.syntax
 <syntax/pa_bin_prot.ml>: syntax_camlp4o
@@ -144,7 +144,7 @@ Ocamlbuild_plugin.dispatch
 
           flag ["compile"; "ocaml"; "cpp"] cpp;
 
-          flag ["compile"; "ocaml"] (S [A "-w"; A "@Ae" ]);
+          flag ["doc"; "ocaml"; "cpp"] cpp;
 
           if is_darwin then
             flag ["compile"; "c"] (S [A "-ccopt"; A "-DOS_DARWIN"]);
