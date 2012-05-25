@@ -4,7 +4,7 @@
 */
 
 #include "config.h"
-#ifdef JSC_LINUX_EXT
+#ifdef (defined JSC_LINUX_EXT && defined JSC_ARCH_x86_64)
 
 #include <caml/memory.h>
 #include <caml/misc.h>
@@ -281,4 +281,4 @@ backtrace_dump_stderr(void)
   extensible_buffer_free(buf);
 }
 
-#endif /* JSC_LINUX_EXT */
+#endif /* JSC_LINUX_EXT && JSC_ARCH_x86_64 */
