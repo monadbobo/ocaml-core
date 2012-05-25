@@ -74,33 +74,5 @@ $(for pkg in "${packages[@]}"; do
 HERE=\$(cd "$(dirname -- "\$0")"; pwd);
 EOF
 
-cat >"$destdir/README" <<EOF
-This package contains the following libraries from
-https://bitbucket.org/yminsky/ocaml-core/:
+cp $(hg root)/README "$destdir/"
 
-$(for pkg in "${packages[@]}"; do
-    echo "* $pkg"
-  done)
-
-Dependencies
-============
-
-In order to compile this package, you will need:
-* ocaml      (>= 3.12)
-* findlib    (>= 1.2.7)
-* pcre-ocaml (http://www.ocaml.info/home/ocaml_sources.html#pcre-ocaml)
-* res        (http://www.ocaml.info/home/ocaml_sources.html#res)
-* oUnit      (http://forge.ocamlcore.org/projects/ounit)
-
-Installing
-==========
-
-1. Go to the root of the package
-2. Run ./build-and-install -s
-
-Uninstalling
-============
-
-1. Go to the root of the package
-2. Run ./build-and-install -u -s
-EOF

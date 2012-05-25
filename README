@@ -1,0 +1,43 @@
+The Core suite is an industrial-strength alternative to OCaml's standard
+library. It is composed of a variety of useful packages, including:
+
+    * Core: the heart of the standard library.
+    * Core_extended: extra components that are not as closely vetted or as
+      stable as Core.  This includes, Shell, an interface for interacting
+      with the UNIX shell, and Command, a command-line parsing library.
+    * Async: a monadic concurrency library.
+    * type_conv: a library for building type-driven syntax extensions
+    * sexplib: a library for handling s-expressions, and a syntax
+      extension for auto-generating conversions between OCaml types and
+      s-expressions
+    * bin_prot: a library and syntax-extension for generating (de-)serializing
+      OCaml values
+    * Several useful syntax extensions, including:
+        - pipebang     
+        - variantslib
+        - comparelib
+        - fieldslib
+        - pa_ounit
+
+Dependencies
+============
+
+In order to compile this package, you will need:
+* ocaml      (>= 3.12.1)
+* findlib    (>= 1.2.7)
+* pcre-ocaml (http://www.ocaml.info/home/ocaml_sources.html#pcre-ocaml)
+* res        (http://www.ocaml.info/home/ocaml_sources.html#res)
+* oUnit      (http://forge.ocamlcore.org/projects/ounit)
+
+Installing
+==========
+
+1. Go to the root of the package
+2. Run ./build-and-install -s
+
+Uninstalling
+============
+
+1. Go to the root of the package
+2. Run ./build-and-install -u -s
+

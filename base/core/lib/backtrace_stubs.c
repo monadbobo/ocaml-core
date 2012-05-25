@@ -4,7 +4,7 @@
 */
 
 #include "config.h"
-#ifdef (defined JSC_LINUX_EXT && defined JSC_ARCH_x86_64)
+#if (defined JSC_LINUX_EXT && defined JSC_ARCH_x86_64)
 
 #include <caml/memory.h>
 #include <caml/misc.h>
