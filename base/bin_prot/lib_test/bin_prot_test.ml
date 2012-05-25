@@ -725,14 +725,14 @@ module Make (Spec : SPEC) (Read : Reader_spec) (Write : Writer_spec) = struct
 
         "hashtbl" >::
           (fun () ->
-            let htbl = Hashtbl.create 0 in
             let bindings = List.rev [(42, 3.); (17, 2.); (42, 4.)] in
+            let htbl = Hashtbl.create (List.length bindings) in
             List.iter (fun (k, v) -> Hashtbl.add htbl k v) bindings;
             check_all 28 "hashtbl"
               (Read.bin_read_hashtbl Read.bin_read_int Read.bin_read_float)
               (Write.bin_write_hashtbl Write.bin_write_int Write.bin_write_float)
               [
-                (htbl, "[(42, 3.); (17, 2.); (42., 4.)]", 28);
+                (htbl, "[(42, 3.); (17, 2.); (42, 4.)]", 28);
                 (Hashtbl.create 0, "[]", 1)
               ];
           );
